@@ -22,7 +22,7 @@ FDD:		equ	$6F
 ;other definitions
 ;-----------------
 
-ULA		equ	$fe
+ULA		equ	$FE
 BootSector	equ	$8000
 
 ;Main program
@@ -42,17 +42,17 @@ Start:		di
 
 		ld	hl,$4000	; clear screen
 		ld	de,$4001
-		ld 	bc,$1aff
+		ld 	bc,$1AFF
 		ld	(hl),l
 		ldir
 
 		ld	hl,$5800
 		ld	de,$5801
-		ld	bc,$2ff
+		ld	bc,$2FF
 		ld	(hl),%00000111	; paper 0, ink 7
 		ldir
 
-		ld	sp,$7fff	; stack to RAM
+		ld	sp,$7FFF	; stack to RAM
 
 Boot:		ld	e,%00000100
 		ld	a,$D0		; FDC command - ForceInterrupt
@@ -79,9 +79,9 @@ FloppyReady:	in	a,(MOT)		; is floppy drive ready?
 		ld	a,1
 		out	(FDS),a		; FDC set sector reg to 1
 					;
-		ld	bc,$110B	; DMA sequence: $11 bytes, port address $0b
+		ld	bc,DMASeqLen+DMA; DMA sequence - b:length, c:DMA port address
 		ld	hl,DMASequence
-		otir			; initialise Z80DMA
+		otir			; initialise DMA
 					;
 		ld	a,$88
 		out	(FDC),a		; FDC command - read sector
@@ -135,8 +135,11 @@ DMASequence:	db	$C3		; R6: reset DMA
 ;		db	$CF		; R6: load
 ;		db	$87		; R6: enable DMA
 
-ProgLen		equ	$-Start
+DMASeqCount:	equ	$-DMASequence
+DMASeqLen:	equ	DMASeqCount*$100
+
+ProgLen:	equ	$-Start
 
 		DUP	2048-ProgLen	; change 2048 to your EPROM / FLASH / EEPROM size
-		db	$ff
+		db	$FF
 		EDUP
