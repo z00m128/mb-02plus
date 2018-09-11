@@ -79,7 +79,7 @@ FloppyReady:	in	a,(MOT)		; is floppy drive ready?
 		out	(FDS),a		; FDC set sector reg to 1
 					;
 		ld	bc,$100B	; DMA sequence: $10 bytes, port address $0b
-		ld	hl, DMASequence
+		ld	hl,DMASequence
 		otir			; initialise Z80DMA
 					;
 		ld	a,88h
@@ -103,23 +103,24 @@ BootEnd:	ld	a,0D0h		; FDC command - ForceInterrupt
 		out	(MOT),a		; stop all motors and unselect any floppy drive				
 		jp	BootSector	; Jump to the boot sector
 
-DMASequence:	db	$C3		; R6: Reset
+DMASequence:	db	$C3		; R6: reset DMA
 		db	$79		; R0: DMA transfer PortB->PortA
 		dw	BootSector	; destination address
 		dw 	$3FF		; size of data buffer
 		db	$14		; R1: PortA - memory, incremented, default timming
 		db	$28		; R2: PortB - I/O, fixed, default timming
-		db	$80		; R3
+		db	$80		; R3: disable DMA, no interrupt
 		db	$8D		; R4: byte mode, no interrupt, no pulse control
 		dw	FDD		; source port address (FDD)
 		db	$92		; R5: ready active LOW, CE/WAIT, stop on End-of-Block
-		db	$CF		; R6: write settings
+		db	$CF		; R6: load
 		db	$01		; R0: DMA transfer rd:PortB->PortA, wr:PortA->PortB
-		db	$CF		; R6: write settings
+		db	$CF		; R6: load
 		db	$87		; R6: enable DMA
 
 ;; Old DMA sequence which works only with UA858D clone		
-;DMASequence:	db	$C7		; R6: Reset Port A Timing
+;DMASequence:	db	$C3		; R6: reset DMA
+;		db	$C7		; R6: Reset Port A Timing
 ;		db	$CB		; R6: Reset Port B Timing
 ;		db	$79		; R0: DMA transfer PortB->PortA
 ;		dw	BootSector	; destination address
@@ -130,5 +131,5 @@ DMASequence:	db	$C3		; R6: Reset
 ;		db	$8D		; R4: byte mode, no interrupt, no pulse control
 ;		dw	FDD		; source port address
 ;		db	$92		; R5: ready active LOW, CE/WAIT, stop on End-of-Block
-;		db	$CF		; R6: write settings
-;		db	$87		; R6: wnable DMA
+;		db	$CF		; R6: load
+;		db	$87		; R6: enable DMA
