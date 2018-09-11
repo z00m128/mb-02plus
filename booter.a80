@@ -78,11 +78,11 @@ FloppyReady:	in	a,(MOT)		; is floppy drive ready?
 		ld	a,1
 		out	(FDS),a		; FDC set sector reg to 1
 					;
-		ld	bc,$100B	; DMA sequence: $10 bytes, port address $0b
+		ld	bc,$110B	; DMA sequence: $11 bytes, port address $0b
 		ld	hl,DMASequence
 		otir			; initialise Z80DMA
 					;
-		ld	a,88h
+		ld	a,$88
 		out	(FDC),a		; FDC command - read sector
 
 FloppyReady2:	in	a,(MOT)		; is floppy drive ready?
@@ -92,10 +92,10 @@ FloppyReady2:	in	a,(MOT)		; is floppy drive ready?
 		and	$1C
 		jr	nz,Boot		; try again if some read error occured
 		ld	a,(BootSector)
-		cp	18h		; check	BSDOS boot sector ID byte
+		cp	$18		; check	BSDOS boot sector ID byte
 		jr	nz,Boot		; try again if it's wrong
 
-BootEnd:	ld	a,0D0h		; FDC command - ForceInterrupt
+BootEnd:	ld	a,$D0		; FDC command - ForceInterrupt
 		out	(FDC),a		; reset FDC
 		ld	a,$C3		; DMA command - WR6: Reset
 		out	(DMA),a		; reset DMA
