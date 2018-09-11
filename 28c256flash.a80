@@ -2,7 +2,7 @@
 ;by z00m^TCG 10/2013
 ;version 1.0
 ;use it if LMN's flasher is not working with your 28c256
-;formatted for AS
+;formatted for SjASMPlus
 
 		OUTPUT	"28c256flash.cod"
 
