@@ -1,0 +1,428 @@
+;Byte write flasher for MB-02+ with 28c256 bootrom
+;by z00m^TCG 10/2013
+;version 1.0
+;use it if LMN's flasher is not working with your 28c256
+;formatted for AS
+
+		OUTPUT	"28c256flash.cod"
+
+		org	$7530
+
+;ports definition
+;mb-02+ memory:	address 23, %00010111b, $17
+;		bit0 - bit4	page 0-31
+;		bit5		write enable
+;		bit6		sram enable
+;		bit7		eeprom enable
+;!!! if bit6 and bit7 are set, /RESET is generated !!!
+
+mb02pag		equ	$17
+rompage0_rw	equ	%10100000
+rompage1_rw	equ	%10100001
+rompage0_ro	equ	%10000000
+rompage1_ro	equ	%10000001
+bsrompage	equ	%01000000
+
+ula		equ	$fe
+
+firmware_bank0	equ	$8000
+firmware_bank1	equ	$c000
+
+main		di
+		push	hl
+		push	de
+		push	bc
+		push	af
+		push	ix
+		push	iy
+
+		xor	a
+		ld	(bordercolor),a
+		out	(ula),a		
+
+		call	message_intro
+		call	press_space
+		call	message_flashin
+
+		call	disable_sdp
+
+		ld	a,rompage0_rw
+		out	(mb02pag),a
+		ld	hl,firmware_bank0
+		call	flash
+		ld	a,b
+		or	c
+		jr	nz,flash_err
+
+		xor	a
+		ld	(bordercolor),a
+
+		ld	a,rompage1_rw
+		out	(mb02pag),a
+		ld	hl,firmware_bank1
+		call	flash
+		ld	a,b
+		or	c
+		jr	nz,flash_err
+
+		call	enable_sdp
+
+		call	message_ok
+		ld	a,$27
+		call	attr_set
+quittobasic	ld	a,bsrompage
+		out	(mb02pag),a
+		call	dummy_loop
+		call	press_space                     
+		ld	iy,$5c3a         
+		ld	hl,$2758
+		exx          		
+		pop	iy
+		pop	ix
+		pop	af
+		pop	bc
+		pop	de
+		pop	hl                   
+		im	1                 
+		ei                     
+		ret 
+
+flash_err	ld	h,b
+		ld	l,c
+		ld	de,$4000
+		sbc	hl,de
+		and	a		;reset carry
+		ld	de,error_address
+		call	num2dec
+		call	message_nok
+		ld	a,$17
+		call	attr_set
+		jr	quittobasic
+
+press_space	ld	a,$7f
+	        in	a,(ula)
+	        and	$1f
+	        cp	$1e
+	        ret	z
+		jr	press_space
+
+dummy_loop	ld	hl,$ffff
+loop_loop	dec	hl
+		ld	a,h
+		or	l
+		jr	nz,loop_loop
+		ret
+
+;eeprom flasher, 16k bank size, byte write cycle
+;input: 	hl=firmware source
+;output:	bc=byte counter
+
+flash		ex 	de,hl		
+		ld	hl,$0		;begin of ROM bank
+		ld	bc,$4000	;number of bytes
+flash_loop	ld	a,(de)		;get byte from firmware source
+		ld	(hl),a		;write byte to ROM bank
+		inc	de		;increase firmware data counter
+		ex	af,af'		;store byte
+		push 	bc		;store byte counter
+		ld	bc,$2ee		;write cycle waiting loop ~10ms
+flash_test	ex	af,af'		;4T;restore byte
+		cp	(hl)		;7T;compare with ROM bank
+		jr	z,flash_ok	;7T;if OK, continue
+		ex	af,af'		;4T;store byte
+		dec	bc		;6T;decrease loop counter
+		ld	a,b		;4T;write cycle not finished yet
+		or	c		;4T;are we at the end?
+		jr	nz,flash_test	;12T;repeat if not
+		pop	bc		;something went wrong
+		ld	a,$2		;red border
+		out	(ula),a
+		ret			;then quit, bc=remaining bytes		
+
+flash_ok	call	progress	;change border
+		pop	bc		;restore byte counter
+		inc	hl		;increase bank counter
+		dec	bc		;decrease byte counter
+		ld	a,b		;are we at the end?
+		or	c
+		jr	nz,flash_loop	;if not, proceed next loop
+		ld	a,$4		;if yes, it seems flash was ok
+		out	(ula),a		;green border
+		ret			;then quit
+
+disable_sdp	ld	a,rompage1_rw
+		out	(mb02pag),a
+		ld	a,$aa
+		ld	($1555),a
+
+		ld	a,rompage0_rw
+		out	(mb02pag),a
+		ld	a,$55
+		ld	($2aaa),a
+
+		ld	a,rompage1_rw
+		out	(mb02pag),a
+		ld	a,$80
+		ld	($1555),a
+		ld	a,$aa
+		ld	($1555),a
+
+		ld	a,rompage0_rw
+		out	(mb02pag),a
+		ld	a,$55
+		ld	($2aaa),a
+
+		ld	a,rompage1_rw
+		out	(mb02pag),a
+		ld	a,$20
+		ld	($1555),a
+
+		ret
+
+enable_sdp	ld	a,rompage1_rw
+		out	(mb02pag),a
+		ld	a,$aa
+		ld	($1555),a
+
+		ld	a,rompage0_rw
+		out	(mb02pag),a
+		ld	a,$55
+		ld	($2aaa),a
+
+		ld	a,rompage1_rw
+		out	(mb02pag),a
+		ld	a,$a0
+		ld	($1555),a
+
+		ret
+
+;z80 bits by Baze
+;Input: HL = number to convert, DE = location of ASCII string
+;Output: ASCII string at (DE)
+
+num2dec		ld	bc,-10000
+		call	Num1
+		ld	bc,-1000
+		call	Num1
+		ld	bc,-100
+		call	Num1
+		ld	c,-10
+		call	Num1
+		ld	c,-1
+
+Num1		ld	a,'0'-1
+Num2		inc	a
+		add	hl,bc
+		jr	c,Num2
+		sbc	hl,bc
+
+		ld	(de),a
+		inc	de
+		ret		
+
+progress	ld	a,(bordercolor)
+		cp	$8
+		jr	nz,bskip
+		xor	a
+bskip		out 	(ula),a
+		inc	a
+		ld	(bordercolor),a
+		ret
+
+bordercolor	db	$0
+
+attr_set	ld	hl,$5800
+		ld	de,$5801
+		ld	bc,$2ff
+		ld	(hl),a
+		ldir
+                ret
+
+print		ld	a,(hl)
+                cp	$ff
+		jr	z,pr_end
+		call	char1
+		inc	hl
+		jr	print
+pr_end		ret
+
+char1		push	af
+		exx
+		ld	l,a
+		ld	h,$0
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		ld	bc,font-$100
+		add	hl,bc
+		ld	de,(printpos)
+		push	de
+		ld	b,$8
+char1a		ld	a,(hl)
+		ld	(de),a
+		inc	hl
+		inc	d
+		djnz	char1a
+		pop	de
+		inc	e
+		jr	nz,char1b
+		ld	a,d
+		add	a,$8
+		ld	d,a
+		cp	$58
+		jr	c,char1b
+		ld	d,$40
+char1b		ld	(printpos),de
+		exx
+		pop	af
+		ret
+
+printpos	dw	$0
+
+message_intro	ld	hl,msg_intro
+		ld	de,$4000
+		ld	(printpos),de
+		call	print
+		ret
+
+message_flashin	ld	hl,msg_flashing
+		ld	de,$4800
+		ld	(printpos),de
+		call	print
+		ret
+
+message_ok	ld	hl,msg_flash_ok
+		ld	de,$4800
+		ld	(printpos),de
+		call	print
+		ret
+
+message_nok	ld	hl,msg_flash_nok
+		ld	de,$4800
+		ld	(printpos),de
+		call	print
+		ret
+
+msg_intro	db	"+------------------------------+"
+		db	"|        Flash utitility       |"
+		db	"|    for MB-02+  with 28C256   |"
+		db	"|      by z00m^TCG 10/2013     |"
+		db	"+------------------------------+"
+		db	"                                "
+		db	"     PRESS SPACE TO CONTINUE    "
+		db	$ff
+
+msg_flashing	db	"PROGRAMMING..."
+		db	$ff
+
+msg_flash_ok	db	"Programming succesfully finished"
+		db	"Press SPACE to quit."
+		db	$ff
+
+msg_flash_nok	db	"ERROR!                          "
+		db	"Programming was not successful! "
+		db	"                                "
+		db	"Error address: "
+error_address	ds	$5
+		db	"            "
+		db	"                                "
+		db	"Press SPACE to quit."
+		db	$ff
+
+font		db	$00, $00, $00, $00, $00, $00, $00, $00
+		db	$00, $10, $10, $10, $10, $00, $10, $00
+		db	$00, $24, $24, $00, $00, $00, $00, $00
+		db	$00, $24, $7E, $24, $24, $7E, $24, $00
+		db	$00, $08, $3E, $28, $3E, $0A, $3E, $08
+		db	$00, $62, $64, $08, $10, $26, $46, $00
+		db	$00, $10, $28, $10, $2A, $44, $3A, $00
+		db	$00, $08, $10, $00, $00, $00, $00, $00
+		db	$00, $04, $08, $08, $08, $08, $04, $00
+		db	$00, $20, $10, $10, $10, $10, $20, $00
+		db	$00, $00, $14, $08, $3E, $08, $14, $00
+		db	$00, $00, $08, $08, $3E, $08, $08, $00
+		db	$00, $00, $00, $00, $00, $08, $08, $10
+		db	$00, $00, $00, $00, $3E, $00, $00, $00
+		db	$00, $00, $00, $00, $00, $18, $18, $00
+		db	$00, $00, $02, $04, $08, $10, $20, $00
+		db	$00, $3C, $46, $4A, $52, $62, $3C, $00
+		db	$00, $18, $28, $08, $08, $08, $3E, $00
+		db	$00, $3C, $42, $02, $3C, $40, $7E, $00
+		db	$00, $3C, $42, $0C, $02, $42, $3C, $00
+		db	$00, $08, $18, $28, $48, $7E, $08, $00
+		db	$00, $7E, $40, $7C, $02, $42, $3C, $00
+		db	$00, $3C, $40, $7C, $42, $42, $3C, $00
+		db	$00, $7E, $02, $04, $08, $10, $10, $00
+		db	$00, $3C, $42, $3C, $42, $42, $3C, $00
+		db	$00, $3C, $42, $42, $3E, $02, $3C, $00
+		db	$00, $00, $00, $10, $00, $00, $10, $00
+		db	$00, $00, $10, $00, $00, $10, $10, $20
+		db	$00, $00, $04, $08, $10, $08, $04, $00
+		db	$00, $00, $00, $3E, $00, $3E, $00, $00
+		db	$00, $00, $10, $08, $04, $08, $10, $00
+		db	$00, $3C, $42, $04, $08, $00, $08, $00
+		db	$00, $3C, $4A, $56, $5E, $40, $3C, $00
+		db	$00, $3C, $42, $42, $7E, $42, $42, $00
+		db	$00, $7C, $42, $7C, $42, $42, $7C, $00
+		db	$00, $3C, $42, $40, $40, $42, $3C, $00
+		db	$00, $78, $44, $42, $42, $44, $78, $00
+		db	$00, $7E, $40, $7C, $40, $40, $7E, $00
+		db	$00, $7E, $40, $7C, $40, $40, $40, $00
+		db	$00, $3C, $42, $40, $4E, $42, $3C, $00
+		db	$00, $42, $42, $7E, $42, $42, $42, $00
+		db	$00, $3E, $08, $08, $08, $08, $3E, $00
+		db	$00, $02, $02, $02, $42, $42, $3C, $00
+		db	$00, $44, $48, $70, $48, $44, $42, $00
+		db	$00, $40, $40, $40, $40, $40, $7E, $00
+		db	$00, $42, $66, $5A, $42, $42, $42, $00
+		db	$00, $42, $62, $52, $4A, $46, $42, $00
+		db	$00, $3C, $42, $42, $42, $42, $3C, $00
+		db	$00, $7C, $42, $42, $7C, $40, $40, $00
+		db	$00, $3C, $42, $42, $52, $4A, $3C, $00
+		db	$00, $7C, $42, $42, $7C, $44, $42, $00
+		db	$00, $3C, $40, $3C, $02, $42, $3C, $00
+		db	$00, $FE, $10, $10, $10, $10, $10, $00
+		db	$00, $42, $42, $42, $42, $42, $3C, $00
+		db	$00, $42, $42, $42, $42, $24, $18, $00
+		db	$00, $42, $42, $42, $42, $5A, $24, $00
+		db	$00, $42, $24, $18, $18, $24, $42, $00
+		db	$00, $82, $44, $28, $10, $10, $10, $00
+		db	$00, $7E, $04, $08, $10, $20, $7E, $00
+		db	$00, $0E, $08, $08, $08, $08, $0E, $00
+		db	$00, $00, $40, $20, $10, $08, $04, $00
+		db	$00, $70, $10, $10, $10, $10, $70, $00
+		db	$00, $10, $38, $54, $10, $10, $10, $00
+		db	$00, $00, $00, $00, $00, $00, $00, $FF
+		db	$00, $1C, $22, $78, $20, $20, $7E, $00
+		db	$00, $00, $38, $04, $3C, $44, $3C, $00
+		db	$00, $20, $20, $3C, $22, $22, $3C, $00
+		db	$00, $00, $1C, $20, $20, $20, $1C, $00
+		db	$00, $04, $04, $3C, $44, $44, $3C, $00
+		db	$00, $00, $38, $44, $78, $40, $3C, $00
+		db	$00, $0C, $10, $18, $10, $10, $10, $00
+		db	$00, $00, $3C, $44, $44, $3C, $04, $38
+		db	$00, $40, $40, $78, $44, $44, $44, $00
+		db	$00, $10, $00, $30, $10, $10, $38, $00
+		db	$00, $04, $00, $04, $04, $04, $24, $18
+		db	$00, $20, $28, $30, $30, $28, $24, $00
+		db	$00, $10, $10, $10, $10, $10, $0C, $00
+		db	$00, $00, $68, $54, $54, $54, $54, $00
+		db	$00, $00, $78, $44, $44, $44, $44, $00
+		db	$00, $00, $38, $44, $44, $44, $38, $00
+		db	$00, $00, $78, $44, $44, $78, $40, $40
+		db	$00, $00, $3C, $44, $44, $3C, $04, $06
+		db	$00, $00, $1C, $20, $20, $20, $20, $00
+		db	$00, $00, $38, $40, $38, $04, $78, $00
+		db	$00, $10, $38, $10, $10, $10, $0C, $00
+		db	$00, $00, $44, $44, $44, $44, $38, $00
+		db	$00, $00, $44, $44, $28, $28, $10, $00
+		db	$00, $00, $44, $54, $54, $54, $28, $00
+		db	$00, $00, $44, $28, $10, $28, $44, $00
+		db	$00, $00, $44, $44, $44, $3C, $04, $38
+		db	$00, $00, $7C, $08, $10, $20, $7C, $00
+		db	$00, $0E, $08, $30, $08, $08, $0E, $00
+		db	$00, $08, $08, $08, $08, $08, $08, $00
+		db	$00, $70, $10, $0C, $10, $10, $70, $00
+		db	$00, $14, $28, $00, $00, $00, $00, $00
+		db	$3C, $42, $99, $A1, $A1, $99, $42, $3C
+
