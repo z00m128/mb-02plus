@@ -2,6 +2,7 @@
 ;EPROM/EEPROM/FLASH booter for MB-02+
 ;      with fixed DMA sequence
 ;    by z00m^TCG^SinDiKAT 09/2018
+;      formatted for SjASMPlus
 ;====================================
 
 		OUTPUT "mb02boot.rom"
@@ -133,3 +134,9 @@ DMASequence:	db	$C3		; R6: reset DMA
 ;		db	$92		; R5: ready active LOW, CE/WAIT, stop on End-of-Block
 ;		db	$CF		; R6: load
 ;		db	$87		; R6: enable DMA
+
+ProgLen		equ	$-Start
+
+		DUP	2048-ProgLen	; change 2048 to your EPROM / FLASH / EEPROM size
+		db	$ff
+		EDUP
