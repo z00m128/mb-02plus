@@ -1,0 +1,674 @@
+;*s
+;==============================================================;
+;== Verzia 04 == Make boot sys == * 08.04.1996 Busy software ==;
+;==   Opravena DMA sekvencia   == * 13.09.2018               ==;
+;==============================================================;
+;*z!
+
+	OUTPUT	"makesys.cod"
+	
+;=================== Hardwarove definicie =====================;
+
+mot	=	#13
+rez	=	#33
+dma	=	#0b
+fdc	=	#0f
+fdt	=	#2f
+fds	=	#4f
+fdd	=	#6f
+
+ram	=	#17
+h04	=	#40                 ;; 4
+h05	=	#41                 ;; 5
+h0c	=	#60                 ;; c
+h0d	=	#61                 ;; d
+
+rdrom	=	#3c98
+rdram	=	#3c9a
+wrrom	=	#3c9c
+wrram	=	#3c9e
+
+
+boot	=	#6000               ;; MakeSys utilitka
+master	=	#6400
+adresa	=	#6400
+
+;=========== Vytvorenie systemoveho bootu =====================;
+
+	org	#5f00
+
+make	call	wrram
+	ld	hl,insert
+	ld	a,#34               ;; messx (insert disk)
+	rst	#20
+	ld	b,0
+	jr	nc,chybx
+	ld	a,#11               ;; kuini (bude sa zapisovat)
+	rst	#20
+	ld	b,1                 ;; 1 = chyba kuini
+	jr	nc,chybx
+	ld	e,#01               ;; disk #01
+	ld	a,#0c               ;; aktive
+	rst	#18
+	ld	b,2                 ;; 2 = disk not ready
+	cp	b
+	jr	nz,chyba
+	ld	hl,adresa           ;; adresa
+	ld	de,#01
+	ld	a,#04               ;; rdsec
+	rst	#18
+	or	a
+	ld	b,3                 ;; 3 = chyba sektora
+	jr	nz,chyba
+
+	ld	hl,adresa+2         ;; povodny boot
+	ld	de,boot+2
+	ld	bc,#60-2
+	ldir
+	ld	hl,#80              ;; aktualny setup
+	ld	bc,#10
+	ldir
+
+	ld	hl,#6e18            ;; Skok do bootu
+	ld	(#6000),hl
+
+	ld	hl,boot             ;; Zapise do zalohy
+	ld	de,#02
+	ld	a,#05               ;; wrsec
+	rst	#18
+	or	a
+	ld	b,4                 ;; 4 = chyba prveho zapisu
+	jr	nz,chyba
+	ld	hl,boot             ;; A az potom naostro
+	ld	de,#01
+	ld	a,#05               ;; wrsec
+	rst	#18
+	or	a
+	ld	b,5                 ;; 5 = chyba druheho zapisu
+	jr	nz,chyba
+	ld	a,#0d               ;; pasive
+	rst	#18
+	jp	rdrom
+
+chyba	ld	c,a
+	ld	(numerr),bc         ;; pasive
+	ld	hl,txterr
+	ld	a,#34               ;; messx
+	rst	#20
+chybx	rst	#08
+	db	18
+		                    ;; Ak chyba tak potom
+		                    ;; Invalid I/O device
+
+insert	db	'Insert disk into'
+	db	' drive 1'
+	dw	#c900
+txterr	db	'Error ',#1d
+	dw	numerr,#c900
+
+numerr	dw	#00
+
+	dup	(boot+#60)-$
+	db	#00
+	edup
+
+	org	boot+#60            ;; "# mbs **"
+z
+setup	db	#03                 ;; rezimy
+	db	80                  ;; stopy
+	db	#00                 ;; krokovanie
+	db	#80                 ;; disk change,ak je 1 tak ok
+
+	db	#01                 ;; rezimy
+	db	80                  ;; stopy
+	db	#00                 ;; krokovanie
+	db	#01                 ;; ready, ak je 0 tak ok
+
+	dw	0,0,0,0             ;; dalsie dve mechaniky nie su
+
+run	jr	run1                ;; Hlavny start bootu
+mkbio	jr	mkbios              ;; Vytvorenie biosov
+bank0	jr	bnkrom              ;; out 23,12
+bank1	jr	bnkdos              ;; out 23,13
+
+drvbot	db	#01                 ;; bootovaci drive (01/02)
+modbot	db	#01                 ;; bootovaci rezim (DD/HD)
+
+bnkrom	ld	a,h0c               ;; Aby mohol byt
+	db	#01                 ;; master-boot
+bnkdos	ld	a,h0d               ;; hardwerovo
+	out	(ram),a             ;; nezavisly
+	ret
+
+run1	ld	hl,#8000            ;; Boot sa loaduje na #8000
+	ld	de,boot             ;; ale pracuje na #6000
+	ld	b,#04               ;; preto sa
+	ldir	                    ;; !presunie!
+	jp	run2
+
+run2	di
+	ld	sp,boot
+
+este	call	mkbios              ;; Napokuje ROM a FDC bios
+
+	ld	de,(drvbot)         ;; e=disk,d=rezim
+	push	de
+	call	aktive
+	pop	de
+	cp	#02
+	jr	c,zle
+	call	rest
+	ld	e,d
+	call	rezim
+	ld	hl,master
+	ld	de,(masfz1)
+	call	rdsec
+	or	a
+	jr	nz,zle
+	ld	hl,master+#0400
+	ld	de,(masfz2)
+	call	rdsec
+	or	a
+	jp	z,#6402             ;; Spustenie master bootu
+zle	ld	a,r
+	out	(#fe),a
+	jr	este
+
+mkbios	call	bank0               ;; Napokuje do systemu:
+	call	mkrom               ;; ROM bios [do stranky romky]
+	call	bank1
+	call	mkrom               ;; ROM bios [do stranky dosu]
+	ld	hl,#6100            ;; FDC bios [do stranky dosu]
+	ld	de,bz
+	ld	bc,bk-bz
+	ldir
+	ld	hl,setup
+	ld	de,tabset
+	ld	c,#10
+	ldir
+	ret
+mkrom	ld	hl,vektor           ;; Napokovanie prepinacich rutin
+	ld	de,#3c98
+	ld	bc,sem-vektor
+	ldir
+	ld	de,r04              ;; Napokovanie vektorov
+	ld	c,lx_               ;; na prepinacie rutinky
+	ldir
+	ret
+ee
+		                    ;; --------------------------
+;	org	#0100,#0100+boot    ;; FDC bios: obsluha hardware
+
+	        org  #0100+boot
+		disp #0100
+bz
+verzia	=	28
+tabset	=	#80
+biofdc	jr	skoky               ;; 00 reset radica
+	dw	status              ;; 01
+	dw	rest                ;; 02
+	dw	seek                ;; 03
+	dw	rdsec               ;; 04
+	dw	wrsec               ;; 05
+	dw	rdtrk               ;; 06
+	dw	wrtrk               ;; 07
+	dw	rdadd               ;; 08
+	dw	rezim               ;; 09
+	dw	settrk              ;; 0a
+	dw	gettrk              ;; 0b
+	dw	aktive              ;; 0c
+	dw	pasive              ;; 0d
+	dw	info                ;; 0e info o diskoch
+	dw	setmax              ;; 0f maximalna dlzka pre DMA
+	dw	setmlt              ;; 10 multitaskingove operacie
+	dw	setoff              ;; 11 vypinanie motorov pri pasive
+
+skoky	add	a,a
+	jp	z,getver
+	cp	low skoky
+	jp	nc,status
+	push	hl
+	ld	l,a
+	ld	h,high biofdc
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	ex	(sp),hl
+ret	ret
+
+wrtrk	call	sets
+	or	#f0
+	jr	write
+
+wrsec	call	sets
+	or	#a8
+write	ld	(dmadd),hl
+	push	hl
+	ld	hl,r0
+	set	2,(hl)
+	jr	wwrr
+
+rdadd	call	seta                ;; bit 7,e = strana
+	or	#c0
+	jr	read
+
+rdtrk	call	sets
+	or	#e0
+	jr	read
+
+rdsec	call	sets
+	or	#88
+read	ld	(dmadd),hl
+	push	hl
+	ld	hl,r0
+	res	2,(hl)
+wwrr	ld	bc,rdh+dma
+	ld	hl,rds
+	otir
+	call	com
+
+mltadd	call	ret
+
+	pop	hl
+loozac	ld	b,#ff
+looloo	ld	a,#fb               ;; Klavesy Q+W ?
+	in	a,(#fe)
+	and	#03
+	ld	a,#20               ;; "break"
+	jr	z,resret
+
+	in	a,(fdc)             ;; Hotovo ?
+	rra
+	jr	nc,rwend
+
+	call	tstrdy              ;; stale ready ?
+	ld	a,#02
+	jr	nc,resret           ;; "disk not ready"
+
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,looloo
+timout	ld	a,#01               ;; "time out"
+resret	push	af
+	ld	a,#c3
+	out	(dma),a
+	ld	a,#d0
+	out	(fdc),a
+	pop	af
+	ret
+
+rwend	ld	a,#c3
+	out	(dma),a
+	jr	status
+
+setmlt	ld	a,h
+	or	l
+	jr	nz,setmm
+	ld	hl,ret
+setmm	ld	(mltadd+1),hl
+	ret
+
+setmax	dec	bc
+	ld	(dmalen),bc
+	ret
+
+;; Programovacia sekvencia pre DMA
+
+;; DMA patch by Poke & LMN 2006
+;; funguje so vsetkymi DMA
+
+rds	db	#c3		;stop,Z80A,Z80B
+	db	#79		;r0 musi byt docasne B->A pre Zilog DMA
+dmadd	dw	#5555		;rd:kam
+dmalen	dw	#ffff		;dlzka
+	db	#14		;r1
+	db	#28		;r2
+	db	#80		;r3
+	db	#8d		;r4
+	dw	fdd		;rd:odkial
+	db	#92		;r5 Zmena:Enable wait state
+	db	#cf		;zapis udajov do kanalu B
+r0	db	#01		;r0 rd:B->A wr:A->B
+	db	#cf,#87		;zapis udajov,start
+
+;; Povodna sekvencia - funguje len s UA858D
+
+;rds	db	#c3,#c7,#cb         ;; stop,Z80A,Z80B
+;r0	db	#79                 ;; r0 rd:B->A wr:A->B
+;dmadd	dw	#5555               ;; rd:kam
+;dmalen	dw	#ffff               ;; dlzka
+;	db	#14                 ;; r1
+;	db	#28                 ;; r2
+;	db	#c0                 ;; r3
+;	db	#8d                 ;; r4
+;	dw	fdd                 ;; rd:odkial
+;	db	#92                 ;; r5 Zmena:Enable wait state
+;	db	#cf,#87             ;; zapis udajov,start
+
+rde
+rdl	=	rde-rds
+rdh	=	rdl*#0100
+
+sets	call	seek
+seta	ld	a,e
+	and	#7f
+	out	(fds),a
+	ld	a,e                 ;; e=sektor, bit 7=strana
+	and	#80                 ;; hl=adresa
+	rlca
+	rlca
+	ret
+		                    ;; ------------
+getspd	push	hl
+	ld	hl,(setadd)
+	inc	l
+	inc	l
+	ld	a,(hl)              ;; #00 + [0..3] -> vystup
+	and	#03
+	pop	hl
+	ret
+
+rest	ld	a,#01               ;; Restore
+	out	(rez),a
+	call	getspd
+setrr	call	comm
+	xor	a
+	jr	rstsek
+
+seek	ld	a,d                 ;; d=stopa
+sek	out	(fdd),a
+	ld	c,a
+	in	a,(fdt)
+	cp	c
+	ret	z
+	ld	a,#01               ;; krokovanie
+	out	(rez),a             ;; je vzdy HD
+	call	getspd
+	or	#10                 ;; seek
+	call	comm
+	in	a,(fdt)
+rstsek	call	sett
+rstrez	db	#3e
+mez	db	#01
+	out	(rez),a
+status	in	a,(fdc)
+	and	#dc
+	ret
+
+settrk	ld	a,d                 ;; vstup: d=stopa
+	out	(fdt),a
+sett	push	hl
+	ld	hl,(drvadd)
+	ld	(hl),a
+	pop	hl
+	ret
+
+gettrk	in	a,(fdt)             ;; vystup: a=stopa
+	ret
+
+getver	ld	bc,verzia
+reset	ld	a,#d0
+	call	com
+	jr	rstrez
+
+comm	call	com
+co1	in	a,(fdc)
+	rrca
+	jr	c,co1
+	ret
+
+com	out	(fdc),a
+	ld	a,#04
+cc1	dec	a                   ;; 14 ms
+	jr	nz,cc1
+	ret
+		                    ;; --------------
+
+rezim	ld	hl,(setadd)
+	ld	a,e
+	cp	#02
+	jr	nc,rezzle
+	add	a,a
+	add	a,a
+	add	a,a
+	or	#46
+	ld	(bit1+1),a
+bit1	bit	1,(hl)
+	jr	z,rezzle
+	ld	hl,(drvadd)
+	inc	l
+	ld	a,e
+	ld	(hl),a
+	ld	(mez),a
+	out	(rez),a
+	xor	a
+	ret
+rezzle	xor	a
+	inc	a
+	ret
+
+		                    ;; --------------
+aktive	call	pasive              ;; e=cislo mechaniky
+	xor	a
+	xor	e
+	ret	z
+	cp	#05                 ;; 4 mechaniky
+	jr	c,akti1
+akterr	xor	a
+	ret
+
+akti1	add	a,a                 ;; Vypocet adries
+	ld	d,a
+	add	a,low drvvar
+	ld	h,high drvvar
+	ld	l,a
+	ld	(drvadd),hl
+	ld	a,d
+	add	a,d
+	add	a,#7c
+	ld	h,#00
+	ld	l,a
+	ld	(setadd),hl
+	ld	a,(hl)
+	or	a
+	jr	z,akterr
+	inc	l
+	inc	l
+	inc	l
+	ld	d,(hl)              ;; d = disk_change/ready,+/-
+	ld	a,d
+	ld	(rdyxor+1),a
+	ld	hl,(drvadd)
+	ld	a,(hl)
+	out	(fdt),a             ;; nastavenie stopy
+	inc	l
+	ld	a,(hl)
+	ld	(mez),a             ;; nastavenie rezimu
+	out	(rez),a
+	ld	b,e
+	ld	c,#08               ;; motor-in (pre rdy-mech)
+	ld	a,#c0               ;; motor-out + enable
+aktrot	rlca
+	rlca
+	rlc	c
+	djnz	aktrot
+	bit	7,d
+	jr	z,aktrdy
+
+aktdc	db	#f6                 ;; Mech disk_change
+met	db	#00                 ;; or a,#xx
+	ld	(met),a
+	out	(mot),a
+	ld	b,#00               ;; pauzicka na nabitie kondenzatora
+_metlp	djnz	_metlp
+	call	tstrdy              ;; Vystup:
+	ld	a,#02               ;; 2 = vsetko v poriadku
+	ret	c                   ;;     (stale ta ista disketa)
+	call	reset
+	in	a,(fdt)             ;; 3 = disketa bola vymenena
+	xor	#01                 ;;     (ale inak je ready)
+	call	sek
+	call	tstrdy              ;; 1 = disketa sa nehlasi
+	ld	a,#03               ;;     (not ready)
+	ret	c
+	jr	pasive
+
+tstrdy	in	a,(mot)
+	rrca
+rdyxor	xor	#55
+	rrca	                    ;; Vystup:
+	ret	                    ;; nc=zle,c=ok
+
+aktrdy	ld	d,a                 ;; Mech ready
+	in	a,(mot)
+	and	c
+	ld	e,a
+	ld	a,(met)
+	or	d
+	ld	(met),a
+	out	(mot),a
+	ld	b,#00               ;; pauzicka na nabitie kondenzatora
+_metlp2	djnz	_metlp2
+	dec	b                   ;; Time slucka b=#ff
+wwwrdy	call	tstrdy              ;; toci sa a skontrolujeme READY
+	jr	c,aktrok
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,wwwrdy
+	jr	pasive              ;; 1 = disk not ready
+
+aktrok	ld	a,e
+	or	e
+	ld	a,#03               ;; 3 = vymenena (mozno) ale inak ok
+	ret	z                   ;; 2 = urcite nevymenena a ready
+	dec	a
+	ret
+		                    ;; ---
+
+pasive	push	hl                  ;; vypni vsetky mechaniky
+	ld	hl,setnic           ;; [motory mozno nie]
+	ld	(setadd),hl
+	ld	l,low atrapa
+	ld	(drvadd),hl
+	ld	hl,met
+motoff	ld	a,#00
+	and	(hl)
+	ld	(hl),a
+	out	(mot),a
+	ld	a,#01               ;; [1=drive not ready]
+	pop	hl
+	ret
+
+setoff	ld	a,e                 ;; e=#00 vypinanie motorov
+	add	a,a                 ;; e=#ff nie
+	sbc	a,a                 ;; vyznamny je bit 7
+	and	#aa                 ;; [kvoli kopirovaniu]
+	ld	(motoff+1),a
+	ret
+		                    ;; --------------
+info	ld	a,e                 ;; Informacie o e-tom disku
+	ld	de,#00              ;; d=stopy,e=rezimy
+	or	a
+	ret	z
+	cp	#05
+	ret	nc
+	add	a,a
+	add	a,a
+	add	a,#7c
+	ld	(infget+2),a
+infget	ld	de,(tabset)
+	ret
+		                    ;; Systemove premenne biosu:
+
+setadd	dw	#5555               ;; adresa setupu pre aktivny drive
+drvadd	dw	#5555               ;; adresa vars pre aktivny drive
+
+setnic	dw	0,0
+drvvar
+atrapa	dw	#5555               ;; adresovane pri vypnutych drivoch
+
+d1trk	db	#00                 ;; stopa  (poloha hlavy drivu)
+d1mod	db	#00                 ;; hd/dd
+
+d2trk	db	#00                 ;; stopa
+d2mod	db	#00                 ;; hd/dd
+
+d3trk	db	#00                 ;; stopa
+d3mod	db	#00                 ;; hd/dd
+
+d4trk	db	#00                 ;; stopa
+d5mod	db	#00                 ;; hd/dd
+
+bk
+bl	=	bk-bz               ;; Koniec FDC biosu
+		                    ;; ----------------		
+		
+	dw	-1,-1,-1,-1
+	dw	-1,-1,-1,-1
+	db	-1
+	dw	-1,-1,-1,-1
+	dw	-1,-1,-1,-1
+	db	-1
+	dw	-1,-1,-1,-1
+	dw	-1,-1,-1,-1
+	db	-1
+	dw	-1,-1,-1,-1
+	dw	-1,-1,-1,-1
+	db	-1
+	dw	-1,-1,-1,-1
+	dw	-1,-1,-1,-1
+	db	-1
+
+		ent
+
+	dup	(boot+#03bc)-$
+	db	#00
+	edup
+
+	org	boot+#03bc
+
+masfz1	dw	#0588               ;; Fyzicke cisla master bootu
+masfz2	dw	#0589               ;; !!!
+
+vektor	db	#18,r04-#3c9a       ;; ROM bios: nemeni ziadne registre
+	db	#18,r05-#3c9c
+	db	#18,r0c-#3c9e
+	db	#18,r0d-#3ca0
+sem
+
+;	org	#3ccc,sem
+
+	org	sem
+	disp #3ccc
+
+r04	push	af                  ;; <- stranka 0,zakaz zapisu
+	ld	a,h04
+	jr	out
+r05	push	af                  ;; <- stranka 1,zakaz zapisu
+	ld	a,h05
+	jr	out
+r0c	push	af                  ;; <- stranka 0,povolenie
+	ld	a,h0c
+	jr	out
+r0d	push	af                  ;; <- stranka 1,povolenie
+	ld	a,h0d
+out	out	(ram),a
+	pop	af
+	ret
+
+	dw	-1,-1,-1,-1
+	dw	-1,-1,-1
+kx
+lx_	=	kx-r04
+	db	'************'
+;	db	'************'
+	db	'********'
+
+	ent
+
+k
+p	=	make
+l	=	#6400-make
