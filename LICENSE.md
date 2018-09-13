@@ -1,6 +1,6 @@
 BSD 3-Clause License
 
-Copyright (c) 2018, z00m
+Copyright (c) 2018, z00m, Busy Soft, LMN, Poke. 
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
