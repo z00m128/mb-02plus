@@ -21,7 +21,7 @@ What was changed?
 Installation:
 -------------
 
-1. Burn the attached mb02boot.rom to your 27C16 EPROM.
+1. Burn new booter to your 27C16 EPROM.
    It is simple booter, without any graphic or text.
    After ZX Spectrum is turned on, it waits for boot
    disk and when it's inserted it boots the system.
@@ -32,7 +32,7 @@ Installation:
    flash utility stored in directory $1 on boot disk.
    There are two binaries for flashing:
    8bcBootROM - original BootROM by 8BC with animation
-   DMAfixBOOT - simple booter (same as in mb02boot.rom)
+   DMAfixBOOT - simple booter
 
 3. Insert new bootdisk and let it boot. Done!
 
