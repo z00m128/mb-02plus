@@ -78,11 +78,11 @@ FloppyReady:	in	a,(MOT)		; is floppy drive ready?
 
 		ld	a,1
 		out	(FDS),a		; FDC set sector reg to 1
-					;
+
 		ld	bc,DMASeqLen+DMA; DMA sequence - b:length, c:DMA port address
 		ld	hl,DMASequence
 		otir			; initialise DMA
-					;
+
 		ld	a,$88
 		out	(FDC),a		; FDC command - read sector
 
@@ -108,12 +108,12 @@ DMASequence:	db	$C3		; R6: reset DMA
 		db	$79		; R0: DMA transfer PortB->PortA
 		dw	BootSector	; destination address
 		dw 	$3FF		; size of data buffer
-		db	$14		; R1: PortA - memory, incremented, default timming
-		db	$28		; R2: PortB - I/O, fixed, default timming
+		db	$14		; R1: PortA - memory, incremented, default timing
+		db	$28		; R2: PortB - I/O, fixed, default timing
 		db	$80		; R3: disable DMA, no interrupt
 		db	$8D		; R4: byte mode, no interrupt, no pulse control
 		dw	FDD		; source port address (FDD)
-		db	$92		; R5: ready active LOW, CE/WAIT, stop on End-of-Block
+		db	$92		; R5: ready active LOW, CE/WAIT, stop on end of block
 		db	$CF		; R6: load
 		db	$01		; R0: DMA transfer rd:PortB->PortA, wr:PortA->PortB
 		db	$CF		; R6: load
@@ -126,8 +126,8 @@ DMASequence:	db	$C3		; R6: reset DMA
 ;		db	$79		; R0: DMA transfer PortB->PortA
 ;		dw	BootSector	; destination address
 ;		dw	$3FF		; size of data buffer
-;		db	$14		; R1: PortA - memory, incremented, default timming
-;		db	$28		; R2: PortB - I/O, fixed, default timming
+;		db	$14		; R1: PortA - memory, incremented, default timing
+;		db	$28		; R2: PortB - I/O, fixed, default timing
 ;		db	$C0		; R3: enable DMA (this is wrong - DMA cannot be enabled before full initializing.)
 ;		db	$8D		; R4: byte mode, no interrupt, no pulse control
 ;		dw	FDD		; source port address
