@@ -31,8 +31,8 @@ Installation:
    you can reprogam it on the fly. Just use corresponding
    flash utility stored in directory $1 on boot disk.
    There are two binaries for flashing:
-   8bcBootROM - original BootROM by 8BC with animation
-   DMAfixBOOT - simple booter
+   - 8bcBootROM - original BootROM by 8BC with animation
+   - DMAfixBOOT - simple booter
 
 3. Insert new bootdisk and let it boot. Done!
 
@@ -56,5 +56,5 @@ Future plans:
 
 (c)2018 z00m, Busy, Poke, LMN
 
-https://github.com/z00m128/mb-02plus
-https://z00m.speccy.cz/?file=mb-02
+- https://github.com/z00m128/mb-02plus
+- https://z00m.speccy.cz/?file=mb-02
