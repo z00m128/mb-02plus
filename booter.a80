@@ -54,31 +54,31 @@ Start:		di
 		ldir
 
 		ld	sp,$5FFF	; stack to RAM
-		
+
 StartupMessage: ld	hl,MsgStartup0	; print informations
 		ld	de,VideoRAM
 		call	Print
-		
+
 		ld	hl,MsgStartup1
 		ld	de,VideoRAM+$20
 		call	Print
-		
+
 		ld	hl,MsgStartup2
 		ld	de,VideoRAM+$40
 		call	Print
-		
+
 		ld	hl,MsgStartup3
 		ld	de,VideoRAM+$60
 		call	Print
-		
+
 		ld	hl,MsgStartup4
 		ld	de,VideoRAM+$8*$100+$40
 		call	Print
-		
+
 		ld	hl,MsgStartup5
 		ld	de,VideoRAM+$10*$100+$e0
 		call	Print		
-		
+
 Boot:		ld	e,%00000100
 		ld	a,$D0		; FDC command - ForceInterrupt
 		out	(FDC),a		; reset FDC
@@ -103,11 +103,11 @@ FloppyReady:	in	a,(MOT)		; is floppy drive ready?
 
 		ld	a,1
 		out	(FDS),a		; FDC set sector reg to 1
-					;
+
 		ld	bc,DMASeqLen+DMA; DMA sequence - b:length, c:DMA port address
 		ld	hl,DMASequence
 		otir			; initialise DMA
-					;
+
 		ld	a,$88
 		out	(FDC),a		; FDC command - read sector
 
@@ -127,17 +127,17 @@ BootEnd:	ld	a,$D0		; FDC command - ForceInterrupt
 		out	(DMA),a		; reset DMA
 		xor	a
 		out	(MOT),a		; stop all motors and unselect any floppy drive
-		
+
 		ld	hl,MsgBootEnd0	; print "Booting..." message
 		ld	de,VideoRAM+$8*$100+$40
 		call	Print
-		
+
 		ld	de,$ffff	; dummy pause for about 1 sec, so user can read the message
 DummyLoop:	dec	de
 		ld	a,d
 		or	e
 		jr	nz,DummyLoop
-		
+
 		jp	BootSector	; Jump to the boot sector
 
 DMASequence:	db	$C3		; R6: reset DMA
@@ -155,7 +155,7 @@ DMASequence:	db	$C3		; R6: reset DMA
 		db	$CF		; R6: load
 		db	$87		; R6: enable DMA
 
-;; Old DMA sequence which works only with UA858D clone		
+;; Old DMA sequence which works only with UA858D clone
 ;DMASequence:	db	$C3		; R6: reset DMA
 ;		db	$C7		; R6: Reset Port A Timing
 ;		db	$CB		; R6: Reset Port B Timing
@@ -186,13 +186,12 @@ MsgBootEnd0:	dc	"Booting...                               "
 ;6-bit text print (42 columns) by MTB (c)1994 @ ZXM 5/1994
 ;simplification, bugfix and sjasmplus formatting by z00m/SinDiKAT (c)2016
 ;input: hl=text address, de=print position
- 
+
 Print:		ld	(pos),de
 		xor	a
 		ld	(roll),a	
- 
-print1:		
-		push	hl
+
+print1:		push	hl
 		ld	a,(hl)
 		and	127
 		call	ascii
@@ -206,51 +205,43 @@ print1:
 		jr	nz,print3
 		ld	a,0
 		call	print2
-print3:
-		ld	(roll),a
+print3:		ld	(roll),a
 		pop	hl
 		bit	7,(hl)
 		inc	hl
 		ret	nz
 		jr	print1
- 
-print2:
-		ld	hl,(pos)
+
+print2:		ld	hl,(pos)
 		inc	hl
 		ld	(pos),hl
 		ret
- 
-ascii:
-		ld	bc,font
+
+ascii:		ld	bc,font
 		push	bc
 		sub	32
 		ld	e,a
 		ld	d,0
 		ld	b,8
 		ld	hl,0
-x8:
-		add	hl,de
+x8:		add	hl,de
 		djnz	x8
 		pop	bc
 		add	hl,bc
 		ld	de,(pos)
 		ex	de,hl
-asci0:
-		ld	a,(roll)
+asci0:		ld	a,(roll)
 		cp	3
 		jr	z,roll3
 		cp	2
 		jr	z,roll2
 		cp	1
 		jr	z,roll1
-roll0:
-		call	asci1
+roll0:		call	asci1
 		ret
  
-roll1:
-		ld	b,8
-rol1_1:
-		ld	a,(de)
+roll1:		ld	b,8
+rol1_1:		ld	a,(de)
 		sla	a
 		ld	c,0
 		rl	c
@@ -263,10 +254,8 @@ rol1_1:
 		djnz	rol1_1
 		ret
  
-roll2:
-		ld	b,8
-rol2_1:
-		ld	a,(de)
+roll2:		ld	b,8
+rol2_1:		ld	a,(de)
 		sla	a
 		ld	c,0
 		rl	c
@@ -283,10 +272,8 @@ rol2_1:
 		djnz	rol2_1
 		ret
  
-roll3:
-		ld	b,8
-rol3_1:
-		ld	a,(de)
+roll3:		ld	b,8
+rol3_1:		ld	a,(de)
 		srl	a
 		srl	a
 		push	bc
@@ -296,18 +283,15 @@ rol3_1:
 		djnz	rol3_1
 		ret
  
-asci1:
-		ld	b,8
-asc1:
-		ld	a,(de)
+asci1:		ld	b,8
+asc1:		ld	a,(de)
 		ld	(hl),a
 		inc	de
 		call	downhl
 		djnz	asc1
 		ret
  
-asci2:
-		ld	(hl),a
+asci2:		ld	(hl),a
 		ld	a,c
 		dec	hl
 		or	(hl)
@@ -316,12 +300,10 @@ asci2:
 		call	downhl
 		ret
  
-asci3:
-		or	(hl)
+asci3:		or	(hl)
 		ld	(hl),a
  
-downhl:
-		inc	h
+downhl:		inc	h
 		ld	a,h
 		and	7
 		ret	nz
@@ -332,15 +314,13 @@ downhl:
 		jr	c,down2
 		sub	8
 		ld	h,a
-down2:
-		cp	88
+down2:		cp	88
 		ret	c
 		ld	hl,64
 		ret
 		
 ;5-bit font
-font:
-		db	$00, $00, $00, $00, $00, $00, $00, $00
+font:		db	$00, $00, $00, $00, $00, $00, $00, $00
 		db	$00, $20, $20, $20, $20, $00, $20, $00
 		db	$00, $50, $50, $00, $00, $00, $00, $00
 		db	$00, $50, $F8, $50, $50, $F8, $50, $00
