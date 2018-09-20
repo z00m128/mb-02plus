@@ -22,7 +22,6 @@ Installation:
 -------------
 
 1. Burn new booter to your 27C16 EPROM.
-   It is simple booter, without any graphic or text.
    After ZX Spectrum is turned on, it waits for boot
    disk and when it's inserted it boots the system.
    Nothing more.
@@ -31,8 +30,8 @@ Installation:
    you can reprogam it on the fly. Just use corresponding
    flash utility stored in directory $1 on boot disk.
    There are two binaries for flashing:
-   - 8bcBootROM - original BootROM by 8BC with animation
-   - DMAfixBOOT - simple booter
+   - 8bcBootROM - original BootROM by 8BC with animation and wrong DMA sequence
+   - DMAfixBOOT - new booter
 
 3. Insert new bootdisk and let it boot. Done!
 
@@ -47,12 +46,6 @@ You can then use the Masterboot and BSdos308 files from
 old boot disk by Busy or 8BC, if you want to stay on 
 BSROM 118. These files are hardware independent.
 
-
-Future plans:
--------------
-
-- to implement some messages to booter, so user is informed
-  what is going on
 
 (c)2018 z00m, Busy, Poke, LMN
 
