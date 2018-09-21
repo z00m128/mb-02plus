@@ -164,10 +164,10 @@ FloppyReady2:	in	a,(MOT)			; is floppy drive ready?
 		jr	z,FloppyReady2
 		in	a,(FDC)			; FDC command - read byte
 		and	#1C
-		jr	nz,Boot			; try again if some read error occured
+		jp	nz,Boot			; try again if some read error occured
 		ld	a,(BootSector)
 		cp	#18			; check	BSDOS boot sector ID byte
-		jr	nz,Boot			; try again if it's wrong
+		jp	nz,Boot			; try again if it's wrong
 
 BootEnd:	ld	a,#D0			; FDC command - ForceInterrupt
 		out	(FDC),a			; reset FDC
