@@ -7,11 +7,12 @@
 
 		OUTPUT "mb02boot.rom"
 
-version:	equ	#02
+version:	equ	#03
 
 ;MB02 PORTS
 ;----------
 
+RTC:		equ	#03
 FDC:		equ	#0F
 DMA:		equ	#0B
 MOT:		equ	#13
@@ -32,16 +33,16 @@ VideoRAM:	equ	#4000
 		org	#0000
 
 Start:		di
-		ld	a,#D0		; FDC command - ForceInterrupt
-		out	(FDC),a		; reset FDC
-		ld	a,#C3		; DMA command - R6: Reset
-		out	(DMA),a		; reset DMA
+		ld	a,#D0			; FDC command - ForceInterrupt
+		out	(FDC),a			; reset FDC
+		ld	a,#C3			; DMA command - R6: Reset
+		out	(DMA),a			; reset DMA
 		xor	a
-		out	(MOT),a		; stop all floppy motors and unselect any floppy drive
+		out	(MOT),a			; stop all floppy motors and unselect any floppy drive
 
-		out	(ULA),a		; border 0
+		out	(ULA),a			; border 0
 
-		ld	hl,#4000	; clear screen
+		ld	hl,#4000		; clear screen
 		ld	de,#4001
 		ld 	bc,#1AFF
 		ld	(hl),l
@@ -50,12 +51,12 @@ Start:		di
 		ld	hl,#5800
 		ld	de,#5801
 		ld	bc,#2FF
-		ld	(hl),%00000111	; paper 0, ink 7
+		ld	(hl),%00000111		; paper 0, ink 7
 		ldir
 
-		ld	sp,#5FFF	; stack to RAM
+		ld	sp,#5FFF		; stack to RAM
 
-StartupMessage: ld	hl,MsgStartup0	; print informations
+StartupMessage: ld	hl,MsgStartup0		; print informations
 		ld	de,VideoRAM
 		call	Print
 
@@ -79,110 +80,201 @@ StartupMessage: ld	hl,MsgStartup0	; print informations
 		ld	de,VideoRAM+#10*#100+#e0
 		call	Print		
 
-Boot:		ld	e,%00000100
-		ld	a,#D0		; FDC command - ForceInterrupt
-		out	(FDC),a		; reset FDC
-		ld	(BootSector),a	; clear BSDOS boot sector ID byte
-		ld	a,#C3		; DMA command - R6: Reset
-		out	(DMA),a		; reset DMA
+Boot:		ld	bc,#0B*#100+RTC		; select register of the RTC (tens of years) + RTC Port address
+		in	a,(c)			; read value
+		inc	a			; change it
+		ld	d,a			; store it for following comparation
+		out	(c),a			; write it to register
+		in	a,(c)			; read it back
+		xor	d			; if the value is not same, RTC is not connected
+		jr	nz,NoRTC
+		dec	d			; restore original value
+		out	(c),d			; put original value to the RTC register
+		ld	de,%0000011100001111	; masks for tens and ones
+		ld	b,a			; select first register (0) of the RTC
+		in	a,(c)
+		and	e
+		push	af			; 0-9 seconds
+		inc	b
+		in	a,(c)
+		and	d
+		push	af			; tens of seconds
+		ld	a,':'
+		push	af			; ':' separator
+		inc	b
+		in	a,(c)
+		and	e
+		push	af			; 0-9 minutes
+		inc	b
+		in	a,(c)
+		and	d
+		push	af			; tens of minutes
+		ld	a,':'
+		push	af			; ':' separator
+		inc	b
+		in	a,(c)
+		and	e
+		push	af			; 0-9 hours value
+		inc	b
+		in	a,(c)
+		and	%00000011		; mask for hours
+		push	af			; tens of hours
+		ld	b,8
+		ld	de,#14*#100+#0B		; print position at 20,11
 
-HDorDD:		ld	a,0		; default if HD
-		xor	1		; toggle HDD/DD
+PrintTime:	pop	af
+		call    Putchar
+		inc	e
+		djnz	PrintTime
+		
+NoRTC:		ld	e,%00000100
+		ld	a,#D0			; FDC command - ForceInterrupt
+		out	(FDC),a			; reset FDC
+		ld	(BootSector),a		; clear BSDOS boot sector ID byte
+		ld	a,#C3			; DMA command - R6: Reset
+		out	(DMA),a			; reset DMA
+
+HDorDD:		ld	a,0			; default if HD
+		xor	1			; toggle HDD/DD
 		ld	(HDorDD+1),a
-		out	(REZ),a		; set HD or DD
-		ld	a,3		; select drive0 and start motor0
+		out	(REZ),a			; set HD or DD
+		ld	a,3			; select drive0 and start motor0
 		out	(MOT),a
-		out	(FDC),a		; FDC command - track0
+		out	(FDC),a			; FDC command - track0
 
-FloppyReady:	in	a,(MOT)		; is floppy drive ready?
+FloppyReady:	in	a,(MOT)			; is floppy drive ready?
 		and	e
 		jr	z,FloppyReady
-		in	a,(FDC)		; FDC command - read byte
+		in	a,(FDC)			; FDC command - read byte
 		and	e
-		jr	z,Boot		; if head head is not on Track0 try again
+		jr	z,Boot			; if head head is not on Track0 try again
 
 		ld	a,1
-		out	(FDS),a		; FDC set sector reg to 1
+		out	(FDS),a			; FDC set sector reg to 1
 
-		ld	bc,DMASeqLen+DMA; DMA sequence - b:length, c:DMA port address
+		ld	bc,DMASeqLen+DMA	; DMA sequence - b:length, c:DMA port address
 		ld	hl,DMASequence
-		otir			; initialise DMA
+		otir				; initialise DMA
 
 		ld	a,#88
-		out	(FDC),a		; FDC command - read sector
+		out	(FDC),a			; FDC command - read sector
 
-FloppyReady2:	in	a,(MOT)		; is floppy drive ready?
+FloppyReady2:	in	a,(MOT)			; is floppy drive ready?
 		and	e
 		jr	z,FloppyReady2
-		in	a,(FDC)		; FDC command - read byte
+		in	a,(FDC)			; FDC command - read byte
 		and	#1C
-		jr	nz,Boot		; try again if some read error occured
+		jr	nz,Boot			; try again if some read error occured
 		ld	a,(BootSector)
-		cp	#18		; check	BSDOS boot sector ID byte
-		jr	nz,Boot		; try again if it's wrong
+		cp	#18			; check	BSDOS boot sector ID byte
+		jr	nz,Boot			; try again if it's wrong
 
-BootEnd:	ld	a,#D0		; FDC command - ForceInterrupt
-		out	(FDC),a		; reset FDC
-		ld	a,#C3		; DMA command - WR6: Reset
-		out	(DMA),a		; reset DMA
+BootEnd:	ld	a,#D0			; FDC command - ForceInterrupt
+		out	(FDC),a			; reset FDC
+		ld	a,#C3			; DMA command - WR6: Reset
+		out	(DMA),a			; reset DMA
 		xor	a
-		out	(MOT),a		; stop all motors and unselect any floppy drive
+		out	(MOT),a			; stop all motors and unselect any floppy drive
 
-		ld	hl,MsgBootEnd0	; print "Booting..." message
+		ld	hl,MsgBootEnd0		; print "Booting..." message
 		ld	de,VideoRAM+#8*#100+#40
 		call	Print
 
-		ld	de,#FFFF	; dummy pause for about 1 sec, so user can read the message
+		ld	de,#FFFF		; dummy pause for about 1 sec, so user can read the message
 DummyLoop:	dec	de
 		ld	a,d
 		or	e
 		jr	nz,DummyLoop
 
-		jp	BootSector	; Jump to the boot sector
+		jp	BootSector		; Jump to the boot sector
 
-DMASequence:	db	#C3		; R6: reset DMA
-		db	#79		; R0: DMA transfer PortB->PortA
-		dw	BootSector	; destination address
-		dw 	#3FF		; size of data buffer
-		db	#14		; R1: PortA - memory, incremented, default timming
-		db	#28		; R2: PortB - I/O, fixed, default timming
-		db	#80		; R3: disable DMA, no interrupt
-		db	#8D		; R4: byte mode, no interrupt, no pulse control
-		dw	FDD		; source port address (FDD)
-		db	#92		; R5: ready active LOW, CE/WAIT, stop on End-of-Block
-		db	#CF		; R6: load
-		db	#01		; R0: DMA transfer rd:PortB->PortA, wr:PortA->PortB
-		db	#CF		; R6: load
-		db	#87		; R6: enable DMA
+DMASequence:	db	#C3			; R6: reset DMA
+		db	#79			; R0: DMA transfer PortB->PortA
+		dw	BootSector		; destination address
+		dw 	#3FF			; size of data buffer
+		db	#14			; R1: PortA - memory, incremented, default timing
+		db	#28			; R2: PortB - I/O, fixed, default timing
+		db	#80			; R3: disable DMA, no interrupt
+		db	#8D			; R4: byte mode, no interrupt, no pulse control
+		dw	FDD			; source port address (FDD)
+		db	#92			; R5: ready active LOW, CE/WAIT, stop on end of block
+		db	#CF			; R6: load
+		db	#01			; R0: DMA transfer rd:PortB->PortA, wr:PortA->PortB
+		db	#CF			; R6: load
+		db	#87			; R6: enable DMA
 
 ;; Old DMA sequence which works only with UA858D clone
-;DMASequence:	db	#C3		; R6: reset DMA
-;		db	#C7		; R6: Reset Port A Timing
-;		db	#CB		; R6: Reset Port B Timing
-;		db	#79		; R0: DMA transfer PortB->PortA
-;		dw	BootSector	; destination address
-;		dw	#3FF		; size of data buffer
-;		db	#14		; R1: PortA - memory, incremented, default timming
-;		db	#28		; R2: PortB - I/O, fixed, default timming
-;		db	#C0		; R3: enable DMA (this is wrong - DMA cannot be enabled before full initializing.)
-;		db	#8D		; R4: byte mode, no interrupt, no pulse control
-;		dw	FDD		; source port address
-;		db	#92		; R5: ready active LOW, CE/WAIT, stop on End-of-Block
-;		db	#CF		; R6: load
-;		db	#87		; R6: enable DMA
+;DMASequence:	db	#C3			; R6: reset DMA
+;		db	#C7			; R6: reset PortA timing
+;		db	#CB			; R6: reset PortB timing
+;		db	#79			; R0: DMA transfer PortB->PortA
+;		dw	BootSector		; destination address
+;		dw	#3FF			; size of data buffer
+;		db	#14			; R1: PortA - memory, incremented, default timing
+;		db	#28			; R2: PortB - I/O, fixed, default timing
+;		db	#C0			; R3: enable DMA (this is wrong - DMA cannot be enabled before full initializing.)
+;		db	#8D			; R4: byte mode, no interrupt, no pulse control
+;		dw	FDD			; source port address
+;		db	#92			; R5: ready active LOW, CE/WAIT, stop on end of block
+;		db	#CF			; R6: load
+;		db	#87			; R6: enable DMA
 
 DMASeqCount:	equ	$-DMASequence
 DMASeqLen:	equ	DMASeqCount*#100
 
 MsgStartup0:	dc	"           -----------------"
 MsgStartup1:	dc	"           MB-02+ Bootloader"
-MsgStartup2:	dc	"              version: 02"
+MsgStartup2:	dc	"              version: 03"
 MsgStartup3:	dc	"           -----------------"		
 MsgStartup4:	dc	"Please insert the boot disk into drive 1!"
 MsgStartup5:	dc	"      (c)2018 z00m / TCG / SinDiKAT"
 
-MsgBootEnd0:	dc	"Booting...                               "
+MsgBootEnd0:	dc	"Booting...                               "				
 
+;---------------------------------------
+;Puts character from A into DE position
+;E=x, D=y
+
+Putchar:	push	de
+                push	bc
+		or	%00110000
+                ld	h,0
+                ld	l,a		
+                add	hl,hl
+                add	hl,hl
+                add	hl,hl
+                ld	bc,MsgFont-#100
+                add	hl,bc
+                call	VRAMfromDE
+                ld	b,8
+PutcharLoop:	ld	a,(hl)
+                ld	(de),a
+                inc	hl
+                inc	d
+                djnz	PutcharLoop
+                pop	bc
+                pop	de
+                ret
+
+;--------------------------------
+; Calculates VRAM address from DE
+; y: D=0-23, x: E=0-31
+
+VRAMfromDE:	ld	a,d
+                rrca
+                rrca
+                rrca
+                and	%11100000
+                add	a,e
+                ld	e,a
+                ld	a,d
+                and	%00011000
+                or	%01000000
+                ld	d,a
+                ret
+		
+
+;---------------------------------------------------------
 ;6-bit text print (42 columns) by MTB (c)1994 @ ZXM 5/1994
 ;simplification, bugfix and sjasmplus formatting by z00m/SinDiKAT (c)2016
 ;input: hl=text address, de=print position
@@ -217,7 +309,7 @@ print2:		ld	hl,(pos)
 		ld	(pos),hl
 		ret
 
-ascii:		ld	bc,font
+ascii:		ld	bc,MsgFont
 		push	bc
 		sub	32
 		ld	e,a
@@ -319,8 +411,8 @@ down2:		cp	88
 		ld	hl,64
 		ret
 		
-;5-bit font
-font:		db	#00, #00, #00, #00, #00, #00, #00, #00
+;5-bit font for messages
+MsgFont:	db	#00, #00, #00, #00, #00, #00, #00, #00
 		db	#00, #20, #20, #20, #20, #00, #20, #00
 		db	#00, #50, #50, #00, #00, #00, #00, #00
 		db	#00, #50, #F8, #50, #50, #F8, #50, #00
@@ -417,10 +509,10 @@ font:		db	#00, #00, #00, #00, #00, #00, #00, #00
 		db	#00, #28, #50, #00, #00, #00, #00, #00
 		db	#00, #78, #84, #B4, #B4, #84, #78, #00
 
-		disp	#5b00
+		disp	#5B00
 		
-pos:		dw	0
-roll:		db	0
+pos:		ds	#02
+roll:		ds	#01
 
 		ent
 
