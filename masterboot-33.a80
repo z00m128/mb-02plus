@@ -28,6 +28,7 @@ sysinf  jr      masinf              ;; Skok na vypis systemovej tabulky
 masrun  jr      run10               ;; Start mastebootu pri bootovani systemu
 
 res128  dw      #3978               ;; Extend reset 128k v romke (Plati iba pre bsrom118 !)
+                                    ;; Pre bsrom140 zmenit na #3906 !
         dw      #00                 ;; not used
 
 retaz   dw      #058A,#058B,#0601,#0602  ;; Postupnost fyzickych cisel sektorov systemu
