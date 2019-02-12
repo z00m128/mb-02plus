@@ -1,0 +1,733 @@
+;==============================================================;
+;== Verzia 33 == Master boot sektor! == 14.04.1996 Busy soft ==;
+;==============================================================;
+
+master  =       #6400   ;; Adresa masterbotu
+biofdc  =       #0100   ;; Adresa FDC biosu
+tabset  =       #80     ;; Adresa setup tabulky pre disketove mechaniky
+
+;; Standartne volania ROM biosu:
+
+rdrom   =       #3c98   ;; ROM banka zakazany zapis
+rdram   =       #3c9a   ;; DOS banka zakazany zapis
+wrrom   =       #3c9c   ;; ROM banka povoleny zapis
+wrram   =       #3c9e   ;; DOS banka povoleny zapis
+
+;; Nasledujuce volania sa pouzivaju v case
+;; ked este nie su nainstalovane FDC a ROM biosy:
+
+mkbio   =       #6072   ;; Instalacia FDC a ROM biosu v boot sektore
+bank0   =       #6074   ;; Zapnutie ROM banky s povolenym zapisom
+bank1   =       #6076   ;; Zapnutie DOS banky s povolenym zapisom
+drvbot  =       #6078   ;; Cislo mechaniky z ktorej sa bootuje a rezim bootovania DD/HD
+
+        OUTPUT  Masterboot-33.cod
+        org     master
+
+sysinf  jr      masinf              ;; Skok na vypis systemovej tabulky
+masrun  jr      run10               ;; Start mastebootu pri bootovani systemu
+
+res128  dw      #3978               ;; Extend reset 128k v romke (Plati iba pre bsrom118 !)
+        dw      #00                 ;; not used
+
+retaz   dw      #058A,#058B,#0601,#0602  ;; Postupnost fyzickych cisel sektorov systemu
+        dw      #0603,#0604,#0605,#0606  ;; Plati iba pre formatovanie 11sec/trk !
+        dw      #0607,#0608,#0609,#060A
+        dw      #060B,#0681,#0682,#0683
+        dw      #0684,#0685,#0686,#0687
+        dw      #0688,#0689,#068A,#068B
+        dw      #0701,#0702,#0703,#0704
+        dw      #0705,#0706,#0707,#0708  ;; konci cislom #0000
+        dw      #0000
+
+masinf  jp      mbinfo
+
+run10   ld      a,#c3
+        ld      hl,#0100            ;; start biosu
+        ld      (#18),a
+        ld      (#19),hl
+        ld      a,#0d               ;; [pasive]
+        rst     #18
+        call    mbinfo
+        call    wrram
+        call    load                ;; Naloaduje system na #8000 [32k]
+        ld      hl,#c000            ;; Ldir systemu do rom-stranok
+        ld      bc,#0400            ;; (BS-DOS)
+        ld      d,c
+        ld      e,c
+        ldir
+        inc     h                   ;; cache [#400-#500]
+        inc     d                   ;; sa preskakuje
+        ld      b,#40-#05           ;; [ta sa neinicializuje]
+        ldir
+        call    bank0               ;; (BS-ROM)
+        ld      bc,#4000
+        ld      hl,#8000
+        ld      d,c
+        ld      e,c
+        ldir
+        ld      hl,(res128)
+        ld      (resrom),hl
+        call    mkbio               ;; Zase napokuje ROM a FDC bios
+        call    text
+        db      'Starting '
+        db      'BS-DOS...',0
+        xor     a                   ;; Ak pri konci loadu
+        in      a,(#fe)             ;; stlacena klavesa,
+        or      #e0                 ;; nehlada sa "autosys"
+        inc     a
+        ld      a,#30               ;; Sluzba dosu #30
+        call    z,#20               ;;  [start dosu po nabootovani]
+        rst     #28                 ;; Ak sa to vrati tak to
+resrom  dw      #3978               ;; spravi velky reset 128k !!!
+        rst     #00                 ;; [ak ani to nie tak uz potom nic]
+halt    di
+        halt
+        jr      halt
+
+error   ld      a,#0d               ;; Start v pripade diskovej chyby
+        rst     #18                 ;; [pasive]
+        ld      b,#00
+zavrc   ld      a,r                 ;; kratke zavrcanie
+        out     (#fe),a
+        ld      a,12
+vrclop  dec     a
+        jr      nz,vrclop
+        djnz    zavrc
+        xor     a
+        out     (#fe),a
+load    ld      de,(drvbot)         ;; e=disk,d=rezim   Hlavny start
+        push    de
+        ld      a,#0c               ;; [aktive]
+        rst     #18
+        pop     de
+        cp      #02
+        jr      c,error
+        ld      a,#02               ;; [restore]
+        rst     #18
+        ld      e,d
+        ld      a,#09               ;; [rezim]
+        rst     #18
+
+        ld      ix,retaz
+        ld      hl,#8000
+ldloop  ld      e,(ix+#00)
+        ld      d,(ix+#01)
+        ld      a,d
+        or      e
+        jr      z,ldend
+        ld      a,#04               ;; [rdsec]
+        rst     #18
+        or      a
+        jr      nz,error
+        ld      bc,#0400
+        add     hl,bc
+        inc     ix
+        inc     ix
+        jr      ldloop
+
+ldend   ld      a,#0d               ;; [pasive]
+        rst     #18
+        ld      hl,#8000
+        ld      a,(hl)
+        cp      #21
+        ret     nz                  ;; Ak je system skomprimovany
+        jp      (hl)                ;; tak sa depackne
+
+                                    ;; -------------------
+
+mbinfo  call    cls                 ;; Vypis informacii o konfiguracii
+        call    text
+        db      'Testing:',0
+        call    tab00
+        call    mem
+        ld      (xxmem+1),a
+        ld      hl,#00
+        cp      17
+        call    nc,hod
+        call    rtc
+xxpust  xor     a
+        in      a,(#fe)
+        or      #e0
+        inc     a
+        jr      nz,xxpust
+        call    cls
+        call    znak
+        db      #13
+        ld      b,#3e
+        call    rovno
+        call    text
+        db      #15,#1d
+        db      ' MB-02 System'
+        db      ' configuration '
+        db      '(c) 1989-1996 '
+        db      'MDV SOFT, '
+        db      'BUSY SOFT '
+        db      #1d
+        db      #16
+        nop
+        ld      b,#3e
+        call    rovno
+        call    text
+        db      #18,#1d
+        db      ' Main CPU clock'
+        db      '    : ',0
+xxhod1  ld      hl,#00
+        call    dec16
+        call    text
+        db      '0 / ',0
+xxhod2  ld      hl,#00
+        call    dec16
+        call    text
+        db      '0 '
+        db      'cycle per frame',0
+        call    tt63
+        db      #1d,#1d,' Base Me'
+        db      'mory size  : ',0
+xxmem   ld      a,#55
+        call    dec8
+        call    text
+        db      ' KB',0
+        call    tt63
+        db      #1d,#1d
+        db      ' RTC time '
+        db      'processor: ',0
+xxrtc   call    notnot
+        call    presen
+        call    tt63
+xxay    db      #1d,#1d
+        db      ' AY sound '
+        db      'processor: ',0
+        ld      bc,#fffd
+        ld      a,#01
+        out     (c),a
+        ld      b,#bf
+        out     (c),c
+        ld      b,#ff
+        in      a,(c)
+        cp      #0d
+        call    nz,notnot
+        call    presen
+xxbios  call    tt63
+        db      #1d,#1d,' BIOS '
+        db      'serial number: ',0
+        call    rdram
+        xor     a
+        ld      b,a
+        ld      c,a
+        rst     #18
+        ld      h,b
+        ld      l,c
+        call    dec16
+xxport  call    tt63
+        db      #1d,#1d,' Parallel'
+        db      ' Port(s)  : ',0
+        call    porty
+        ld      a,#9b
+        out     (#7b),a
+        ld      a,#9a
+        out     (#7f),a
+        call    tt63
+        db      #1d,#16,0
+        ld      b,#3e
+        call    rovno
+        call    znak
+        db      #18
+        ld      bc,#0431
+        ld      ix,#80
+floppy  push    bc
+        call    text
+        db      #1d
+        db      ' Drive #0',0
+        ld      a,c
+        call    disp
+        call    text
+        db      ': ',0
+        ld      a,(ix+#00)
+        or      a
+        jr      nz,floyes
+        call    noprsn
+        jr      floend
+floyes  ld      a,(ix+#01)          ;; Stopy
+        call    dec8
+        call    text
+        db      ' tracks; '
+        db      'step ',0           ;; Kroky stopa-stopa
+        ld      a,(ix+#02)
+        ld      hl,tabrat
+        add     a,l
+        ld      l,a
+        ld      a,(hl)
+        call    dec8
+        call    text
+        db      ' ms; ',0
+        call    densit              ;; Hustoty
+        call    signal              ;; Ready signal
+
+floend  call    tab63
+        call    znak
+        db      #1d
+        ld      bc,#04
+        add     ix,bc
+        pop     bc
+        inc     c
+        djnz    floppy
+        call    rdrom
+        call    znak
+        db      #19
+        ld      b,#3e
+        call    rovno
+        call    znak
+        db      #1b
+        call    space
+        call    tab00
+        ld      a,(xxmem+1)
+        cp      48
+        ret     nc
+        call    text
+        db      'No memory - '
+        db      'system halted',0
+        jp      halt
+                                    ;; ------------------
+rtc     call    text                ;; Test na realny cas
+        db      'RTC procesor...',0
+        ld      e,#00
+rtc1    ld      bc,#0503            ;; port
+rtc2    in      a,(c)
+        and     #0f
+        cp      #0a
+        ld      a,#cd
+        jr      nc,nortc
+        djnz    rtc2
+        dec     e
+        jr      nz,rtc1
+        ld      a,#21
+nortc   ld      (xxrtc),a
+        jr      xxok1
+
+hod     call    text                ;; Meranie hodin CPU
+        db      'CPU clock...',0
+        di
+        ld      (spsp+1),sp
+        ld      hl,#8000
+hod1    ld      (hl),#81
+        inc     l
+        jr      nz,hod1
+        ld      a,h
+        ld      i,a
+        inc     h
+        ld      (hl),h
+        ld      l,h
+        ld      sp,hl
+        ex      de,hl
+        ld      hl,hodrut
+        ld      bc,hodrte-hodrut
+        ldir
+        ld      de,#7f00
+        ld      bc,hodree-hodrte
+        ldir
+        ld      a,a
+        ld      hl,#03              ;; pripocitanie casu rezie
+        ld      de,hodps2
+        im      2
+        ei
+        halt
+        ld      hl,#01
+hodps2  di
+        add     hl,hl
+        ld      (xxhod1+1),hl
+        ld      hl,#7f00
+        ld      (#8182),hl
+        ld      hl,#03
+        ld      de,hodend
+        ei
+        halt
+        ld      hl,#01
+hodend  di
+        im      1
+        xor     a
+        ld      i,a
+        add     hl,hl
+        ld      (xxhod2+1),hl
+spsp    ld      sp,#5555            ;; hl = 10 * cyklov na pedesiatinu
+xxok1   jp      xxok
+
+hodrut  jp      #8184
+        ld      (#8182),de          ;; <-- rezia asi 60 cyklov
+        ei                          ;; slucka presne 20 taktov
+        inc     hl
+        jp      #8188
+hodrte
+        ld      (#8182),de
+        ei
+        inc     hl
+        jp      #7f04
+hodree
+                                    ;; ---
+mem     call    text                ;; Test velkosti pameti
+        db      'Memory...',0
+        ld      xh,16
+        ld      hl,#8000
+        ld      b,l
+mem48k  ld      (hl),b
+        ld      a,b
+        cp      (hl)
+        jr      nz,memgam
+        djnz    mem48k
+        ld      a,32
+        add     a,xh
+        ld      xh,a
+
+memgam  ld      a,#9a               ;; Didaktik Gama
+        out     (#7f),a
+        ld      b,l
+memg1   xor     a
+        out     (#5f),a
+        ld      (hl),b
+        inc     a
+        out     (#5f),a
+        ld      a,r
+        ld      (hl),a
+        xor     a
+        out     (#5f),a
+        ld      a,b
+        cp      (hl)
+        jr      nz,mem128
+        djnz    memg1
+        ld      a,32
+        add     a,xh
+        ld      xh,a
+
+mem128  ld      hl,#ff00            ;; Spektrum 128k
+        ld      bc,#7ffd
+        ld      d,l
+        ld      e,c
+mem12s  ld      a,#10
+        out     (c),a
+        ld      (hl),d
+        inc     a
+        out     (c),a
+        dec     a
+        dec     e
+        rrc     e
+        ld      (hl),e
+        out     (c),a
+        ld      a,d
+        cp      (hl)
+        jr      nz,memnso
+        dec     d
+        jr      nz,mem12s
+        ld      a,80
+        add     a,xh
+        ld      xh,a
+
+memmx5  ld      hl,#ffff            ;; zrkadlenie bank 5
+        ld      bc,#7ffd
+        ld      a,#15               ;; (144k)
+        out     (c),a
+        ld      (hl),b
+        ld      a,c
+        ld      (#7fff),a
+        cp      (hl)
+        jr      z,memmx2
+        ld      a,16
+        add     a,xh
+        ld      xh,a
+memmx2  ld      hl,#bfff            ;; zrkadlenie bank 2
+        ld      a,#12
+        out     (c),a               ;; (160k)
+        ld      e,(hl)
+        ld      (hl),c
+        ld      a,b
+        ld      (#ffff),a
+        cp      (hl)
+        ld      (hl),e
+        jr      z,memnso
+        ld      a,16
+        add     a,xh
+        ld      xh,a
+
+memnso  ld      bc,#7ffd
+        ld      a,#10
+        out     (c),a
+        ld      a,#9a
+        out     (#7f),a
+xxok    call    text
+        db      ' OK',0
+        call    tab00
+        ld      a,xh                ;; Vracia v A pocet kB
+        ret
+                                    ;; ---
+porty   ld      a,#80               ;; Test paralelnych portov
+        out     (#7f),a
+        out     (#7b),a
+        ld      hl,tabprt
+        ld      e,#00
+prtloo  ld      c,(hl)
+        ld      b,#00
+prttst  ld      a,b
+        out     (c),a
+        in      a,(c)
+        cp      b
+        jr      nz,prtnie
+        djnz    prttst
+        xor     a
+        xor     e
+        call    nz,ciarka
+        ld      e,c
+        ld      a,c
+        call    hex8
+prtnie  inc     hl
+        xor     a
+        xor     (hl)
+        jr      nz,prtloo
+        xor     e
+        ret     nz
+        jr      noprsn
+
+tabprt  db      #1f,#3f,#5f         ;; zoznam moznych adries
+        db      #1b,#3b,#5b,0
+                                    ;; -----------------
+
+densit  ld      a,(ix+#00)
+        and     #07
+        ld      c,a
+bu      srl     c
+        jr      nc,nodd
+        call    text
+        db      'DD',0
+nodd    call    nz,ciarka
+        srl     c
+        jr      nc,nohd
+        call    text
+        db      'HD',0
+nohd    call    nz,ciarka
+        srl     c
+        ret     nc
+        call    text
+        db      'ED',0
+        ret
+
+tabrat  db      3,6,10,15
+
+signal  bit     0,(ix+#03)
+        jr      z,positi
+negati  call    text
+        db      '; Neg.',0
+        jr      posneg
+positi  call    text
+        db      '; Pos.',0
+posneg  bit     7,(ix+#03)
+        jr      z,rdysig
+dcsig   call    text
+        db      'DskNoChange',0
+        ret
+rdysig  call    text
+        db      'Ready',0
+        ret
+
+noprsn  call    notnot
+presen  call    text
+        db      'present',0
+        ret
+notnot  call    text
+        db      'not ',0
+        ret
+
+cls     ld      hl,#4000
+        ld      de,#4001
+        ld      bc,#1800
+        ld      (hl),l
+        ld      (hicur),hl
+        ldir
+        ld      b,#03
+        ld      (hl),#07
+        ldir
+        ld      a,#f0
+        ld      (locur),a
+        ld      a,#08
+        out     (#fe),a
+        ret
+
+dec8    ld      l,a
+        ld      h,#00
+dec16   ld      c,#00
+        ld      de,-10000
+        call    cifra
+        ld      de,-1000
+        call    cifra
+        ld      de,-100
+        call    cifra
+        ld      e,-10
+        call    cifra
+        ld      c,'0'
+        ld      e,-1
+cifra   ld      a,-1
+cif1    add     hl,de
+        inc     a
+        jr      c,cif1
+        sbc     hl,de
+        or      a
+        jr      z,cifz
+        ld      c,'0'
+        or      c
+        db      #06                 ;; ld b,...
+cifz    ld      a,c
+        or      a
+        ret     z
+        jr      disp
+
+hex8    push    af
+        rrca
+        rrca
+        rrca
+        rrca
+        call    hhx8
+        pop     af
+hhx8    and     #0f
+        or      '0'
+        cp      ':'
+        jr      c,disp
+        add     a,'a'-':'
+        jr      disp
+
+rovno   ld      a,#1c
+        call    disp
+        djnz    rovno
+        ret
+
+tab00   ld      e,#00
+        jr      tab
+tab63   ld      e,#3f
+tab     ld      a,(locur)
+        rrca
+        ld      a,(hicur)
+        adc     a,a
+        and     #3f
+        cp      e
+        ret     z
+        call    space
+        jr      tab
+
+tt63    call    tab63
+text    ex      (sp),hl
+        push    af
+txtloo  ld      a,(hl)
+        call    disp
+        inc     hl
+        xor     a
+        xor     (hl)
+        jr      nz,txtloo
+        pop     af
+        ex      (sp),hl
+        ret
+
+znak    ex      (sp),hl
+        ld      a,(hl)
+        inc     hl
+        ex      (sp),hl
+        jr      disp
+
+ciarka  ld      a,','
+        jr      disp
+space   ld      a,' '
+disp    exx
+        ld      de,znaky-#80
+        add     a,a
+        ld      l,a
+        ld      h,#00
+        add     hl,hl
+        add     hl,de
+        ex      de,hl
+        db      #21                 ;; ld hl,...
+hicur   dw      #4000
+        db      #01                 ;; ld bc,...
+locur   dw      #04f0
+dsloop  ld      a,(de)
+        bit     0,c
+        jr      z,notrot
+        rrca
+        rrca
+        rrca
+        rrca
+notrot  and     c
+        or      (hl)
+        ld      (hl),a
+        inc     h
+        ld      a,(de)
+        bit     7,c
+        jr      z,rotnot
+        rrca
+        rrca
+        rrca
+        rrca
+rotnot  and     c
+        or      (hl)
+        ld      (hl),a
+        inc     de
+        inc     h
+        djnz    dsloop
+        ld      a,c
+        cpl
+        ld      (locur),a
+        add     a,a
+        jr      nc,dsend
+        ld      hl,hicur
+        inc     (hl)
+        jr      nz,dsend
+        inc     hl
+        ld      a,(hl)
+        add     a,#08
+        and     #58
+        ld      (hl),a
+dsend   exx
+        ret
+
+        ;; Font 4x8 ... ramikove znaky 16-31
+
+        db      #11,#11,#11,#11
+        db      #00,#0f,#0f,#11
+        db      #11,#1f,#0f,#00
+
+        db      #00,#07,#45,#55
+        db      #00,#0f,#0d,#55
+        db      #00,#0f,#1d,#55
+        db      #55,#55,#45,#55
+        db      #55,#5d,#0d,#55
+        db      #55,#5d,#1d,#55
+        db      #55,#55,#47,#00
+        db      #55,#5d,#0f,#00
+        db      #55,#5d,#1f,#00
+
+        db      #00,#0f,#0f,#00
+        db      #55,#55,#55,#55
+        db      #00,#00,#00,#70
+        db      #07,#77,#77,#70
+
+znaky   ;; Font 4x8 ... ascii znaky 32-122
+
+        db      #00,#00,#00,#00,#02,#22,#20,#20,#05,#50,#00,#00,#05,#75,#57,#50
+        db      #02,#74,#71,#72,#05,#12,#24,#50,#02,#52,#6B,#70,#02,#40,#00,#00
+        db      #02,#44,#44,#20,#04,#22,#22,#40,#00,#52,#72,#50,#00,#22,#72,#20
+        db      #00,#00,#02,#24,#00,#00,#70,#00,#00,#00,#06,#60,#01,#12,#24,#40
+        db      #02,#55,#55,#20,#02,#62,#22,#70,#02,#51,#24,#70,#06,#16,#11,#60
+        db      #01,#35,#57,#10,#07,#46,#11,#60,#03,#46,#55,#20,#07,#12,#24,#40
+        db      #02,#52,#55,#20,#02,#55,#31,#60,#00,#02,#00,#20,#00,#20,#02,#24
+        db      #00,#12,#42,#10,#00,#07,#07,#00,#00,#42,#12,#40,#02,#51,#20,#20
+        db      #03,#75,#74,#30,#07,#55,#75,#50,#06,#56,#55,#60,#07,#44,#44,#70
+        db      #06,#55,#55,#60,#07,#46,#44,#70,#07,#46,#44,#40,#07,#44,#75,#70
+        db      #05,#57,#55,#50,#07,#22,#22,#70,#01,#11,#55,#70,#05,#56,#65,#50
+        db      #04,#44,#44,#70,#05,#77,#75,#50,#07,#55,#55,#50,#07,#55,#55,#70
+        db      #07,#55,#74,#40,#07,#55,#57,#71,#07,#55,#66,#50,#07,#47,#11,#70
+        db      #07,#22,#22,#20,#05,#55,#55,#70,#05,#55,#55,#20,#05,#57,#77,#20
+        db      #05,#52,#25,#50,#05,#55,#22,#20,#07,#12,#24,#70,#06,#44,#44,#60
+        db      #04,#42,#21,#10,#03,#11,#11,#30,#02,#72,#22,#20,#00,#00,#00,#0F
+        db      #02,#54,#F4,#F0,#00,#71,#75,#70,#04,#47,#55,#70,#00,#74,#44,#70
+        db      #01,#17,#55,#70,#00,#75,#74,#70,#06,#46,#44,#40,#00,#75,#57,#17
+        db      #04,#47,#55,#50,#02,#06,#22,#70,#01,#01,#11,#57,#04,#56,#55,#50
+        db      #04,#44,#44,#30,#00,#57,#77,#50,#00,#75,#55,#50,#00,#75,#55,#70
+        db      #00,#75,#57,#44,#00,#75,#57,#11,#00,#74,#44,#40,#00,#74,#71,#70
+        db      #02,#72,#22,#30,#00,#55,#55,#70,#00,#55,#55,#20,#00,#57,#77,#20
+        db      #00,#55,#25,#50,#00,#55,#57,#17,#00,#71,#24,#70
+
+        ds      #6C00-$,#FF
