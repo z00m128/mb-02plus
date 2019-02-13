@@ -1,9 +1,11 @@
 ;##########################################################################
 ;# BSrom118 - Modified ZX Spectrum ROM - (c) Busy soft - Release 13.03.94 #
+;#                   with enhancements needed for BSDOS                   #
 ;##########################################################################
-;                   Original rom: (c) Amstrad
+;                         Original rom: (c) Amstrad
+;
 
-	OUTPUT	"bsrom118-mb02.rom"
+	OUTPUT	"bsrom118mb02.rom"
 
 ver0	EQU	'1'
 ver1	EQU	'1'
