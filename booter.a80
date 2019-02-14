@@ -1,16 +1,16 @@
 ;====================================
 ;EPROM/EEPROM/FLASH booter for MB-02+
 ;      with fixed DMA sequence
-;    by z00m^TCG^SinDiKAT 09/2018
+;    by z00m^TCG^SinDiKAT 02/2019
 ;      formatted for SjASMPlus
 ;====================================
 
 		OUTPUT "mb02boot.rom"
 
-version:	equ	#03
+version:	equ	#04
 
-;MB02 PORTS
 ;----------
+;MB02 PORTS
 
 RTC:		equ	#03
 FDC:		equ	#0F
@@ -20,15 +20,15 @@ REZ:		equ	#33
 FDS:		equ	#4F
 FDD:		equ	#6F
 
-;other definitions
 ;-----------------
+;other definitions
 
 ULA:		equ	#FE
 BootSector:	equ	#8000
 VideoRAM:	equ	#4000	
 
-;Main program
 ;------------
+;Main program
 
 		org	#0000
 
@@ -77,55 +77,17 @@ StartupMessage: ld	hl,MsgStartup0		; print informations
 		call	Print
 
 		ld	hl,MsgStartup5
-		ld	de,VideoRAM+#10*#100+#e0
+		ld	de,VideoRAM+#10*#100+#E0
 		call	Print		
 
-Boot:		ld	bc,#0B*#100+RTC		; select register of the RTC (tens of years) + RTC Port address
-		in	a,(c)			; read value
-		inc	a			; change it
-		ld	d,a			; store it for following comparation
-		out	(c),a			; write it to register
-		in	a,(c)			; read it back
-		xor	d			; if the value is not same, RTC is not connected
-		jr	nz,NoRTC
-		dec	d			; restore original value
-		out	(c),d			; put original value to the RTC register
-		ld	de,%0000011100001111	; masks for tens and ones
-		ld	b,a			; select first register (0) of the RTC
-		in	a,(c)
-		and	e
-		push	af			; 0-9 seconds
-		inc	b
-		in	a,(c)
-		and	d
-		push	af			; tens of seconds
-		ld	a,':'
-		push	af			; ':' separator
-		inc	b
-		in	a,(c)
-		and	e
-		push	af			; 0-9 minutes
-		inc	b
-		in	a,(c)
-		and	d
-		push	af			; tens of minutes
-		ld	a,':'
-		push	af			; ':' separator
-		inc	b
-		in	a,(c)
-		and	e
-		push	af			; 0-9 hours value
-		inc	b
-		in	a,(c)
-		and	%00000011		; mask for hours
-		push	af			; tens of hours
-		ld	b,8
-		ld	de,#14*#100+#0B		; print position at 20,11
-
-PrintTime:	pop	af
-		call    Putchar
-		inc	e
-		djnz	PrintTime
+Boot:		;call	TestRTC
+		;jr 	nz,NoRTC
+		
+		call	ReadRTC
+		
+		ld	hl,TimeString
+		ld	de,VideoRAM+#10*#100+#AC
+		call	Print
 		
 NoRTC:		ld	e,%00000100
 		ld	a,#D0			; FDC command - ForceInterrupt
@@ -164,10 +126,10 @@ FloppyReady2:	in	a,(MOT)			; is floppy drive ready?
 		jr	z,FloppyReady2
 		in	a,(FDC)			; FDC command - read byte
 		and	#1C
-		jp	nz,Boot			; try again if some read error occured
+		jr	nz,Boot			; try again if some read error occured
 		ld	a,(BootSector)
 		cp	#18			; check	BSDOS boot sector ID byte
-		jp	nz,Boot			; try again if it's wrong
+		jr	nz,Boot			; try again if it's wrong
 
 BootEnd:	ld	a,#D0			; FDC command - ForceInterrupt
 		out	(FDC),a			; reset FDC
@@ -203,7 +165,7 @@ DMASequence:	db	#C3			; R6: reset DMA
 		db	#CF			; R6: load
 		db	#87			; R6: enable DMA
 
-;; Old DMA sequence which works only with UA858D clone
+; Old DMA sequence which works only with UA858D clone
 ;DMASequence:	db	#C3			; R6: reset DMA
 ;		db	#C7			; R6: reset PortA timing
 ;		db	#CB			; R6: reset PortB timing
@@ -224,54 +186,81 @@ DMASeqLen:	equ	DMASeqCount*#100
 
 MsgStartup0:	dc	"           -----------------"
 MsgStartup1:	dc	"           MB-02+ Bootloader"
-MsgStartup2:	dc	"              version: 03"
+MsgStartup2:	dc	"              version: 04"
 MsgStartup3:	dc	"           -----------------"		
 MsgStartup4:	dc	"Please insert the boot disk into drive 1!"
 MsgStartup5:	dc	"      (c)2018 z00m / TCG / SinDiKAT"
 
 MsgBootEnd0:	dc	"Booting...                               "				
 
-;---------------------------------------
-;Puts character from A into DE position
-;E=x, D=y
+;------------------------------------
+; Test if RTC is present by Busy Soft
 
-Putchar:	push	de
-                push	bc
+TestRTC:	ld	bc,#0e*#100+RTC
+		ld	e,#50
+tstrtc:		out     (c),e
+		in      a,(c)
+		ld      d,a
+		and     #0f
+		or      #50
+		xor     e
+		ret	nz
+		inc     e
+		ld      a,e
+		and     #0f
+		jr      nz,tstrtc
+		ret
+
+;-------------------------------
+; Read time from RTC
+; values are converted to
+; characters separated by ':'
+; last character is inverted
+
+ReadRTC		ld	hl,TimeString		; buffer for string
+		ld	bc,#05*#100+RTC		; select 5th register of RTC (tens of hours)
+		ld	de,%0000011100001111	; masks for tens (d) and ones (e)
+		in	a,(c)
+		and	d
+		or	%00110000		; make number character from value
+		ld	(hl),a			; tens of hours
+		inc	l
+		dec	b
+		in	a,(c)
+		and	e
 		or	%00110000
-                ld	h,0
-                ld	l,a		
-                add	hl,hl
-                add	hl,hl
-                add	hl,hl
-                ld	bc,MsgFont-#100
-                add	hl,bc
-                call	VRAMfromDE
-                ld	b,8
-PutcharLoop:	ld	a,(hl)
-                ld	(de),a
-                inc	hl
-                inc	d
-                djnz	PutcharLoop
-                pop	bc
-                pop	de
-                ret
-
-;--------------------------------
-; Calculates VRAM address from DE
-; y: D=0-23, x: E=0-31
-
-VRAMfromDE:	ld	a,d
-                rrca
-                rrca
-                rrca
-                and	%11100000
-                add	a,e
-                ld	e,a
-                ld	a,d
-                and	%00011000
-                or	%01000000
-                ld	d,a
-                ret
+		ld	(hl),a			; ones of hours
+		inc	l
+		ld	a,':'
+		ld	(hl),a			; separator
+		inc	l
+		dec	b
+		in	a,(c)
+		and	d
+		or	%00110000
+		ld	(hl),a			; tens of minutes
+		inc	l
+		dec	b
+		in	a,(c)
+		and	e
+		or	%00110000
+		ld	(hl),a			; ones of minutes
+		inc	l
+		ld	a,':'
+		ld	(hl),a			; separator
+		inc	l
+		dec	b
+		in	a,(c)
+		and	d
+		or	%00110000
+		ld	(hl),a			; tens of seconds
+		inc	l
+		dec	b
+		in	a,(c)
+		and	e
+		or	%10110000
+		ld	(hl),a			; ones of seconds
+		ret
 		
 
 ;---------------------------------------------------------
@@ -513,6 +502,7 @@ MsgFont:	db	#00, #00, #00, #00, #00, #00, #00, #00
 		
 pos:		ds	#02
 roll:		ds	#01
+TimeString	ds	#08
 
 		ent
 
