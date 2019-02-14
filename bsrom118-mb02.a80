@@ -13,7 +13,7 @@ ver2	EQU	'8'
 
 em562	EQU	#20
 em4c6	EQU	#21
-basic	EQU	#31
+basicm	EQU	#31
 funkc	EQU 	#32
 
 	ORG	#0000
@@ -106,7 +106,7 @@ L_0055	LD	(IY+#00),L
 	DEFB	#FF
 
 ; NMI
-L_0066	JP	L_3906
+L_0066	JP	main
 
 ; remains of original code, unused
 	DEFB	#B0
@@ -1555,7 +1555,7 @@ L_09C0	DEFB	#AE
 	DEFM	"Bytes:"
 	DEFB	#A0
 
-L_09F4	CALL	L_3A07
+L_09F4	CALL	dispp
 	CP	#1E
 	JP	NC,L_0AD9
 	CP	#06
@@ -2261,19 +2261,19 @@ L_0EAC	RET
 
 stkdup	rst	#28
 	defb	#31
-	defb      #38
+	defb	#38
 	ret
 
-znkcmd	defb      '.', '@', '$', '`'
+znkcmd	defb	'.', '@', '$', '`'
 newcmd	ld	hl,znkcmd
 	ld	bc,#04
 	cpir
-	jp	nz,L_3B32
+	jp	nz,comm
 	ld	(23668),a
 	defb	#3E
 cmdmgf	pop	af
 cmdexe	ld	(23615),sp
-	ld	a,basic
+	ld	a,basicm
 	jr	doscal
 
 tstsav	ld	hl,tapdsk
@@ -2403,7 +2403,7 @@ L_0FA9	LD	HL,(#5C49)
 	BIT	5,(IY+#37)
 	JP	NZ,L_1097
 	CALL	L_196E
-	CALL	L_3A52
+	CALL	lin2
 	AND	#C0
 	JP	NZ,L_1097
 	PUSH	HL
@@ -2436,7 +2436,7 @@ L_0FEC	LD	(#5C5F),HL
 	LD	(#5C5B),HL
 	RET
 
-	CALL	L_3A91
+	CALL	dole
 	BIT	5,(IY+#37)
 	RET	NZ
 	NOP
@@ -2501,7 +2501,7 @@ L_1051	AND	A
 	JR	C,L_103E
 	RET
 
-	CALL	L_3A9E
+	CALL	hore
 	BIT	5,(IY+#37)
 	RET	NZ
 	CALL	L_196E
@@ -2782,10 +2782,10 @@ L_1256	LD	(HL),#0D
 	LDIR
 	LD	(IY+#31),#02
 	LD	(IY+#0E),#30
-	CALL	L_3B68
+	CALL	reset
 	CALL	L_16B0
 	LD	(IY+#00),#FF
-	CALL	L_3C01
+	CALL	info
 	CALL	L_053F
 	JP	L_1303
 
@@ -2807,7 +2807,7 @@ L_12AC	LD	A,#00
 
 L_12CF	LD	HL,(#5C59)
 	LD	(#5C5D),HL
-	CALL	L_3A5C
+	CALL	lin3
 	NOP
 	NOP
 	JP	NC,L_155D
@@ -3472,7 +3472,7 @@ L_1865	LD	(IY+#2D),E
 	POP	BC
 	RET	NC
 	PUSH	BC
-	CALL	L_3A66
+	CALL	lin4
 	INC	HL
 	INC	HL
 	INC	HL
@@ -3628,7 +3628,7 @@ L_196E	PUSH	HL
 	LD	D,H
 	LD	E,L
 L_1974	POP	BC
-	CALL	L_3AD9
+	CALL	lin1
 	RET	NC
 	PUSH	BC
 	CALL	L_19B8
@@ -3749,7 +3749,7 @@ L_1A1B	PUSH	DE
 	JR	NZ,L_1A42
 	LD	H,B
 	LD	E,#FF
-	JP	L_3A48
+	JP	numcom
 
 L_1A28	PUSH	DE
 	LD	D,(HL)
@@ -3881,7 +3881,7 @@ L_1A48	DEFB	#B1	;DEF FN
 
 	DEFB	#06
 	DEFB	#05
-	DEFW	L_3BC0
+	DEFW	poke
 
 	DEFB	#03
 	DEFW	L_1E4F
@@ -3893,7 +3893,7 @@ L_1A48	DEFB	#B1	;DEF FN
 	DEFW	L_1EAC
 
 	DEFB	#03
-	DEFW	L_3B0C
+	DEFW	cls
 
 	DEFB	#09
 	DEFB	#00
@@ -5584,7 +5584,7 @@ L_24FB	RST	#18
 	LD	B,#00
 	PUSH	BC
 L_24FF	LD	C,A
-	CALL	L_386E
+	CALL	hexa
 	CALL	L_16DC
 	LD	A,C
 	JP	NC,L_2684
@@ -5937,7 +5937,7 @@ L_274C	PUSH	DE
 	JR	L_2764
 
 L_275B	LD	A,E
-	CALL	L_38AE
+	CALL	val1
 	AND	#40
 L_2761	JP	NZ,L_1C8A
 L_2764	POP	DE
@@ -8172,7 +8172,7 @@ L_33F8	RET	Z
 	PUSH	AF
 	PUSH	DE
 	LD	DE,#0000
-	CALL	L_39F8
+	CALL	nepis
 	POP	DE
 	POP	AF
 	DEC	A
@@ -8538,7 +8538,7 @@ L_35D7	CALL	L_2AB2
 L_35DC	RST	#08
 	DEFB	#0A
 
-L_35DE	CALL	L_38B8
+L_35DE	CALL	val2
 	PUSH	HL
 	LD	A,B
 	ADD	A,#E3
@@ -9123,25 +9123,25 @@ L_3851	RST	#28	;*calc
 	DEFB	#38	;*endcalc
 	RET
 
-L_386E	LD	HL,L_2596
+hexa	LD	HL,L_2596
 	CP	#25
-	JR	Z,L_3878
+	JR	Z,hex0
 	CP	#26
 	RET	NZ
-L_3878	POP	AF
+hex0	POP	AF
 	CALL	L_2530
 	JP	NZ,L_26B5
 	LD	DE,#0000
-L_3882	RST	#20
+hex1	RST	#20
 	CALL	L_2C88
-	JR	NC,L_38A8
+	JR	NC,hexend
 	CP	#41
-	JR	C,L_3894
+	JR	C,cis
 	OR	#20
 	CP	#67
-	JR	NC,L_38A8
+	JR	NC,hexend
 	SUB	#27
-L_3894	AND	#0F
+cis	AND	#0F
 	LD	C,A
 	LD	A,D
 	AND	#F0
@@ -9155,19 +9155,19 @@ L_3894	AND	#0F
 	OR	L
 	LD	L,A
 	EX	DE,HL
-	JR	L_3882
+	JR	hex1
 
-L_38A8	CALL	L_2CB3
+hexend	CALL	L_2CB3
 	JP	L_2695
 
-L_38AE	CP	#18
+val1	CP	#18
 	RET	Z
 	CP	#9D
 	RET	Z
 	XOR	(IY+#01)
 	RET
 
-L_38B8	LD	HL,(#5C5D)
+val2	LD	HL,(#5C5D)
 	BIT	6,(IY+#01)
 	RET	Z
 	POP	AF
@@ -9175,7 +9175,7 @@ L_38B8	LD	HL,(#5C5D)
 	CALL	L_1E99
 	POP	AF
 	RRCA
-	JR	NC,L_38D1
+	JR	NC,dolar
 	LD	H,B
 	LD	L,C
 	LD	C,(HL)
@@ -9183,31 +9183,31 @@ L_38B8	LD	HL,(#5C5D)
 	LD	B,(HL)
 	JP	L_2D2B
 
-L_38D1	PUSH	BC
+dolar	PUSH	BC
 	LD	BC,#0004
 	RST	#30
 	POP	HL
 	PUSH	DE
 	LD	A,H
-	CALL	L_38E4
+	CALL	hex99
 	LD	A,L
-	CALL	L_38E4
+	CALL	hex99
 	POP	DE
 	JP	L_35D7
 
-L_38E4	PUSH	AF
+hex99	PUSH	AF
 	RRCA
 	RRCA
 	RRCA
 	RRCA
-	CALL	L_38ED
+	CALL	hex98
 	POP	AF
-L_38ED	AND	#0F
+hex98	AND	#0F
 	OR	#30
 	CP	#3A
-	JR	C,L_38F7
+	JR	C,hex981
 	ADD	A,#27
-L_38F7	LD	(DE),A
+hex981	LD	(DE),A
 	INC	DE
 	RET
 
@@ -9217,131 +9217,131 @@ L_38F7	LD	(DE),A
 	DEFW	#FFFF
 	DEFB	#FF
 
-L_3901	JP	L_0052
+user	JP	L_0052
 
-L_3904	DEFW	#0052
+disk	DEFW	#0052
 
-L_3906	PUSH	AF
+main	PUSH	AF
 	PUSH	HL
 	LD	HL,#BFE0
 	ADD	HL,SP
-	JR	C,L_3917
+	JR	C,mm1
 	LD	SP,#5800
-	LD	HL,L_3906
+	LD	HL,main
 	PUSH	HL
 	PUSH	HL
 	PUSH	HL
-L_3917	PUSH	BC
+mm1	PUSH	BC
 	PUSH	DE
 	PUSH	IX
 	LD	A,I
 	PUSH	AF
-L_391E	DI
+mmret	DI
 	LD	C,#FA
 	LD	A,R
 	OUT	(C),A
 	OUT	(C),C
 	CALL	L_028E
 	INC	E
-	JR	Z,L_391E
+	JR	Z,mmret
 	DEC	E
 	CALL	L_031E
 	LD	XH,A
 	LD	A,#22
 	OUT	(#FE),A
-L_3937	CALL	L_028E
+pust	CALL	L_028E
 	INC	E
-	JR	NZ,L_3937
+	JR	NZ,pust
 	LD	A,#08
 	OUT	(#FE),A
 	LD	A,XH
-	LD	HL,L_391E
+	LD	HL,mmret
 	PUSH	HL
 	CP	#55
-	JR	Z,L_3901
+	JR	Z,user
 	CP	#49
-	JP	Z,L_3B68
+	JP	Z,reset
 	CP	#54
 	JP	Z,settap
 	CP	#44
 	JP	Z,setdsk
 	CP	#42
-	JP	Z,L_3BA2
+	JP	Z,basic
 	CP	#5A
-	LD	HL,(L_3904)
-	JR	NZ,L_3967
+	LD	HL,(disk)
+	JR	NZ,pust1
 	JP	(HL)
 
-L_3967	CP	#4E
+pust1	CP	#4E
 	LD	DE,#5FFF
-	JR	Z,L_3971
+	JR	Z,resnew
 	CP	#52
 	LD	D,E
-L_3971	JP	Z,L_11BE
+resnew	JP	Z,L_11BE
 	CP	#45
-	JR	NZ,L_39A1
-L_3978	DI
+	JR	NZ,neres
+res128	DI
 	XOR	A
 	LD	I,A
 	OUT	(#FE),A
 	LD	A,#57
-L_3980	OUT	(#FD),A
+cc0	OUT	(#FD),A
 	LD	BC,#0008
 	LD	H,B
 	LD	L,B
 	LD	SP,HL
-L_3988	PUSH	HL
+cc1	PUSH	HL
 	PUSH	HL
 	PUSH	HL
 	PUSH	HL
-	DJNZ	L_3988
+	DJNZ	cc1
 	DEC	C
-	JR	NZ,L_3988
+	JR	NZ,cc1
 	DEC	A
 	BIT	4,A
-	JR	NZ,L_3980
+	JR	NZ,cc0
 	XOR	A
 	LD	B,#5C
-L_3999	LD	(BC),A
+cc2	LD	(BC),A
 	INC	C
-	JR	NZ,L_3999
+	JR	NZ,cc2
 	DEC	HL
 	JP	L_1200
 
-L_39A1	CP	#53
-	JR	NZ,L_39B1
+neres	CP	#53
+	JR	NZ,nesav
 	LD	IX,#4000
 	LD	DE,#1B00
 	LD	A,#FF
 	JP	L_04C6
 
-L_39B1	CP	#51
-	JR	Z,L_39CD
+nesav	CP	#51
+	JR	Z,quit
 	CP	#4D
-	JR	Z,L_39DC
+	JR	Z,mrs
 	CALL	L_2D1B
 	RET	C
 	LD	HL,#4000
 	ADD	HL,SP
-	JR	NC,L_39C6
+	JR	NC,nesav1
 	LD	SP,#57F0
-L_39C6	POP	BC
-	CALL	L_3B28
-	JP	L_391E
+nesav1	POP	BC
+	CALL	out128
+	JP	mmret
 
-L_39CD	POP	AF
+quit	POP	AF
 	POP	AF
 	LD	I,A
-	JP	PO,L_39D5
+	JP	PO,quiti
 	EI
-L_39D5	POP	IX
+quiti	POP	IX
 	POP	DE
 	POP	BC
 	POP	HL
 	POP	AF
 	RET
 
-L_39DC	POP	AF
+mrs	POP	AF
 	POP	AF
 	LD	I,A
 	POP	IX
@@ -9354,114 +9354,114 @@ L_39DC	POP	AF
 	LD	(#F544),HL
 	JP	#F514
 
-L_39F0	LD	B,H
+hlo	LD	B,H
 	LD	C,L
 	CALL	L_2D2B
 	JP	L_2DE3
 
-L_39F8	LD	DE,(#5C65)
+nepis	LD	DE,(#5C65)
 	JP	L_33C8
 
-L_39FF	DEFW	#FFFF
+uu	DEFW	#FFFF
 
-L_3A01	LD	DE,L_153F-1
+token	LD	DE,L_153F-1
 	JP	L_0C13
 
-L_3A07	LD	C,A
+dispp	LD	C,A
 	LD	A,(IY+#02)
 	CP	#10
 	LD	A,C
-	JR	NZ,L_3A36
+	JR	NZ,dis
 	LD	BC,#FBFE
 	IN	C,(C)
 	RRC	C
-	JR	C,L_3A28
-L_3A19	XOR	A
+	JR	C,dii
+pusti	XOR	A
 	IN	A,(#FE)
 	RRCA
-	JR	NC,L_3A19
+	JR	NC,pusti
 	LD	SP,(#5C3F)
 	RES	5,(IY+#01)
 	RET
 
-L_3A28	BIT	1,(IY+#76)
-	JR	Z,L_3A36
+dii	BIT	1,(IY+#76)
+	JR	Z,dis
 	CP	#0D
-	JR	Z,L_3A36
+	JR	Z,dis
 	CP	#20
-	JR	C,L_3A39
-L_3A36	JP	L_0B03
+	JR	C,dip
+dis	JP	L_0B03
 
-L_3A39	BIT	2,(IY+#76)
-	JR	NZ,L_3A40
+dip	BIT	2,(IY+#76)
+	JR	NZ,did
 	POP	AF
-L_3A40	XOR	A
-	JR	L_3A36
+did	XOR	A
+	JR	dis
 
-L_3A43	PUSH	DE
+number	PUSH	DE
 	PUSH	HL
 	LD	E,#20
 	DEFB	#06
-L_3A48	LD	L,C
+numcom	LD	L,C
 	LD	BC,#D8F0
 	CALL	L_192A
 	JP	L_1A30
 
-L_3A52	CALL	L_1695
+lin2	CALL	L_1695
 	PUSH	HL
 	LD	HL,(#5C53)
 	LD	A,(HL)
 	POP	HL
 	RET
 
-L_3A5C	RST	#18
+lin3	RST	#18
 	CALL	L_2D1B
 	PUSH	AF
 	CALL	L_19FB
 	POP	AF
 	RET
 
-L_3A66	LD	A,(IY+#02)
+lin4	LD	A,(IY+#02)
 	CP	#10
-	JR	Z,L_3A6F
+	JR	Z,ll40
 	LD	D,#20
-L_3A6F	PUSH	HL
+ll40	PUSH	HL
 	XOR	A
 	LD	HL,(#5C51)
 	LD	BC,#5CC0
 	SBC	HL,BC
 	POP	HL
-	JR	Z,L_3A84
+	JR	Z,ll41
 	BIT	0,(IY+#76)
 	JP	Z,L_1A28
 	DEFB	#01
-L_3A84	LD	D,#00
+ll41	LD	D,#00
 	PUSH	DE
 	LD	D,(HL)
 	INC	HL
 	LD	E,(HL)
 	EX	DE,HL
-	CALL	L_3A43
+	CALL	number
 	EX	DE,HL
 	POP	DE
 	RET
 
-L_3A91	CALL	L_100C
+dole	CALL	L_100C
 	LD	IX,L_100C
-	JR	NZ,L_3AAB
+	JR	NZ,hordol
 	LD	HL,#5C49
 	RET
 
-L_3A9E	CALL	L_1007
+hore	CALL	L_1007
 	LD	IX,L_1007
-	JR	NC,L_3AAB
+	JR	NC,hordol
 	LD	HL,(#5C49)
 	RET
 
-L_3AAB	POP	BC
+hordol	POP	BC
 	LD	B,#00
-L_3AAE	INC	B
-L_3AAF	BIT	5,B
+hd1	INC	B
+	BIT	5,B
 	RET	NZ
 	PUSH	BC
 	CALL	L_03F0
@@ -9470,24 +9470,24 @@ L_3AAF	BIT	5,B
 	CP	#0D
 	RET	Z
 	CP	#20
-	JR	C,L_3AAF
+	JR	C,hd1+1
 	SUB	#A5
-	JR	C,L_3AAE
+	JR	C,hd1
 	EXX
-	LD	HL,L_3AD3
+	LD	HL,incb-2
 	LD	(#5C51),HL
 	CALL	L_0C10
 	CALL	L_1071
 	EXX
-	JR	L_3AAF
+	JR	hd1+1
 
-L_3AD3	DEFW	L_3AD5
-L_3AD5	EXX
+	DEFW	incb
+incb	EXX
 	INC	B
 	EXX
 	RET
 
-L_3AD9	CALL	L_1980
+lin1	CALL	L_1980
 	RET	NC
 	LD	A,(HL)
 	AND	#C0
@@ -9495,7 +9495,7 @@ L_3AD9	CALL	L_1980
 	SCF
 	RET
 
-L_3AE3	RST	#20
+edit	RST	#20
 	CALL	L_1CDE
 	CALL	L_1BEE
 	CALL	L_1E99
@@ -9511,30 +9511,30 @@ L_3AE3	RST	#20
 	POP	AF
 	JP	L_12AC
 
-L_3B0C	CALL	L_1E94
+cls	CALL	L_1E94
 	OR	A
-	JR	Z,L_3B1B
+	JR	Z,necol
 	LD	(#5C48),A
 	LD	(#5C8D),A
 	CALL	L_053F
-L_3B1B	JP	L_0D6B
+necol	JP	L_0D6B
 
-L_3B1E	RST	#20
+banka	RST	#20
 	CALL	L_1CDE
 	CALL	L_1BEE
 	CALL	L_1E94
-L_3B28	AND	#0F
+out128	AND	#0F
 	OR	#10
 	LD	BC,#7FFD
 	OUT	(C),A
 	RET
 
-L_3B32	CP	#27
-	JR	Z,L_3B1E
+comm	CP	#27
+	JR	Z,banka
 	CP	#2C
-	JR	Z,L_3AE3
-	LD	HL,L_3B50
-L_3B3D	BIT	7,(HL)
+	JR	Z,edit
+	LD	HL,tabb
+com1	BIT	7,(HL)
 	JP	NZ,L_1FCD
 	CP	(HL)
 	INC	HL
@@ -9542,30 +9542,30 @@ L_3B3D	BIT	7,(HL)
 	INC	HL
 	LD	D,(HL)
 	INC	HL
-	JR	NZ,L_3B3D
+	JR	NZ,com1
 	RST	#20
 	CALL	L_1BEE
 	EX	DE,HL
 	JP	(HL)
 
-L_3B50	DEFB	'#'
+tabb	DEFB	'#'
 	DEFW	54885
 	DEFB	'_'
 	DEFW	#66
 	DEFB	'*'
-	DEFW	L_3C3F
+	DEFW	hea
 	DEFB	'?'
-	DEFW	L_3C01
+	DEFW	info
 	DEFB	#7F		;(c)
-	DEFW	L_3B87
+	DEFW	init
 	DEFB	'^'
-	DEFW	L_3978
+	DEFW	res128
 	DEFB	'!'
-	DEFW	L_3B68
+	DEFW	reset
 	DEFB	'='
-	DEFW	L_3901
+	DEFW	user
 
-L_3B68	XOR	A
+reset	XOR	A
 	LD	BC,#FFFD
 	OUT	(#13),A
 	LD	A,#D0
@@ -9582,7 +9582,7 @@ L_3B68	XOR	A
 	OUT	(#FD),A
 	RET
 
-L_3B87	LD	HL,L_15AF
+init	LD	HL,L_15AF
 	LD	DE,#5CB6
 	LD	BC,#0015
 	LD	(#5C4F),DE
@@ -9591,7 +9591,7 @@ L_3B87	LD	HL,L_15AF
 	LD	(#5C36),HL
 	LD	HL,#0040
 	LD	(#5C38),HL
-L_3BA2	LD	IY,#5C3A
+basic	LD	IY,#5C3A
 	LD	HL,(#5CB2)
 	LD	(HL),#3E
 	DEC	HL
@@ -9606,18 +9606,18 @@ L_3BA2	LD	IY,#5C3A
 	JP	Z,L_1303
 	JP	L_1256
 
-L_3BC0	RST	#18
+poke	RST	#18
 	CP	#2C
-	JR	Z,L_3BCA
+	JR	Z,pokok
 	CP	#3B
 	JP	NZ,L_1C8A
-L_3BCA	PUSH	AF
+pokok	PUSH	AF
 	RST	#20
 	CALL	L_24FB
 	POP	AF
 	CALL	L_1BEE
 	BIT	6,(IY+#01)
-	JR	Z,L_3BEC
+	JR	Z,pokret
 	CP	#2C
 	JP	Z,L_1E80
 	CALL	L_1E99
@@ -9631,7 +9631,7 @@ L_3BCA	PUSH	AF
 	LD	(HL),B
 	RET
 
-L_3BEC	RST	#28	;*calc
+pokret	RST	#28	;*calc
 	DEFB	#01
 	DEFB	#38	;*endcalc
 	CALL	L_1E99
@@ -9649,38 +9649,38 @@ L_3BEC	RST	#28	;*calc
 	DEFW	#FFFF
 	DEFB	#FF
 
-L_3C01	CALL	L_0D6B
+info	CALL	L_0D6B
 	LD	A,#02
 	CALL	L_1601
 	XOR	A
-	CALL	L_3A01
+	CALL	token
 	XOR	A
 	LD	HL,(#5C4B)
 	LD	BC,(#5C53)
 	PUSH	HL
 	SBC	HL,BC
-	CALL	L_39F0
+	CALL	hlo
 	LD	A,#01
-	CALL	L_3A01
+	CALL	token
 	POP	BC
 	SCF
 	LD	HL,(#5C59)
 	SBC	HL,BC
-	CALL	L_39F0
+	CALL	hlo
 	LD	A,#02
-	CALL	L_3A01
+	CALL	token
 	LD	BC,(#5C65)
 	XOR	A
 	LD	H,A
 	LD	L,A
 	ADD	HL,SP
 	SBC	HL,BC
-L_3C39	CALL	L_39F0
+hlod	CALL	hlo
 	JP	L_1FF8
 
-L_3C3F	LD	A,#02
+hea	LD	A,#02
 	CALL	L_1601
-L_3C44	DI
+znovu	DI
 	LD	IX,#5C9E
 	LD	DE,#0010
 	XOR	A
@@ -9693,7 +9693,7 @@ L_3C44	DI
 	RRA
 	CALL	L_0565
 	CALL	L_053F
-	JR	NC,L_3C44
+	JR	NC,znovu
 	LD	(#5C8C),A
 	LD	A,#17
 	RST	#10
@@ -9707,25 +9707,25 @@ L_3C44	DI
 	LD	A,#3A
 	RST	#10
 	LD	B,#0A
-L_3C74	INC	HL
+meno	INC	HL
 	LD	A,(HL)
 	CP	#20
-	JR	NC,L_3C7C
+	JR	NC,meno1
 	LD	A,#3F
-L_3C7C	RST	#10
-	DJNZ	L_3C74
+meno1	RST	#10
+	DJNZ	meno
 	LD	A,#17
 	RST	#10
 	LD	A,#15
 	RST	#10
 	RST	#10
 	LD	HL,(#5CAB)
-	CALL	L_3A43
+	CALL	number
 	LD	A,#3A
 	RST	#10
 	LD	HL,(#5CA9)
-	CALL	L_3C39
-	JR	L_3C44
+	CALL	hlod
+	JR	znovu
 
 	DEFB	#FF
 
