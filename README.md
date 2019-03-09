@@ -6,6 +6,7 @@ A set of sources for MB-02+ floppy interface (formatted for SjASMPlus):
 - _bsdos308-hdd-11sec:_ Complete source code of DOS bank with 11sec/trk HDD BIOS (no FDC BIOS!). 
 - _bsdos308-hdd-08sec:_ Complete source code of DOS bank with 8sec/trk HDD BIOS (no FDC BIOS!). 
 - _bsrom140-mb02:_ Complete source code of ROM bank (BSROM with ROM BIOS).
+- _bsrom118-mb02:_ Complete source code of ROM bank (BSROM with ROM BIOS).
 - _booter:_  New boot ROM with fixed DMA sequence. Shoult work with any clone of Z80DMA.
 - _makesys:_ MB-02+ system disk creator with fixed DMA sequence.
 - _masterboot-33:_ Complete source code of master boot sector. 
