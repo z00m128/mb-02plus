@@ -4,7 +4,7 @@
 
 ### Requirements
 
-- _[SJAsmPlus](https://github.com/z00m128/sjasmplus/releases)_ cross assembler
+- _[SjASMPlus](https://github.com/z00m128/sjasmplus/releases)_ cross assembler
 - _[bin2tap & dirtap](https://sourceforge.net/projects/zxspectrumutils/)_ utility
 - _[ZX7](https://spectrumcomputing.co.uk/index.php?cat=96&id=27996)_ data compressor by Einar Saukas
 - _[zmakebas](https://github.com/z00m128/zmakebas)_ utility
