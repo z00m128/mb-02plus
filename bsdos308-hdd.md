@@ -1,4 +1,4 @@
-bsdo308 with HDD BIOS
+bsdos308 with HDD BIOS
 ---------------------
 
 This is standard bsdos308, but FDC BIOS was replaced with HDD BIOS, which allows R/W access to ATA devices directly, without EasyHDD patch. There are two versions - 8sec (8x128 images geometry) and 11sec (11x93 images geometry).
