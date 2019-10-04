@@ -11,12 +11,12 @@ start:		di
 		ei
 		ret
 
-dzx7:		include "inc\dzx7_mega.a80"
+dzx7:		include "inc/dzx7_mega.a80"
 
-titlepic:	incbin	"bin\smt2scr.pck"
+titlepic:	incbin	"bin/smt2scr.pck"
 
 
-		savebin "bin\smt2scr.cod",start,$-start
+		savebin "bin/smt2scr.cod",start,$-start
 
 		
 

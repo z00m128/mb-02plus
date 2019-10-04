@@ -44,15 +44,15 @@ expand:
 		call	dzx7
 		jp	23597	
 
-dzx7:		include "inc\dzx7_turbo.a80"
+dzx7:		include "inc/dzx7_turbo.a80"
 expandend:	db	#ff
 		ent
 
-body:		incbin "bin\smt2mb.pck"
+body:		incbin	"bin/smt2mb.pck"
 bodyend:	db	#ff
 
-pg4:		incbin "bin\smt2pg4.pck"
+pg4:		incbin	"bin/smt2pg4.pck"
 pg4end:		db	#ff
 
-		savebin "bin\smt2main.cod",start,$-start
+		savebin	"bin/smt2main.cod",start,$-start
 		

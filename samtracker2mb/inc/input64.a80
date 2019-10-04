@@ -221,7 +221,7 @@ symtab:		defm	"*^[&%>}/"
 		defm	",-]'$<{?"
 		defm	".+�(#"
 		defb	200
-		defm	"\\L"
+		defm	'\L'
 		defb	0
 		defm	"=;)@"
 		defb	201
