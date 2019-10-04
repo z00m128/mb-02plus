@@ -1,0 +1,58 @@
+;Sample Tracker 2 MB - runner
+
+		device	zxspectrum48		
+
+		org	32768
+
+start:		di
+		
+		xor	a
+		out	(254),a
+
+		ld	sp,23596
+		ld	hl,expand
+		ld	de,23296
+		ld	bc,expandend-expand
+		ldir
+
+		jp	23296
+
+expand:
+		disp	23296
+		ld	a,20			;pristrankujeme si page4
+		ld	bc,32765
+		out	(c),a
+		ld	hl,pg4			;rozpakovka rozsirenia
+		ld	de,49152
+		call 	dzx7
+		ld	a,16			;pristrankujeme si nazad page0
+		ld	bc,32765
+		out	(c),a
+
+		ld	hl,22528		;zatmavime atributy
+		ld	de,22529
+		ld	(hl),0
+		ldir
+
+		ld	hl,body			;presunieme zapakovane telo smt2 do obrazovky
+		ld	de,16384		;lebo rozpakovka je cez celu pamat
+		ld	bc,bodyend-body
+		ldir
+
+		ld	hl,16384		;rozpakovka tela
+		ld	de,23597
+		call	dzx7
+		jp	23597	
+
+dzx7:		include "inc\dzx7_turbo.a80"
+expandend:	db	#ff
+		ent
+
+body:		incbin "bin\smt2mb.pck"
+bodyend:	db	#ff
+
+pg4:		incbin "bin\smt2pg4.pck"
+pg4end:		db	#ff
+
+		savebin "bin\smt2main.cod",start,$-start
+		

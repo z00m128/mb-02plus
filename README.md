@@ -12,3 +12,4 @@ A set of sources for MB-02+ floppy interface (formatted for SjASMPlus):
 - _masterboot-33:_ Complete source code of master boot sector. 
 - _28c256flash:_  Simple flasher for MB-02+ with 28c256 EEPROM instead of 27C16 EPROM.
 - _patchimages.sh:_ BASH script for patching MBD images.
+- _samtracker2mb:_ Sample Tracker 2 with simple MB-02+ extension.

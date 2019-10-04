@@ -1,0 +1,24 @@
+;Sample Tracker 2 MB - title pic pack
+
+		device	zxspectrum48
+
+		org	24576
+
+start:		di
+		ld	hl,titlepic
+		ld	de,16384
+		call	dzx7
+		ei
+		ret
+
+dzx7:		include "inc\dzx7_mega.a80"
+
+titlepic:	incbin	"bin\smt2scr.pck"
+
+
+		savebin "bin\smt2scr.cod",start,$-start
+
+		
+
+		
+				

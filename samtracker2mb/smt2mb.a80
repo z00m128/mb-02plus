@@ -1,0 +1,236 @@
+;Sample Tracker 2 - MB-02+ patch
+
+		device	zxspectrum128
+		
+		org	23597
+start:		ld	sp,23599			;nastavime zasobnik
+		incbin	"inc/smt2virgin.cod"		;dohrame original SMT2
+
+		org	25070
+		push	bc				;patchneme funkciu HEADER tak,
+		ld	a,20				;aby sa nam pristrankovala stranka,
+		ld	bc,32765			;v ktorej bude nase MB-02+ rozsirenie
+		out	(c),a
+		call	49152				;SMT2 tak bude 128k only, ale who cares?
+		ld	a,16
+		ld	bc,32765
+		out	(c),a
+		pop	bc
+		ret
+		nop
+
+		org	40000
+		incbin 	"inc/smt2mb.pic"		;preplacneme povodny workscreen upravenym
+							;kde je namiesto textu HEADER text MB-02+
+		
+		savebin "bin/smt2mb.bin",start,65535-start
+
+		
+		page	4
+		org	49152
+
+mb02ext:	push	hl				;obsluha rozsirenia v stranke 4
+		push	de
+		call	storescreen
+		call	clearscreen
+		call	showmenu
+		call	getpath
+		call	keyloop
+		call	restorescreen
+		pop	de
+		pop	hl
+		ret
+
+keyloop:	ld	a,247				;obsluha klavesnice
+		in	a,(254)
+		cpl
+		and	%11111
+		jr	z,keyloop
+		ld	b,a
+		xor	a
+zmena:		rr	b
+		inc	a
+		jr	nc,zmena
+		cp	5
+		ret	z
+		cp	4
+		jp	z,catalogue
+		cp	3
+		jp	z,changeldcursor
+		cp	2
+		jp	z,changedir
+
+changedrive:	call	beep				;zmena aktualnej mechaniky
+		ld	b,2
+		call	blue
+		ld	hx,3
+		call	input
+		jr	nc,changedrive
+		ld	a,l
+		ld	(drive),a
+		call	setdrive
+		call	showmenu
+		call	getpath
+		jp	keyloop
+
+changedir:	call	beep				;zmena aktualneho adresara
+		ld	b,2
+		call	blue
+		ld	hx,3
+		call	input
+		jr	nc,changedir
+		ld	a,l
+		ld	(directory),a
+		call	setdirectory
+		call	showmenu
+		call	getpath
+		jp	keyloop
+
+changeldcursor:	call	beep				;zmena pozicie load kurzora
+		ld 	b,3
+		call	blue
+		ld	hx,5
+		call	input
+		jr	nc,changeldcursor
+		ld	(ldcursor),hl
+		call	setldcursor
+		call	showmenu
+		call	getpath
+		jp	keyloop
+
+catalogue:	call	clearscreen			;katalog aktualneho adresara
+		call	showcatalogue
+		call	wait4key
+		call	clearscreen
+		call	showmenu
+		call	getpath
+		jp	keyloop
+
+blue:		ld	hl,22739			;farbicky pre input
+		ld	a,15
+bluelp:		ld	(hl),a
+		inc	hl
+		djnz	bluelp
+		ret
+
+storescreen:	ld	hl,16384			;ulozenie work screenu
+		ld	de,screenbuffer
+		ld	bc,6912
+		ldir
+		ret
+
+restorescreen:	ld	hl,screenbuffer			;obnovenie workscreenu
+		ld	de,16384
+		ld	bc,6912
+		ldir
+		ret
+
+wait4key:	xor	a				;pause 0
+		in	a,(254)
+		cpl
+		and	31
+		jr	z,wait4key
+		ret
+
+clearscreen:	ld	hl,16384			;vycistenie obrazovky
+		ld	de,16385
+		ld	bc,6143
+		ld	(hl),0
+		ldir
+		ld	hl,22528
+		ld	hl,22529
+		ld	bc,767
+		ld	(hl),7
+		ldir
+		ret
+
+;diskove sluzby
+getpath:	ld	a,#12				;zisti a ukaz cestu
+		call	#3c9e
+		rst	#20
+		call	#3c98
+		ld	a,e
+		ld	(drive),a
+		ld	a,d
+		ld	(directory),a
+		ld	(ldcursor),hl
+		call	#3c9e
+		ld	a,21
+		ld	(#03e0),a
+		ld	a,3
+		ld	(#03e1),a
+		ld	c,0
+		ld	a,(drive)
+		ld	e,a
+		ld	a,5
+		rst	 #20
+		ld	a,21
+		ld	(#03e0),a
+		ld	a,4
+		ld	(#03e1),a
+		ld	c,0
+		ld	a,(directory)
+		ld	e,a
+		ld	a,5
+		rst	#20
+		ld	a,21
+		ld	(#03e0),a
+		ld	a,5
+		ld	(#03e1),a
+		ld	c,0
+		ld	hl,(ldcursor)
+		ld	a,6
+		rst	#20
+		call	#3c98
+		ret
+	
+setdrive:	ld	a,(drive)			;nastav aktualnu mechaniku
+		ld	e,a
+		ld	a,#13
+		call	#3c9e
+		rst	#20
+		call	#3c98
+		ret
+
+setdirectory:	ld	a,(directory)			;nastav adresar
+		ld	e,a
+		ld	a,#14
+		call	#3c9e
+		rst	#20
+		call	#3c98
+		ret
+
+setldcursor:	ld	bc,(ldcursor)			;nastav poziciu load kurzora
+		ld	a,#15
+		call	#3c9e
+		rst	#20
+		call	#3c98
+		ret
+
+showcatalogue:	ld	bc,#0100			;zobraz katalog
+		ld	a,#2c
+		call	#3c9e
+		rst	#20
+		call	#3c98
+		ret
+
+beep:		ld	a,#0d				;pipni
+		call	#3c9e
+		rst	#20
+		call	#3c98
+		ret
+
+input:		include "inc/input64.a80"
+
+;workspace
+drive:		ds	1
+directory:	ds	1
+ldcursor:	ds	2
+
+screenbuffer:	ds	6912
+
+showmenu:	incbin	"inc/smt2mnu.pic"
+
+
+		savebin	"bin/smt2pg4.bin",49152,$-mb02ext
+
