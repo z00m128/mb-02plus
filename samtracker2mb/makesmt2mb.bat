@@ -1,4 +1,5 @@
 @echo off
+if not exist .\bin (mkdir .\bin)
 sjasmplus --lst=smt2mb.lst smt2mb.a80
 zx7 .\bin\smt2mb.bin .\bin\smt2mb.pck
 zx7 .\bin\smt2pg4.bin .\bin\smt2pg4.pck
