@@ -1,7 +1,10 @@
 ;FAST COMMANDER 0.1delta
 ;by EYE^K3l 1998 & +GAMA 2002
 
-		org	23296
+		device	zxspectrum48
+		
+
+		org	24200
 ;		ent	START
 
 
@@ -495,10 +498,10 @@ SWITCH		call	OZNCHAN
 		ld	de,FILE1
 		ld	bc,2*1024+14
 SW		ld	a,(hl)
-		ld	ixu,a
+		ld	xh,a
 		ld	a,(de)
 		ld	(hl),a
-		ld	a,ixu
+		ld	a,xh
 		ld	(de),a
 		inc	hl
 		inc	de
@@ -1221,7 +1224,7 @@ OPTIONS		ld	hl,10*256+10
 		bit	2,(ix+0)
 		call	nz,PX
 		ld	a,(OPT)
-		ld	ixu,a
+		ld	xh,a
 		ld	hl,11*256+25
 		ld	a,17
 		call	INV
@@ -1240,7 +1243,7 @@ TK		push	hl
 		call	ESCAPE
 		jr	nc,NO
 		jr	TK
-HAPPY		ld	a,ixu
+HAPPY		ld	a,xh
 		ld	(OPT),a
 NO		call	OUT
 		jp	MAIN
@@ -1255,22 +1258,22 @@ FLOP		ld	a,h
 		ld	(MDF1+1),a
 		add	a,64
 		ld	(MDF2+1),a
-		ld	a,ixu
+		ld	a,xh
 MDF3		bit	0,a
 		jr	z,IH
 		ld	l,23
 		push	hl
 		call	REM
 		pop	hl
-		ld	a,ixu
+		ld	a,xh
 MDF1		res	0,a
-		ld	ixu,a
+		ld	xh,a
 		call	PAUSE
 		jr	TK
 IH		call	PX
-		ld	a,ixu
+		ld	a,xh
 MDF2		set	0,a
-		ld	ixu,a
+		ld	xh,a
 		call	PAUSE
 		jr	TK
 REM		call	ADRSET
@@ -3459,26 +3462,26 @@ ZNAK1		cp	32
 ZNAK2		cp	123
 		jr	nc,INTXT1
 		ex	af,af'
-		ld	a,ixu
-		ld	iyu,a
+		ld	a,xh
+		ld	yh,a
 		ld	a,(iy-2)
 		cp	32
 		jp	nz,INTXT1
-		ld	a,iyl
+		ld	a,yl
 		dec	a
-		cp	ixl
+		cp	xl
 		jp	z,INTXT1
 		push	hl
 		push	de
 		push	bc
 		push	af
-		ld	a,iyl
+		ld	a,yl
 		dec	a
-		sub	ixl
+		sub	xl
 		ld	b,0
 		ld	c,a
 		ld	d,TEXT/256
-		ld	a,iyl
+		ld	a,yl
 		dec	a
 		ld	e,a
 		ld	h,d
@@ -3503,7 +3506,7 @@ ZNAK2		cp	123
 		call	CHAR
 		call	PAUSE
 		jr	INTXT1
-DEL		ld	a,ixl
+DEL		ld	a,xl
 		or	a
 		jp	z,INTXT1
 		push	hl
@@ -3515,14 +3518,14 @@ DEL		ld	a,ixl
 		ld	d,h
 		ld	e,l
 		dec	e
-		ld	a,iyl
-		sub	ixl
+		ld	a,yl
+		sub	xl
 		ld	b,0
 		ld	c,a
 		ldir
 		dec	l
 		ld	(hl),32
-		dec	ixl
+		dec	xl
 		ld	hl,(POS)
 		ld	de,TEXT
 		call	REMOV2
@@ -4886,3 +4889,6 @@ MSGST		ds	540
 STORE		ds	2052
 
 A0COMP
+
+		savebin "fc01delta.cod",START,$-START
+		
