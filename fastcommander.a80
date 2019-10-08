@@ -16,7 +16,7 @@
 
 START		di
 		ld	sp,STACK
-		call	$3C9E
+		call	#3C9E
 		call	STATUS
 		xor	a
 		out	(254),a
@@ -35,8 +35,8 @@ START		di
 PANELY1		call	WORKB
 PANELY		ld	sp,0
 		ld	e,0
-		ld	a,$11
-		rst	$18
+		ld	a,#11
+		rst	#18
 ;setoff na vypinani motoru
 		call	SWITCH
 		call	SWAPPRNT
@@ -48,8 +48,8 @@ MAIN		ld	sp,0
 		call	CHANGE
 MAIN1		call	CBAR
 		ld	e,1
-		ld	a,$0C
-		rst	$20
+		ld	a,#0C
+		rst	#20
 		ld	hl,(FILE1)
 		ld	c,48
 		ld	iy,NUMBER
@@ -248,15 +248,15 @@ CHECK1		ld	e,a
 		jr	z,IDRV
 SETHDD		ld	a,e
 		ld	(ACTDRV1),a
-		ld	a,$13
-		rst	$20
+		ld	a,#13
+		rst	#20
 		call	OUT
 		call	REREAD
 		jp	MAIN
 IDRV		call	OUT
 		ld	hl,ITT
-		ld	a,$34
-		rst	$20
+		ld	a,#34
+		rst	#20
 		call	PAUSE
 		jp	c,CHDRV
 		jp	MAIN
@@ -293,8 +293,8 @@ CHDIR		ld	hl,10*256+7
 		call	CPHLDE
 		jp	nc,IDIR
 		ld	e,l
-		ld	a,$14
-		rst	$20
+		ld	a,#14
+		rst	#20
 		call	OUT
 		call	REREAD
 CHDIRE		jp	MAIN
@@ -302,8 +302,8 @@ CHDIREB		call	OUT
 		jp	MAIN
 IDIR		call	OUT
 		ld	hl,ITT
-		ld	a,$34
-		rst	$20
+		ld	a,#34
+		rst	#20
 		call	PAUSE
 		jp	c,CHDIR
 		jp	MAIN
@@ -316,8 +316,8 @@ CHDTXT2		db	"Enter number of"
 
 WRTN		push	hl
 		ld	e,1
-		ld	a,$0C
-		rst	$20
+		ld	a,#0C
+		rst	#20
 		ld	e,l
 		ld	c,48
 		ld	iy,NUMBE+1
@@ -332,18 +332,18 @@ WRTN		push	hl
 		ret
 
 REREAD		call	OZNDEL1
-REREAD1		ld	a,$1E
-		rst	$20
+REREAD1		ld	a,#1E
+		rst	#20
 ;kill
 		ld	a,(ACTDRV1)
 		ld	e,a
-		ld	a,$13
-		rst	$20
+		ld	a,#13
+		rst	#20
 ;setdrv
 		ld	a,(ACTDIR1)
 		ld	e,a
-		ld	a,$14
-		rst	$20
+		ld	a,#14
+		rst	#20
 ;setdir
 RRP1
 		ld	a,(ACTDRV1)
@@ -369,19 +369,19 @@ RRP1
 		ld	d,0
 		add	hl,de
 		ld	(POZICE1),hl
-		ld	a,$12
-		rst	$20
+		ld	a,#12
+		rst	#20
 		ld	a,d
 		ld	(ACTDIR1),a
 		ld	l,d
 		call	WRTN
-FREE		ld	a,$1F
-		rst	$20
+FREE		ld	a,#1F
+		rst	#20
 		ret	nc
 		push	bc
 		ld	e,1
-		ld	a,$0C
-		rst	$20
+		ld	a,#0C
+		rst	#20
 		pop	bc
 		ld	h,b
 		ld	l,c
@@ -394,7 +394,7 @@ FREE		ld	a,$1F
 		ld	l,a
 		ld	de,NUMBER
 		call	PRINT
-		ld	hl,JIST1+$26
+		ld	hl,JIST1+#26
 		ld	de,NAME
 		ld	bc,10
 		ldir
@@ -439,12 +439,12 @@ ONE		ld	a,(PRINTD+1)
 		call	CLBAR
 		ld	a,(ACTDRV2)
 		ld	e,a
-		ld	a,$13
-		rst	$20
+		ld	a,#13
+		rst	#20
 		ld	a,(ACTDIR2)
 		ld	e,a
-		ld	a,$14
-		rst	$20
+		ld	a,#14
+		rst	#20
 		jp	nc,MAIN
 
 		ld	a,2
@@ -469,12 +469,12 @@ TWO		ld	a,(PRINTD+1)
 		call	CLBAR
 		ld	a,(ACTDRV2)
 		ld	e,a
-		ld	a,$13
-		rst	$20
+		ld	a,#13
+		rst	#20
 		ld	a,(ACTDIR2)
 		ld	e,a
-		ld	a,$14
-		rst	$20
+		ld	a,#14
+		rst	#20
 		jp	nc,MAIN
 
 		ld	a,34
@@ -646,8 +646,8 @@ DOMAIN		call	CBAR
 ;ix=panel1,panel2
 READDIR		push	bc
 		push	ix
-		ld	a,$18
-		rst	$20
+		ld	a,#18
+		rst	#20
 		jp	nc,CHDRVP
 		ld	hl,0
 		call	CPHLDE
@@ -659,8 +659,8 @@ READDIR		push	bc
 READ1		push	af
 		push	bc
 		push	bc
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		pop	bc
 		jp	nc,CHDRVP
 		call	z,BAD
@@ -669,9 +669,9 @@ READ1		push	af
 		ld	a,(ix+0)
 		or	a
 		jp	z,EMPTY
-		cp	$80
+		cp	#80
 		jp	z,DIR
-		ld	a,(ix+$05)
+		ld	a,(ix+#05)
 		add	a,48
 		ld	(ITEM),a
 		push	ix
@@ -688,16 +688,16 @@ READ3		ld	a,(hl)
 		cpi
 		jp	pe,READ3
 		ld	e,1
-		ld	a,$0C
-		rst	$20
-		ld	l,(ix+$12)
-		ld	h,(ix+$13)
+		ld	a,#0C
+		rst	#20
+		ld	l,(ix+#12)
+		ld	h,(ix+#13)
 		ld	iy,ITEM+14
 		call	DEC16
-		ld	l,(ix+$18)
-		ld	h,(ix+$19)
-		ld	e,(ix+$1A)
-		ld	d,(ix+$1B)
+		ld	l,(ix+#18)
+		ld	h,(ix+#19)
+		ld	e,(ix+#1A)
+		ld	d,(ix+#1B)
 		ld	iy,ITEM+21
 		call	DEC32
 		ld	hl,ITEM
@@ -1325,18 +1325,18 @@ OPTXT2		db	" ( ) Beep after"
 		db	"nable  "
 		nop
 
-EXIT		ld	a,$34
+EXIT		ld	a,#34
 		ld	hl,QTXT
-		rst	$20
+		rst	#20
 		jr	nc,BACK
 		jp	RETDOS
 BACK		call	OUT
 		jp	MAIN
 QTXT		db	"Exit to Dos ?"
-		db	$00,$C9
+		db	#00,#C9
 
-CHANGE		ld	a,$12
-		rst	$20
+CHANGE		ld	a,#12
+		rst	#20
 		call	AKTIVE
 		cp	2
 		jr	nz,CHREP
@@ -1360,9 +1360,9 @@ OPICE		ld	a,(de)
 		or	b
 		jr	nz,OPICE
 		ret
-CHREP		ld	a,$34
+CHREP		ld	a,#34
 		ld	hl,CHTXT
-		rst	$20
+		rst	#20
 		jr	nc,CHABORT
 		pop	hl
 		call	REREAD
@@ -1370,7 +1370,7 @@ CHREP		ld	a,$34
 CHABORT		pop	hl
 		jp	MAIN
 CHTXT		db	"Disk changed !"
-		db	$00,$C9
+		db	#00,#C9
 
 SYSTEM		di
 		ld	a,233
@@ -1412,9 +1412,9 @@ LN		equ	$-SYSTEM
 		ld	b,10
 		ld	a,16
 		call	PMNU
-		ld	a,$0C
+		ld	a,#0C
 		ld	e,1
-		rst	$20
+		rst	#20
 		ld	de,(KOEF2)
 		ld	hl,3614
 		call	CPHLDE
@@ -1674,8 +1674,8 @@ PRESS		call	CHANGE
 		exx
 		ld	a,120
 		call	MENU2
-		ld	a,$27
-		rst	$20
+		ld	a,#27
+		rst	#20
 		call	OUT
 		call	REREAD
 		jp	MAIN1
@@ -1798,8 +1798,8 @@ OZNALL		call	CHANGE
 NXTALL		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		jr	z,OUTALL
 		pop	bc
 		ld	a,(FASTMEM)
@@ -1854,8 +1854,8 @@ UZNALL		call	CHANGE
 NXTULL		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		jr	z,OUTULL
 		pop	bc
 		ld	a,(FASTMEM)
@@ -1907,8 +1907,8 @@ OZNMASK		call	CHANGE
 NXTM		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		jr	z,OUTM
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2070,8 +2070,8 @@ MATXT3		db	"               "
 II		call	CHANGE
 		call	INFO
 		ld	e,1
-		ld	a,$0C
-		rst	$20
+		ld	a,#0C
+		rst	#20
 		ld	iy,SFIL
 		ld	hl,(STO)
 		call	DEC16
@@ -2138,8 +2138,8 @@ INFO		ld	hl,0
 NXTINFO		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		jr	z,OUTINFO
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2149,14 +2149,14 @@ ZINFO		push	bc
 		ld	hl,(TOT)
 		inc	hl
 		ld	(TOT),hl
-		ld	hl,(FASTMEM+$18)
-		ld	de,(FASTMEM+$1A)
-		ld	a,$0F
-		rst	$20
+		ld	hl,(FASTMEM+#18)
+		ld	de,(FASTMEM+#1A)
+		ld	a,#0F
+		rst	#20
 		ld	hl,(TLEN1)
 		ld	de,(TLEN2)
-		ld	a,$0A
-		rst	$20
+		ld	a,#0A
+		rst	#20
 		ld	(TLEN1),hl
 		ld	(TLEN2),de
 		pop	bc
@@ -2169,14 +2169,14 @@ ZINFO		push	bc
 		ld	hl,(STO)
 		inc	hl
 		ld	(STO),hl
-		ld	hl,(FASTMEM+$18)
-		ld	de,(FASTMEM+$1A)
-		ld	a,$0F
-		rst	$20
+		ld	hl,(FASTMEM+#18)
+		ld	de,(FASTMEM+#1A)
+		ld	a,#0F
+		rst	#20
 		ld	hl,(SLEN1)
 		ld	de,(SLEN2)
-		ld	a,$0A
-		rst	$20
+		ld	a,#0A
+		rst	#20
 		ld	(SLEN1),hl
 		ld	(SLEN2),de
 		pop	bc
@@ -2265,8 +2265,8 @@ DELVIC		call	DELREP
 NXTD		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		jr	z,OUTD
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2296,8 +2296,8 @@ OUTD		pop	bc
 		ld	h,b
 		ld	l,c
 		ld	bc,(INTFRST)
-		ld	a,$29
-		rst	$20
+		ld	a,#29
+		rst	#20
 OUTDD		call	OUT
 		call	REREAD
 		jp	MAIN1
@@ -2310,8 +2310,8 @@ NDL		or	a
 		ld	h,b
 		ld	l,c
 		ld	bc,(INTFRST)
-		ld	a,$29
-		rst	$20
+		ld	a,#29
+		rst	#20
 		pop	bc
 		jr	ND
 INTERVAL	nop
@@ -2333,26 +2333,26 @@ DELJEDEN	ld	bc,(FILE1)
 		call	DELREP
 		call	CHANGE
 		ld	bc,(FILE1)
-		ld	a,$28
-		rst	$20
+		ld	a,#28
+		rst	#20
 		call	REREAD
 		jp	MAIN1
-DELREP		ld	a,$34
+DELREP		ld	a,#34
 		ld	hl,DELTXT
-		rst	$20
+		rst	#20
 		jr	nc,DELABORT
 		ret
 DELABORT	pop	hl
 		jp	MAIN
 DELTXT		db	" Delete it ?  "
-		db	$00,$C9
+		db	#00,#C9
 
 ;in:bc-file
 ;out:je(c)/neni(nc)
 ;meni:FASTMEM
 TDEL		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		ld	a,(FASTMEM)
 		rla
 		ret
@@ -2393,8 +2393,8 @@ UNVIC		ld	hl,0
 NXTU		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		jr	z,OUTU
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2424,8 +2424,8 @@ OUTU		pop	bc
 		ld	h,b
 		ld	l,c
 		ld	bc,(INTFRST)
-		ld	a,$37
-		rst	$20
+		ld	a,#37
+		rst	#20
 OUTUU		call	OUT
 		call	REREAD
 		jp	MAIN1
@@ -2438,8 +2438,8 @@ NUN		or	a
 		ld	h,b
 		ld	l,c
 		ld	bc,(INTFRST)
-		ld	a,$37
-		rst	$20
+		ld	a,#37
+		rst	#20
 		pop	bc
 		jr	NU
 UNTXT		db	"        Undelet"
@@ -2456,8 +2456,8 @@ UNJEDEN		ld	bc,(FILE1)
 		jp	c,MAIN
 		call	CHANGE
 		ld	bc,(FILE1)
-		ld	a,$36
-		rst	$20
+		ld	a,#36
+		rst	#20
 		call	REREAD
 		jp	MAIN1
 
@@ -2493,8 +2493,8 @@ COPVIC		call	CHANGE
 NXTCO		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		jr	z,OUTCO
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2554,7 +2554,7 @@ COPJEDEN	ld	bc,(FILE1)
 		jp	PANELY
 
 ;bc=file number
-COPFILE		ld	hl,$3E3
+COPFILE		ld	hl,#3E3
 		set	7,(hl)
 		push	bc
 		ld	hl,FASTMEM+6
@@ -2572,22 +2572,22 @@ COPFILE		ld	hl,$3E3
 		ld	a,(FASTMEM)
 		bit	5,a
 		ret	z
-		ld	hl,(FASTMEM+$18)
-		ld	de,(FASTMEM+$1A)
-		ld	a,$0F
-		rst	$20
+		ld	hl,(FASTMEM+#18)
+		ld	de,(FASTMEM+#1A)
+		ld	a,#0F
+		rst	#20
 		ld	(LENFILE+1),bc
-NXBYTE		ld	hl,($18+FASTMEM)
-		ld	de,($1A+FASTMEM)
+NXBYTE		ld	hl,(#18+FASTMEM)
+		ld	de,(#1A+FASTMEM)
 		ld	a,h
 		or	l
 		or	d
 		or	e
 		jp	z,CLOSE
-		ld	a,$08
-		rst	$20
-		ld	(FASTMEM+$18),hl
-		ld	(FASTMEM+$1A),de
+		ld	a,#08
+		rst	#20
+		ld	(FASTMEM+#18),hl
+		ld	(FASTMEM+#1A),de
 		call	READBYTE
 		call	WRITBYTE
 		jr	NXBYTE
@@ -2618,13 +2618,13 @@ SEQIN		ld	bc,-1
 		ld	bc,(SEQIN+1)
 		ld	ix,SECTIN
 FILENUM		ld	hl,0
-		ld	a,$22
+		ld	a,#22
 		ld	e,1
-		rst	$20
-		ld	e,$FF
-		ld	a,$11
-		rst	$18
-		ld	hl,$3E3
+		rst	#20
+		ld	e,#FF
+		ld	a,#11
+		rst	#18
+		ld	hl,#3E3
 		set	7,(hl)
 		ld	hl,(READBYTE+1)
 		jr	SEQREAD1
@@ -2647,13 +2647,13 @@ SEQOUT		ld	bc,-1
 		ld	(SEQOUT+1),bc
 		ld	ix,SECTOUT
 DESTNUM		ld	hl,0
-		ld	a,$25
+		ld	a,#25
 		ld	e,1
-		rst	$20
-		ld	e,$FF
-		ld	a,$11
-		rst	$18
-		ld	hl,$3E3
+		rst	#20
+		ld	e,#FF
+		ld	a,#11
+		rst	#18
+		ld	hl,#3E3
 		set	7,(hl)
 RESOUT1		ld	hl,0
 		ld	(WRITBYTE+1),hl
@@ -2673,47 +2673,47 @@ CLOSE		ld	bc,(SEQIN+1)
 		call	SEQOUTST
 CLOSE1		call	SETSOUR
 		xor	a
-		ld	($03E3),a
+		ld	(#03E3),a
 		ret
 
 PREDEJ		nop
 
 SETSOUR		ld	a,(ACTDRV1)
 		ld	e,a
-		ld	a,$13
-		rst	$20
+		ld	a,#13
+		rst	#20
 		ld	a,(ACTDIR1)
 		ld	e,a
-		ld	a,$14
-		rst	$20
+		ld	a,#14
+		rst	#20
 		ld	a,128
-		ld	($03E3),a
+		ld	(#03E3),a
 		ret
 SETDEST		ld	a,(ACTDRV2)
 		ld	e,a
-		ld	a,$13
-		rst	$20
+		ld	a,#13
+		rst	#20
 		ld	a,(ACTDIR2)
 		ld	e,a
-		ld	a,$14
-		rst	$20
+		ld	a,#14
+		rst	#20
 		ld	a,128
-		ld	($03E3),a
+		ld	(#03E3),a
 		ret
 
 RESIN		ld	(FILENUM+1),bc
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		ld	hl,-1
 		ld	(SEQIN+1),hl
 		ld	hl,0
 		ld	(READBYTE+1),hl
 		ret
 
-RESOUT		ld	a,$26
+RESOUT		ld	a,#26
 		ld	ix,FASTMEM
-		rst	$20
+		rst	#20
 		jp	nc,DFULL
 		ld	(DESTNUM+1),hl
 		ld	hl,-1
@@ -2743,8 +2743,8 @@ RENVIC		call	CHANGE
 NXTRN		push	bc
 ;		call PROZENT
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 		jr	z,OUTRN
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2773,7 +2773,7 @@ RENJEDEN	ld	bc,(FILE1)
 		call	OUT
 		jp	PANELY
 
-RENAM		ld	hl,FASTMEM+$06
+RENAM		ld	hl,FASTMEM+#06
 		ld	de,NAME
 		ld	(REX+1),bc
 		ld	bc,10
@@ -2806,13 +2806,13 @@ RENAM		ld	hl,FASTMEM+$06
 		call	INTXT
 		jr	nc,RNB
 		ld	hl,TEXT
-		ld	de,FASTMEM+$06
+		ld	de,FASTMEM+#06
 		ld	bc,10
 		ldir
 REX		ld	hl,0
 		ld	ix,FASTMEM
-		ld	a,$1B
-		rst	$20
+		ld	a,#1B
+		rst	#20
 RNB		call	OUT
 		ret
 RNTXT1		db	" Old name of fi"
@@ -2832,32 +2832,32 @@ VIEW		ld	bc,(FILE1)
 		call	VPOZADI
 		ld	bc,(FILE1)
 		ld	ix,FASTMEM
-		ld	a,$16
-		rst	$20
+		ld	a,#16
+		rst	#20
 ;getsub
 		jp	z,OUTV
-		ld	de,(FASTMEM+$1A)
-		ld	hl,(FASTMEM+$18)
-		ld	a,$0F
-		rst	$20
+		ld	de,(FASTMEM+#1A)
+		ld	hl,(FASTMEM+#18)
+		ld	a,#0F
+		rst	#20
 		ld	(LENSEC),bc
 		ld	e,1
-		ld	a,$0C
-		rst	$20
+		ld	a,#0C
+		rst	#20
 		ld	hl,(LENSEC)
 		ld	iy,VTXT1
 		call	DEC16
-		ld	hl,(FASTMEM+$16)
+		ld	hl,(FASTMEM+#16)
 		ld	iy,NUMBER
 		call	DEC16
 		ld	hl,14
 		ld	de,NUMBER
 		call	PRINT
 		ld	e,1
-		ld	a,$0C
-		rst	$20
-		ld	de,(FASTMEM+$1A)
-		ld	hl,(FASTMEM+$18)
+		ld	a,#0C
+		rst	#20
+		ld	de,(FASTMEM+#1A)
+		ld	hl,(FASTMEM+#18)
 		ld	iy,NUMBER32
 		call	DEC32
 		ld	hl,20
@@ -2884,11 +2884,11 @@ VIEW1		ld	hl,BOOT
 		ld	ix,BOOT
 		ld	bc,(POCSEC)
 		ld	e,1
-		ld	a,$22
-		rst	$20
+		ld	a,#22
+		rst	#20
 		ld	e,1
-		ld	a,$0C
-		rst	$20
+		ld	a,#0C
+		rst	#20
 		ld	hl,(POCSEC)
 		inc	hl
 		ld	iy,VTXT2
@@ -3014,8 +3014,8 @@ PROZENT		push	hl
 		push	de
 		push	bc
 		ld	e,1
-		ld	a,$0C
-		rst	$20
+		ld	a,#0C
+		rst	#20
 		ld	hl,(LENDIR1)
 		pop	bc
 		push	bc
@@ -3033,8 +3033,8 @@ PROFILE		push	hl
 		push	de
 		push	bc
 		ld	e,1
-		ld	a,$0C
-		rst	$20
+		ld	a,#0C
+		rst	#20
 LENFILE		ld	hl,0
 		pop	bc
 		push	bc
@@ -3104,8 +3104,8 @@ PROY		ld	(hl),219
 		ret
 
 REDISK		call	CHANGE
-REDISKY		ld	a,$12
-		rst	$20
+REDISKY		ld	a,#12
+		rst	#20
 		call	AKTIVE
 		or	a
 		jp	z,RDB
@@ -3118,9 +3118,9 @@ REDISKY		ld	a,$12
 		jp	z,RDB
 		cp	1
 		jr	z,REDISKY
-		ld	a,$0D
-		rst	$18
-		ld	hl,BOOT+$26
+		ld	a,#0D
+		rst	#18
+		ld	hl,BOOT+#26
 		ld	de,NAME
 		ld	bc,10
 		ldir
@@ -3152,11 +3152,11 @@ REDISKY		ld	a,$12
 		call	INTXT
 		jr	nc,RDB
 		ld	hl,TEXT
-		ld	de,BOOT+$26
+		ld	de,BOOT+#26
 		ld	bc,10
 		ldir
-REDISKX		ld	a,$12
-		rst	$20
+REDISKX		ld	a,#12
+		rst	#20
 		call	AKTIVE
 		or	a
 		jr	z,RDB
@@ -3169,8 +3169,8 @@ REDISKX		ld	a,$12
 		jr	z,RDB
 		cp	1
 		jr	z,REDISKX
-		ld	a,$0D
-		rst	$18
+		ld	a,#0D
+		rst	#18
 RDB		call	OUT
 		jp	MAIN
 RDTXT1		db	" Old name of di"
@@ -3221,14 +3221,14 @@ RERNG		ld	a,(hl)
 		ld	a,4
 		out	(c),a
 		ld	b,13
-		db	$ED,$71
+		db	#ED,#71
 ;out (c),0
 BP		call	OUT
 		jp	MAIN
 ITIME		call	OUT
 		ld	hl,ITT
-		ld	a,$34
-		rst	$20
+		ld	a,#34
+		rst	#20
 		call	PAUSE
 		jp	c,SETTIME
 		jp	MAIN
@@ -3241,11 +3241,11 @@ STTXT2		db	" Enter new time"
 		nop
 ITT		db	"Bad string. Aga"
 		db	"in ?"
-		db	$00,$C9
+		db	#00,#C9
 
 
 ;------------------------------
-KEY		call	$3C98
+KEY		call	#3C98
 		ld	iy,39
 		call	654
 		ret	nz
@@ -3254,7 +3254,7 @@ KEY		call	$3C98
 		dec	d
 		ld	e,a
 		call	819
-		jp	$3C9E
+		jp	#3C9E
 AKEY		call	KEY
 		cp	13
 		ret	z
@@ -3318,48 +3318,48 @@ NAS0		add	hl,de
 		djnz	NAS0
 		ret
 DEC8S		ld	ix,NUM
-		ld	($03E0),ix
+		ld	(#03E0),ix
 		ld	c,0
-		ld	a,$05
-		rst	$20
+		ld	a,#05
+		rst	#20
 		xor	a
 		ld	(NUM+3),a
 		ret
 DEC16S		ld	ix,NUM
-		ld	($03E0),ix
+		ld	(#03E0),ix
 		ld	c,0
-		ld	a,$06
-		rst	$20
+		ld	a,#06
+		rst	#20
 		xor	a
 		ld	(NUM+5),a
 		ret
 DEC32S		ld	ix,NUM
-		ld	($03E0),ix
+		ld	(#03E0),ix
 		ld	c,0
 		ld	b,5
-		ld	a,$07
-		rst	$20
+		ld	a,#07
+		rst	#20
 		xor	a
 		ld	(NUM+5),a
 		ret
 ;iy=adresa bufferu
 DEC8		ld	c,32
-		ld	($03E0),iy
-		ld	a,$05
-		rst	$20
+		ld	(#03E0),iy
+		ld	a,#05
+		rst	#20
 		ret
 ;iy=adresa bufferu
 DEC16		ld	c,32
-		ld	($03E0),iy
-		ld	a,$06
-		rst	$20
+		ld	(#03E0),iy
+		ld	a,#06
+		rst	#20
 		ret
 ;iy=adresa bufferu
 DEC32		ld	c,32
-		ld	($03E0),iy
+		ld	(#03E0),iy
 		ld	b,7
-		ld	a,$07
-		rst	$20
+		ld	a,#07
+		rst	#20
 		ret
 ;ix=cislo
 ;nc=overflow
@@ -3884,9 +3884,9 @@ CHAR		push	bc
 		call	ADRSET
 		or	a
 		jr	z,SECND2
-		ld	c,$F0
+		ld	c,#F0
 		jr	SECND1
-SECND2		ld	c,$0F
+SECND2		ld	c,#0F
 SECND1		pop	af
 		ex	de,hl
 		ld	l,a
@@ -4034,15 +4034,15 @@ MODIFY		xor	a
 ;a=2 ok, nevymenena disketa
 ;a=3 ok, vymenena disketa
 AKTIVE		di
-		ld	a,$0C
-		rst	$18
+		ld	a,#0C
+		rst	#18
 		ei
 		cp	1
 		ret	nz
 		ld	(BIOS),a
 		ld	hl,DNREADY
-		ld	a,$34
-		rst	$20
+		ld	a,#34
+		rst	#20
 		jr	c,AKTMX
 		xor	a
 		ret
@@ -4052,8 +4052,8 @@ AKTMX		ld	a,1
 ;a=1 znovu nacitej
 ;a=2 ok
 RDSEC		di
-		ld	a,$04
-		rst	$18
+		ld	a,#04
+		rst	#18
 		ei
 		rra
 		ld	hl,TIMEOUT
@@ -4076,16 +4076,16 @@ RDSEC		di
 		bit	7,a
 		ld	hl,NREADY
 		jr	nz,RWSE
-		ld	a,$0D
-		rst	$18
+		ld	a,#0D
+		rst	#18
 ;passive
 		ld	a,2
 		ret
 ;a=0 abort
 ;a=1 znovu zapisuj
 ;a=2 ok
-WRSEC		ld	a,$05
-		rst	$18
+WRSEC		ld	a,#05
+		rst	#18
 		rra
 		ld	hl,TIMEOUT
 		jr	c,RWSE
@@ -4108,19 +4108,19 @@ WRSEC		ld	a,$05
 		rra
 		ld	hl,NREADY
 		jr	c,RWSE
-		ld	a,$0D
-		rst	$18
+		ld	a,#0D
+		rst	#18
 ;passive
 		ld	a,2
 		ret
 RWSE		push	hl
-		ld	a,$0D
-		rst	$18
+		ld	a,#0D
+		rst	#18
 		pop	hl
 		ld	a,1
 		ld	(BIOS),a
-		ld	a,$34
-		rst	$20
+		ld	a,#34
+		rst	#20
 		jr	c,RWSEX
 		xor	a
 		ret
@@ -4128,22 +4128,22 @@ RWSEX		ld	a,1
 		ret
 
 TIMEOUT		db	"Time out"
-		db	$00,$C9
+		db	#00,#C9
 DNREADY		db	"Disk not ready"
-		db	$00,$C9
+		db	#00,#C9
 DLOST		db	"Data lost"
-		db	$00,$C9
+		db	#00,#C9
 CRC		db	"CRC error"
-		db	$00,$C9
+		db	#00,#C9
 RECORD		db	"Record not foun"
 		db	"d"
-		db	$00,$C9
+		db	#00,#C9
 BREAK		db	"Break"
-		db	$00,$C9
+		db	#00,#C9
 WRITE		db	"Write protect"
-		db	$00,$C9
+		db	#00,#C9
 NREADY		db	"Ready error"
-		db	$00,$C9
+		db	#00,#C9
 
 MSG		ld	(MSGSP1),sp
 		ld	sp,MSGSP2+80
@@ -4323,20 +4323,20 @@ BCK		or	a
 		ret
 
 STATUS		ld	hl,MSG
-		ld	a,$35
-		rst	$20
+		ld	a,#35
+		rst	#20
 		xor	a
-		rst	$20
+		rst	#20
 		ld	(VER),bc
-		ld	bc,$80
+		ld	bc,#80
 		add	ix,bc
 		ld	(MSGB),ix
 		ld	ix,DRV4
 		ld	b,4
 TDRV		ld	e,b
-		ld	a,$0E
+		ld	a,#0E
 		push	bc
-		rst	$18
+		rst	#18
 		pop	bc
 		ld	(ix+0),e
 		ld	(ix+1),d
@@ -4345,8 +4345,8 @@ TDRV		ld	e,b
 		djnz	TDRV
 		ld	a,(25)
 		ld	(DRV9),a
-		ld	a,$12
-		rst	$20
+		ld	a,#12
+		rst	#20
 		jp	nc,RETDOS
 		ld	a,e
 		ld	(ACTDRV1),a
@@ -4526,12 +4526,12 @@ WORKB5		db	"  Free: 00000 s"
 RETDOS		di
 		ld	sp,0
 		ld	hl,0
-		ld	a,$35
-		rst	$20
+		ld	a,#35
+		rst	#20
 		ld	e,0
-		ld	a,$0C
-		rst	$20
-		call	$3C98
+		ld	a,#0C
+		rst	#20
+		call	#3C98
 		im	1
 		ld	hl,23295
 		ld	de,23294
@@ -4540,7 +4540,7 @@ RETDOS		di
 		lddr
 		xor	a
 		ld	de,65535
-		jp	$11CB
+		jp	#11CB
 
 PROZ		ds	17
 		nop
@@ -4576,277 +4576,230 @@ PANEL2		ds	1024
 JIST2		ds	1024
 
 
-FONT		dw	0,0,0,0,17408
-		dw	17476,68,68,43520
-		dw	170,0,0,0,61098
-		dw	61098,170,0,52462
-		dw	26350,238,43520
-		dw	17442,34884,170
-		dw	17408,17578,61098
-		dw	102,17408,34884
-		dw	0,0,26112,17476
-		dw	17476,102,52224
-		dw	17476,17476,204
-		dw	0,60996,60996
-		dw	68,0,17476,17646
-		dw	68,0,0,17476,136
-		dw	0,0,238,0,0,0
-		dw	52224,204,8704
-		dw	17442,34884,136
-		dw	60928,43690,43690
-		dw	238,17408,17612
-		dw	17476,238,60928
-		dw	60962,43656,238
-		dw	60928,26146,43554
-		dw	238,34816,43690
-		dw	8942,34,60928
-		dw	61064,43554,238
-		dw	60928,61064,43690
-		dw	238,60928,8874
-		dw	8738,34,60928
-		dw	61098,43690,238
-		dw	60928,61098,43554
-		dw	238,0,17408,17408
-		dw	0,0,17408,17408
-		dw	136,0,17442,17544
-		dw	34,0,60928,60928
-		dw	0,0,17544,17442
-		dw	136,60928,26282
-		dw	68,68,17408,61098
-		dw	35054,102,60928
-		dw	61098,43690,170
-		dw	60928,52394,43690
-		dw	238,60928,34986
-		dw	43656,238,52224
-		dw	43690,43690,204
-		dw	60928,52360,34952
-		dw	238,60928,52360
-		dw	34952,136,60928
-		dw	34986,43758,238
-		dw	43520,61098,43690
-		dw	170,60928,17476
-		dw	17476,238,60928
-		dw	8738,43554,238
-		dw	43520,52394,43690
-		dw	170,34816,34952
-		dw	43656,238,43520
-		dw	43758,43690,170
-		dw	60928,43690,43690
-		dw	170,60928,43690
-		dw	43690,238,60928
-		dw	61098,34952,136
-		dw	60928,43690,61098
-		dw	238,60928,61098
-		dw	43724,170,60928
-		dw	61064,43554,238
-		dw	60928,17476,17476
-		dw	68,43520,43690
-		dw	43690,238,43520
-		dw	43690,43690,68
-		dw	43520,61098,61166
-		dw	68,43520,17578
-		dw	43690,170,43520
-		dw	43690,8942,238
-		dw	60928,60962,43656
-		dw	238,26112,17476
-		dw	17476,102,34816
-		dw	17544,8772,34
-		dw	26112,8738,8738
-		dw	102,17408,17646
-		dw	17476,68,0,0,0
-		dw	238,8704,26180
-		dw	17476,238,0,8942
-		dw	43758,238,34816
-		dw	61064,43690,238,0
-		dw	35054,34952,238
-		dw	8704,60962,43690
-		dw	238,0,43758,35054
-		dw	238,26112,52360
-		dw	34952,136,0,43758
-		dw	8942,238,34816
-		dw	61064,43690,170
-		dw	17408,52224,17476
-		dw	238,8704,8704
-		dw	43554,238,34816
-		dw	43656,43724,170
-		dw	34816,34952,34952
-		dw	102,0,61098,43690
-		dw	170,0,43758,43690
-		dw	170,0,43758,43690
-		dw	238,0,43758,35054
-		dw	136,0,43758,8942
-		dw	34,0,35054,34952
-		dw	136,0,35054,8942
-		dw	238,17408,17646
-		dw	17476,102,0,43690
-		dw	43690,238,0,43690
-		dw	43690,68,0,43690
-		dw	61166,238,0,43690
-		dw	43588,170,0,43690
-		dw	8942,204,0,8942
-		dw	35054,238,26112
-		dw	34884,17476,102
-		dw	17408,17476,17476
-		dw	68,52224,8772
-		dw	17476,204,43520
-		dw	170,0,0,17408
-		dw	43690,43690,238
-		dw	60928,34986,43656
-		dw	17646,170,43690
-		dw	43690,238,17442
-		dw	43758,35054,238
-		dw	43588,8942,43758
-		dw	238,170,8942
-		dw	43758,238,68
-		dw	43690,43690,238
-		dw	17442,35054,34952
-		dw	238,0,35054,34952
-		dw	17646,34816,52394
-		dw	34952,102,170
-		dw	43758,35054,238
-		dw	170,43758,43690
-		dw	238,170,43758
-		dw	43690,238,43588
-		dw	17612,17476,238
-		dw	17442,8942,35054
-		dw	238,170,43758
-		dw	43758,170,17442
-		dw	43758,43656,238
-		dw	17442,35054,35020
-		dw	238,17442,34952
-		dw	43656,238,17442
-		dw	34952,34952,102
-		dw	43588,43758,43690
-		dw	238,170,43758
-		dw	43690,238,43554
-		dw	34952,43656,238
-		dw	43554,34952,34952
-		dw	102,17442,35054
-		dw	8942,238,17442
-		dw	35054,8942,238
-		dw	170,43758,43690
-		dw	238,170,43690
-		dw	43690,238,17578
-		dw	17646,17476,68
-		dw	8738,60996,17476
-		dw	102,34816,52394
-		dw	43656,238,0,43520
-		dw	43588,0,17578
-		dw	35054,34952,238
-		dw	17442,8942,43758
-		dw	238,17442,52224
-		dw	17476,238,17442
-		dw	43758,43690,238
-		dw	17442,43690,43690
-		dw	238,60928,61098
-		dw	43690,8874,0,8942
-		dw	43758,8942,17578
-		dw	8942,35054,238
-		dw	17578,8942,35054
-		dw	238,60928,52360
-		dw	34952,8942,0
-		dw	43758,35054,8942
-		dw	0,0,0,0,17442
-		dw	8942,35054,238
-		dw	17578,35054,34952
-		dw	238,0,35054,8942
-		dw	17646,0,17408
-		dw	17544,0,0,34816
-		dw	34884,0,43520
-		dw	43520,43520,43520
-		dw	43588,43588,43588
-		dw	43588,61098,61098
-		dw	61098,61098,8738
-		dw	8738,8738,8738
-		dw	8738,8738,8942
-		dw	8738,17442,43758
-		dw	43758,170,43588
-		dw	43758,43758,170
-		dw	17578,35054,35020
-		dw	238,60928,61064
-		dw	43554,17646,21845
-		dw	4573,21981,21845
-		dw	21845,21845,21845
-		dw	21845,0,4607
-		dw	21981,21845,21845
-		dw	4573,255,0,68
-		dw	8942,35054,238,68
-		dw	8942,35054,238,0
-		dw	0,8942,8738,17476
-		dw	17476,119,0,8738
-		dw	8738,255,0,0,0
-		dw	8959,8738,17476
-		dw	17476,17527,17476
-		dw	0,0,255,0,8224
-		dw	8224,8447,8224
-		dw	17578,43758,43758
-		dw	170,17578,8942
-		dw	43758,238,43690
-		dw	35003,255,0,0
-		dw	35071,43707,43690
-		dw	21845,221,255,0,0
-		dw	255,21981,21845
-		dw	43690,35003,43707
-		dw	43690,0,255,255,0
-		dw	21845,221,21981
-		dw	21845,0,61098
-		dw	61098,170,26112
-		dw	60962,43690,238
-		dw	52224,61098,43690
-		dw	204,17578,43724
-		dw	43690,204,170
-		dw	35054,35020,238
-		dw	26180,60962,43690
-		dw	238,17578,43758
-		dw	43690,170,17442
-		dw	17646,17476,238
-		dw	43588,17646,17476
-		dw	238,17578,43758
-		dw	35054,238,8738
-		dw	8738,238,0,0,0
-		dw	17527,17476,60928
-		dw	61166,61166,238,0
-		dw	0,61166,238,0
-		dw	17646,17476,8772
-		dw	68,43690,43690
-		dw	238,60928,61166,0
-		dw	0,17442,43758
-		dw	43690,238,0,43724
-		dw	43724,238,43588
-		dw	43758,43690,238
-		dw	17442,43758,43690
-		dw	170,17442,43758
-		dw	43690,170,17578
-		dw	43758,43690,170
-		dw	17578,35054,8942
-		dw	238,17578,35054
-		dw	8942,238,17442
-		dw	43758,52462,170
-		dw	17442,43690,43690
-		dw	238,17442,35054
-		dw	34952,136,170
-		dw	43690,43690,238
-		dw	17442,43690,8942
-		dw	204,17442,43690
-		dw	8942,238,17408
-		dw	17646,17476,17510
-		dw	2048,16,0,0,0,0
-		dw	238,0,43520,170,0
-		dw	0,17476,17476
-		dw	17476,17476,17578
-		dw	0,0,0,17578,0,0,0
-		dw	17510,43758,17646
-		dw	204,17408,60928
-		dw	17408,0,43690
-		dw	43690,43690,43690
-		dw	43588,68,0,0
-		dw	43520,0,0,0,17408
-		dw	0,0,0,170,43690
-		dw	43690,238,17578
-		dw	43758,52462,170
-		dw	17578,35054,34952
-		dw	136,0,0,0,65280
-		dw	0,0,0,0
+FONT		db	#00, #00, #00, #00, #00, #00, #00, #00
+		db	#00, #44, #44, #44, #44, #00, #44, #00
+		db	#00, #AA, #AA, #00, #00, #00, #00, #00
+		db	#00, #00, #AA, #EE, #AA, #EE, #AA, #00
+		db	#00, #00, #EE, #CC, #EE, #66, #EE, #00
+		db	#00, #AA, #22, #44, #44, #88, #AA, #00
+		db	#00, #44, #AA, #44, #AA, #EE, #66, #00
+		db	#00, #44, #44, #88, #00, #00, #00, #00
+		db	#00, #66, #44, #44, #44, #44, #66, #00
+		db	#00, #CC, #44, #44, #44, #44, #CC, #00
+		db	#00, #00, #44, #EE, #44, #EE, #44, #00
+		db	#00, #00, #44, #44, #EE, #44, #44, #00
+		db	#00, #00, #00, #00, #44, #44, #88, #00
+		db	#00, #00, #00, #00, #EE, #00, #00, #00
+		db	#00, #00, #00, #00, #00, #CC, #CC, #00
+		db	#00, #22, #22, #44, #44, #88, #88, #00
+		db	#00, #EE, #AA, #AA, #AA, #AA, #EE, #00
+		db	#00, #44, #CC, #44, #44, #44, #EE, #00
+		db	#00, #EE, #22, #EE, #88, #AA, #EE, #00
+		db	#00, #EE, #22, #66, #22, #AA, #EE, #00
+		db	#00, #88, #AA, #AA, #EE, #22, #22, #00
+		db	#00, #EE, #88, #EE, #22, #AA, #EE, #00
+		db	#00, #EE, #88, #EE, #AA, #AA, #EE, #00
+		db	#00, #EE, #AA, #22, #22, #22, #22, #00
+		db	#00, #EE, #AA, #EE, #AA, #AA, #EE, #00
+		db	#00, #EE, #AA, #EE, #22, #AA, #EE, #00
+		db	#00, #00, #00, #44, #00, #44, #00, #00
+		db	#00, #00, #00, #44, #00, #44, #88, #00
+		db	#00, #00, #22, #44, #88, #44, #22, #00
+		db	#00, #00, #00, #EE, #00, #EE, #00, #00
+		db	#00, #00, #88, #44, #22, #44, #88, #00
+		db	#00, #EE, #AA, #66, #44, #00, #44, #00
+		db	#00, #44, #AA, #EE, #EE, #88, #66, #00
+		db	#00, #EE, #AA, #EE, #AA, #AA, #AA, #00
+		db	#00, #EE, #AA, #CC, #AA, #AA, #EE, #00
+		db	#00, #EE, #AA, #88, #88, #AA, #EE, #00
+		db	#00, #CC, #AA, #AA, #AA, #AA, #CC, #00
+		db	#00, #EE, #88, #CC, #88, #88, #EE, #00
+		db	#00, #EE, #88, #CC, #88, #88, #88, #00
+		db	#00, #EE, #AA, #88, #EE, #AA, #EE, #00
+		db	#00, #AA, #AA, #EE, #AA, #AA, #AA, #00
+		db	#00, #EE, #44, #44, #44, #44, #EE, #00
+		db	#00, #EE, #22, #22, #22, #AA, #EE, #00
+		db	#00, #AA, #AA, #CC, #AA, #AA, #AA, #00
+		db	#00, #88, #88, #88, #88, #AA, #EE, #00
+		db	#00, #AA, #EE, #AA, #AA, #AA, #AA, #00
+		db	#00, #EE, #AA, #AA, #AA, #AA, #AA, #00
+		db	#00, #EE, #AA, #AA, #AA, #AA, #EE, #00
+		db	#00, #EE, #AA, #EE, #88, #88, #88, #00
+		db	#00, #EE, #AA, #AA, #AA, #EE, #EE, #00
+		db	#00, #EE, #AA, #EE, #CC, #AA, #AA, #00
+		db	#00, #EE, #88, #EE, #22, #AA, #EE, #00
+		db	#00, #EE, #44, #44, #44, #44, #44, #00
+		db	#00, #AA, #AA, #AA, #AA, #AA, #EE, #00
+		db	#00, #AA, #AA, #AA, #AA, #AA, #44, #00
+		db	#00, #AA, #AA, #EE, #EE, #EE, #44, #00
+		db	#00, #AA, #AA, #44, #AA, #AA, #AA, #00
+		db	#00, #AA, #AA, #AA, #EE, #22, #EE, #00
+		db	#00, #EE, #22, #EE, #88, #AA, #EE, #00
+		db	#00, #66, #44, #44, #44, #44, #66, #00
+		db	#00, #88, #88, #44, #44, #22, #22, #00
+		db	#00, #66, #22, #22, #22, #22, #66, #00
+		db	#00, #44, #EE, #44, #44, #44, #44, #00
+		db	#00, #00, #00, #00, #00, #00, #EE, #00
+		db	#00, #22, #44, #66, #44, #44, #EE, #00
+		db	#00, #00, #EE, #22, #EE, #AA, #EE, #00
+		db	#00, #88, #88, #EE, #AA, #AA, #EE, #00
+		db	#00, #00, #EE, #88, #88, #88, #EE, #00
+		db	#00, #22, #22, #EE, #AA, #AA, #EE, #00
+		db	#00, #00, #EE, #AA, #EE, #88, #EE, #00
+		db	#00, #66, #88, #CC, #88, #88, #88, #00
+		db	#00, #00, #EE, #AA, #EE, #22, #EE, #00
+		db	#00, #88, #88, #EE, #AA, #AA, #AA, #00
+		db	#00, #44, #00, #CC, #44, #44, #EE, #00
+		db	#00, #22, #00, #22, #22, #AA, #EE, #00
+		db	#00, #88, #88, #AA, #CC, #AA, #AA, #00
+		db	#00, #88, #88, #88, #88, #88, #66, #00
+		db	#00, #00, #AA, #EE, #AA, #AA, #AA, #00
+		db	#00, #00, #EE, #AA, #AA, #AA, #AA, #00
+		db	#00, #00, #EE, #AA, #AA, #AA, #EE, #00
+		db	#00, #00, #EE, #AA, #EE, #88, #88, #00
+		db	#00, #00, #EE, #AA, #EE, #22, #22, #00
+		db	#00, #00, #EE, #88, #88, #88, #88, #00
+		db	#00, #00, #EE, #88, #EE, #22, #EE, #00
+		db	#00, #44, #EE, #44, #44, #44, #66, #00
+		db	#00, #00, #AA, #AA, #AA, #AA, #EE, #00
+		db	#00, #00, #AA, #AA, #AA, #AA, #44, #00
+		db	#00, #00, #AA, #AA, #EE, #EE, #EE, #00
+		db	#00, #00, #AA, #AA, #44, #AA, #AA, #00
+		db	#00, #00, #AA, #AA, #EE, #22, #CC, #00
+		db	#00, #00, #EE, #22, #EE, #88, #EE, #00
+		db	#00, #66, #44, #88, #44, #44, #66, #00
+		db	#00, #44, #44, #44, #44, #44, #44, #00
+		db	#00, #CC, #44, #22, #44, #44, #CC, #00
+		db	#00, #AA, #AA, #00, #00, #00, #00, #00
+		db	#00, #44, #AA, #AA, #AA, #AA, #EE, #00
+		db	#00, #EE, #AA, #88, #88, #AA, #EE, #44
+		db	#AA, #00, #AA, #AA, #AA, #AA, #EE, #00
+		db	#22, #44, #EE, #AA, #EE, #88, #EE, #00
+		db	#44, #AA, #EE, #22, #EE, #AA, #EE, #00
+		db	#AA, #00, #EE, #22, #EE, #AA, #EE, #00
+		db	#44, #00, #AA, #AA, #AA, #AA, #EE, #00
+		db	#22, #44, #EE, #88, #88, #88, #EE, #00
+		db	#00, #00, #EE, #88, #88, #88, #EE, #44
+		db	#00, #88, #AA, #CC, #88, #88, #66, #00
+		db	#AA, #00, #EE, #AA, #EE, #88, #EE, #00
+		db	#AA, #00, #EE, #AA, #AA, #AA, #EE, #00
+		db	#AA, #00, #EE, #AA, #AA, #AA, #EE, #00
+		db	#44, #AA, #CC, #44, #44, #44, #EE, #00
+		db	#22, #44, #EE, #22, #EE, #88, #EE, #00
+		db	#AA, #00, #EE, #AA, #EE, #AA, #AA, #00
+		db	#22, #44, #EE, #AA, #88, #AA, #EE, #00
+		db	#22, #44, #EE, #88, #CC, #88, #EE, #00
+		db	#22, #44, #88, #88, #88, #AA, #EE, #00
+		db	#22, #44, #88, #88, #88, #88, #66, #00
+		db	#44, #AA, #EE, #AA, #AA, #AA, #EE, #00
+		db	#AA, #00, #EE, #AA, #AA, #AA, #EE, #00
+		db	#22, #AA, #88, #88, #88, #AA, #EE, #00
+		db	#22, #AA, #88, #88, #88, #88, #66, #00
+		db	#22, #44, #EE, #88, #EE, #22, #EE, #00
+		db	#22, #44, #EE, #88, #EE, #22, #EE, #00
+		db	#AA, #00, #EE, #AA, #AA, #AA, #EE, #00
+		db	#AA, #00, #AA, #AA, #AA, #AA, #EE, #00
+		db	#AA, #44, #EE, #44, #44, #44, #44, #00
+		db	#22, #22, #44, #EE, #44, #44, #66, #00
+		db	#00, #88, #AA, #CC, #88, #AA, #EE, #00
+		db	#00, #00, #00, #AA, #44, #AA, #00, #00
+		db	#AA, #44, #EE, #88, #88, #88, #EE, #00
+		db	#22, #44, #EE, #22, #EE, #AA, #EE, #00
+		db	#22, #44, #00, #CC, #44, #44, #EE, #00
+		db	#22, #44, #EE, #AA, #AA, #AA, #EE, #00
+		db	#22, #44, #AA, #AA, #AA, #AA, #EE, #00
+		db	#00, #EE, #AA, #EE, #AA, #AA, #AA, #22
+		db	#00, #00, #EE, #22, #EE, #AA, #EE, #22
+		db	#AA, #44, #EE, #22, #EE, #88, #EE, #00
+		db	#AA, #44, #EE, #22, #EE, #88, #EE, #00
+		db	#00, #EE, #88, #CC, #88, #88, #EE, #22
+		db	#00, #00, #EE, #AA, #EE, #88, #EE, #22
+		db	#00, #00, #00, #00, #00, #00, #00, #00
+		db	#22, #44, #EE, #22, #EE, #88, #EE, #00
+		db	#AA, #44, #EE, #88, #88, #88, #EE, #00
+		db	#00, #00, #EE, #88, #EE, #22, #EE, #44
+		db	#00, #00, #00, #44, #88, #44, #00, #00
+		db	#00, #00, #00, #88, #44, #88, #00, #00
+		db	#00, #AA, #00, #AA, #00, #AA, #00, #AA
+		db	#44, #AA, #44, #AA, #44, #AA, #44, #AA
+		db	#AA, #EE, #AA, #EE, #AA, #EE, #AA, #EE
+		db	#22, #22, #22, #22, #22, #22, #22, #22
+		db	#22, #22, #22, #22, #EE, #22, #22, #22
+		db	#22, #44, #EE, #AA, #EE, #AA, #AA, #00
+		db	#44, #AA, #EE, #AA, #EE, #AA, #AA, #00
+		db	#AA, #44, #EE, #88, #CC, #88, #EE, #00
+		db	#00, #EE, #88, #EE, #22, #AA, #EE, #44
+		db	#55, #55, #DD, #11, #DD, #55, #55, #55
+		db	#55, #55, #55, #55, #55, #55, #55, #55
+		db	#00, #00, #FF, #11, #DD, #55, #55, #55
+		db	#55, #55, #DD, #11, #FF, #00, #00, #00
+		db	#44, #00, #EE, #22, #EE, #88, #EE, #00
+		db	#44, #00, #EE, #22, #EE, #88, #EE, #00
+		db	#00, #00, #00, #00, #EE, #22, #22, #22
+		db	#44, #44, #44, #44, #77, #00, #00, #00
+		db	#22, #22, #22, #22, #FF, #00, #00, #00
+		db	#00, #00, #00, #00, #FF, #22, #22, #22
+		db	#44, #44, #44, #44, #77, #44, #44, #44
+		db	#00, #00, #00, #00, #FF, #00, #00, #00
+		db	#20, #20, #20, #20, #FF, #20, #20, #20
+		db	#AA, #44, #EE, #AA, #EE, #AA, #AA, #00
+		db	#AA, #44, #EE, #22, #EE, #AA, #EE, #00
+		db	#AA, #AA, #BB, #88, #FF, #00, #00, #00
+		db	#00, #00, #FF, #88, #BB, #AA, #AA, #AA
+		db	#55, #55, #DD, #00, #FF, #00, #00, #00
+		db	#00, #00, #FF, #00, #DD, #55, #55, #55
+		db	#AA, #AA, #BB, #88, #BB, #AA, #AA, #AA
+		db	#00, #00, #FF, #00, #FF, #00, #00, #00
+		db	#55, #55, #DD, #00, #DD, #55, #55, #55
+		db	#00, #00, #AA, #EE, #AA, #EE, #AA, #00
+		db	#00, #66, #22, #EE, #AA, #AA, #EE, #00
+		db	#00, #CC, #AA, #EE, #AA, #AA, #CC, #00
+		db	#AA, #44, #CC, #AA, #AA, #AA, #CC, #00
+		db	#AA, #00, #EE, #88, #CC, #88, #EE, #00
+		db	#44, #66, #22, #EE, #AA, #AA, #EE, #00
+		db	#AA, #44, #EE, #AA, #AA, #AA, #AA, #00
+		db	#22, #44, #EE, #44, #44, #44, #EE, #00
+		db	#44, #AA, #EE, #44, #44, #44, #EE, #00
+		db	#AA, #44, #EE, #AA, #EE, #88, #EE, #00
+		db	#22, #22, #22, #22, #EE, #00, #00, #00
+		db	#00, #00, #00, #00, #77, #44, #44, #44
+		db	#00, #EE, #EE, #EE, #EE, #EE, #EE, #00
+		db	#00, #00, #00, #00, #EE, #EE, #EE, #00
+		db	#00, #00, #EE, #44, #44, #44, #44, #22
+		db	#44, #00, #AA, #AA, #AA, #AA, #EE, #00
+		db	#00, #EE, #EE, #EE, #00, #00, #00, #00
+		db	#22, #44, #EE, #AA, #AA, #AA, #EE, #00
+		db	#00, #00, #CC, #AA, #CC, #AA, #EE, #00
+		db	#44, #AA, #EE, #AA, #AA, #AA, #EE, #00
+		db	#22, #44, #EE, #AA, #AA, #AA, #AA, #00
+		db	#22, #44, #EE, #AA, #AA, #AA, #AA, #00
+		db	#AA, #44, #EE, #AA, #AA, #AA, #AA, #00
+		db	#AA, #44, #EE, #88, #EE, #22, #EE, #00
+		db	#AA, #44, #EE, #88, #EE, #22, #EE, #00
+		db	#22, #44, #EE, #AA, #EE, #CC, #AA, #00
+		db	#22, #44, #AA, #AA, #AA, #AA, #EE, #00
+		db	#22, #44, #EE, #88, #88, #88, #88, #00
+		db	#AA, #00, #AA, #AA, #AA, #AA, #EE, #00
+		db	#22, #44, #AA, #AA, #EE, #22, #CC, #00
+		db	#22, #44, #AA, #AA, #EE, #22, #EE, #00
+		db	#00, #44, #EE, #44, #44, #44, #66, #44
+		db	#00, #08, #10, #00, #00, #00, #00, #00
+		db	#00, #00, #00, #00, #EE, #00, #00, #00
+		db	#00, #AA, #AA, #00, #00, #00, #00, #00
+		db	#44, #44, #44, #44, #44, #44, #44, #44
+		db	#AA, #44, #00, #00, #00, #00, #00, #00
+		db	#AA, #44, #00, #00, #00, #00, #00, #00
+		db	#66, #44, #EE, #AA, #EE, #44, #CC, #00
+		db	#00, #44, #00, #EE, #00, #44, #00, #00
+		db	#AA, #AA, #AA, #AA, #AA, #AA, #AA, #AA
+		db	#44, #AA, #44, #00, #00, #00, #00, #00
+		db	#00, #AA, #00, #00, #00, #00, #00, #00
+		db	#00, #44, #00, #00, #00, #00, #00, #00
+		db	#AA, #00, #AA, #AA, #AA, #AA, #EE, #00
+		db	#AA, #44, #EE, #AA, #EE, #CC, #AA, #00
+		db	#AA, #44, #EE, #88, #88, #88, #88, #00
+		db	#00, #00, #00, #00, #00, #00, #00, #FF
+		db	#00, #00, #00, #00, #00, #00, #00, #00
 
 
 FT
@@ -4858,7 +4811,7 @@ A0STACK		equ	$-FT
 A0LEN		equ	$-START
 A0LAST
 
-		org	$AD00
+		org	#AD00
 A0SPACE		equ	$-A0LAST
 TEXT		ds	32
 
