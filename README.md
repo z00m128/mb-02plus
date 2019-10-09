@@ -15,4 +15,5 @@ A set of sources for MB-02+ floppy interface (formatted for SjASMPlus):
 - _28c256flash:_ Simple flasher for MB-02+ with 28c256 EEPROM instead of 27C16 EPROM.
 - _patchimages.sh:_ BASH script for patching MBD images.
 - _samtracker2mb:_ Sample Tracker 2 with simple MB-02+ extension.
-- _fastcommander.a80_ Fast Commander is unfinished commander by Eye^K3L / +Gama.
+- _fastcommander.a80:_ Unfinished file commander by Eye^K3L / +Gama.
+- _rtcview.a80:_ Simple RTC viewer / clock.
