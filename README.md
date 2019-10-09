@@ -1,4 +1,4 @@
-# MB-02+ resource
+# MB-02+/MB-03+ Ultimate resource
 A set of sources for MB-02+ floppy interface (formatted for SjASMPlus):
 
 - _bsdos308:_ Complete source code of DOS bank (BSDOS with BIOSes).
