@@ -1958,11 +1958,12 @@ loop13:	ld	(hl),a
 	db	'0'+ver1
 	db	'0'+ver2
 	db	'0'+ver3
-	db	" ** BUSY SOFT"
+	db	"b"
+	db	" * BUSY SOFT"
 		
 		
 		
-	db	39,"96 "		;39 = '
+	db	39,"19 "		;39 = '
 	dw	#1f1f
 	nop	
 dsmeno:	call	dddd1

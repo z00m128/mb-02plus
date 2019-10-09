@@ -45,7 +45,7 @@ ERROR_1:	LD	HL,(#5C5D)
 PRINT_A:	JP	PRINT_A_2
 
 ; BSROM - For AY silencer
-AYREG:		LD	BC,65533
+AYREG:		LD	BC,#FFFD
 		JR	OUTCARET
 
 ; Collect a character
@@ -66,7 +66,7 @@ OUTCARET:	OUT	(C),A
 		JP	CALCULATE
 
 ; BSROM - For AY silencer
-AYDAT:		LD	BC,49149
+AYDAT:		LD	BC,#BFFD
 		JR	OUTCARET
 
 ; Create free locations in work space
@@ -115,11 +115,11 @@ ERROR_3:	LD	(IY+#00),L
 RESET:		JP	NMI_MENU		; BSROM - jumps to NMI menu
 
 ; BSROM - For SAA silencer
-HARD2:		LD	BC,511			; SAA silence
-		LD	A,28
+HARD2:		LD	BC,#01FF		; SAA silence
+		LD	A,#1C
 		OUT	(C),A
 		XOR	A
-		OUT	(255),A
+		OUT	(#FF),A
 		RET
 
 ; Fetch the next immediate character following the current valid character address
@@ -9724,11 +9724,11 @@ HARD:		XOR	A
 		OUT	(#0F),A			; FDC
 		LD	A,#C3
 		OUT	(#0B),A			; DMA
-		LD	A,253
+		LD	A,#FD
 		CALL	AYCTRL			; AY3
-		LD	A,254
+		LD	A,#FE
 		CALL	AYCTRL			; AY2
-		LD	A,255
+		LD	A,#FF
 		CALL	AYCTRL			; AY1
 		JP	HARD2
 
@@ -9961,9 +9961,9 @@ BNKOUT:		OUT	(#17),A
 
 ; BSROM - For AY silencer
 AYCTRL:		CALL	AYREG
-		LD	A,7
+		LD	A,#07
 		CALL	AYREG
-		LD	A,255
+		LD	A,#BF
 		CALL	AYDAT
 		RET
 
