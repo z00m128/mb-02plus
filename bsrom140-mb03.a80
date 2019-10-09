@@ -45,8 +45,9 @@ ERROR_1:	LD	HL,(#5C5D)
 PRINT_A:	JP	PRINT_A_2
 
 ; BSROM - For AY silencer
-AYREG:		LD	BC,#FFFD		; BSROM - AY control port
-		JR	OUTCARET
+OUTFDBF:	LD	A,#BF			; BSROM - AY disable all tones and noises
+		OUT	(#FD),A
+		RET
 
 ; Collect a character
 ; RST #18
@@ -57,17 +58,18 @@ TEST_CHAR:	CALL	SKIP_OVER
 NEXT_CHAR:	CALL	CH_ADD_1
 		JR	TEST_CHAR
 
-; BSROM - For AY silencer
-OUTCARET:	OUT	(C),A			; BSROM - AY control exit point
-		RET
+; Unused bytes
+		DW	#FFFF
+		DB	#FF
 
 ; Calculator restart
 ; RST #28
 		JP	CALCULATE
 
 ; BSROM - For AY silencer
-AYDAT:		LD	BC,#BFFD		; BSROM - AY data port
-		JR	OUTCARET
+OUTFD80:	LD	A,#80			; BSROM - AY disable all envelopes
+		OUT	(#FD),A
+		RET
 
 ; Create free locations in work space
 ; RST #30
@@ -9439,15 +9441,15 @@ PUST:		CALL	KEY_SCAN
 		LD	A,XH
 		LD	HL,MMRET
 		PUSH	HL
-		CP	'U'			; U - General Sound warm reset.
+		CP	'G'			; G - General Sound warm reset.
 		JR	Z,USERJP
 		CP	'E'			; E - extended 128k reset.
 		JR	Z,RES128
-		CP	'I'			; I - quiet (3x)AY & SAA. Reset FDC, DMA and stop disk drive if MB-02 is present.
+		CP	'I'			; I - quiet (3x)AY & SAA. Reset DMA.
 		JP	Z,HARD
 		CP	'T'			; T - set tape as actual device (only on MB-02).
 		JP	Z,SETTAP
-		CP	'D'			; D - set disk as actual device (only on MB-02)
+		CP	'D'			; D - set disk as actual device (only on MB-02).
 		JP	Z,SETDSK
 		CP	'B'			; B - warm start. BASIC program with variables is not deleted.
 		JP	Z,BASIC
@@ -9719,21 +9721,19 @@ NEWTAB:		DB	'#'
 		DW	USERJP
 
 ; Quiet (3x)AY & SAA. Reset FDC, DMA, stop drives if MB-02 is present
-HARD:		XOR	A
-		OUT	(#13),A			; FDD motor
-		LD	A,#D0
-		OUT	(#0F),A			; FDC
-		LD	A,#C3
-		OUT	(#0B),A			; DMA
-		LD	A,#FD
-		CALL	AYCTRL			; AY3
-		LD	A,#FE
-		CALL	AYCTRL			; AY2
-		LD	A,#FF
-		CALL	AYCTRL			; AY1
-		JP	SAARESET
-
-		DW	#FFFF
+HARD:		LD	A,#C3
+		OUT	(#0B),A			; Reset DMA
+		LD	BC,#FFFD
+		LD	A,#FD			; AY3 silence
+		OUT	(C),A
+		CALL	AYCTRL
+		LD	A,#FE			; AY2 silence
+		OUT	(C),A
+		CALL	AYCTRL
+		LD	A,#FF			; AY1 silence
+		OUT	(C),A
+		CALL	AYCTRL
+		JP	SAARESET		; SAA silence
 
 ; Warm start
 BASIC:		LD	HL,INIT_CHAN
@@ -9961,12 +9961,12 @@ BNKOUT:		OUT	(#17),A
 		RET		
 
 ; BSROM - For AY silencer
-AYCTRL:		CALL	AYREG
-		LD	A,#07			; BSROM - AY Mixer control register
-		CALL	AYREG
-		LD	A,#BF			; AY - disable all tones and noises, IOA=input IOB=output
-		CALL	AYDAT
-		RET
+AYCTRL:		LD	A,#07			; BSROM - Mixing control register
+		OUT	(C),A
+		CALL	OUTFDBF			; disable all tones and noises
+		LD	A,#0D			; Envelope shape control
+		OUT	(C),A
+		JP	OUTFD80			; disable envelopes
 
 ; BSROM - new characters
 CHAR_SET_N:	DB	#00,#00,#00,#00,#00,#00,#7E,#00	;line
