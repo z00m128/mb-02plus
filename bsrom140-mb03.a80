@@ -116,7 +116,7 @@ GSRESET:	DI
 RESET:		JP	NMI_MENU		; BSROM - jumps to NMI menu
 
 ; BSROM - For SAA silencer
-SAARESET:		LD	BC,#01FF		; SAA silence
+SAARESET:	LD	BC,#01FF		; SAA silence
 		LD	A,#1C
 		OUT	(C),A
 		XOR	A
