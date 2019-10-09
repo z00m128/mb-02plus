@@ -1,5 +1,5 @@
 # MB-02+/MB-03+ Ultimate resource
-A set of sources for MB-02+ floppy interface (formatted for SjASMPlus):
+A set of sources for MB-02+ and/or MB-03+ Ultimate (formatted for SjASMPlus):
 
 - _bsdos308:_ Complete source code of DOS bank (BSDOS with BIOSes).
 - _bsdos308-dma-fix:_ Complete source code of DOS bank (BSDOS with BIOSes), with fixed DMA sequence.

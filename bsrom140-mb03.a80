@@ -104,18 +104,19 @@ ERROR_3:	LD	(IY+#00),L
 		LD	SP,(#5C3D)
 		JP	SET_STK
 
-; Unused bytes
-		DW	#FFFF
-		DW	#FFFF
-		DW	#FFFF
-		DB	#FF
+; BSROM - Warm reset of General Sound
+GSRESET:	DI
+		LD	A,#F3
+		OUT	(#BB),A
+		EI
+		RET
 
 ; Non-maskable interrupt routine
 ; RST #66
 RESET:		JP	NMI_MENU		; BSROM - jumps to NMI menu
 
 ; BSROM - For SAA silencer
-HARD2:		LD	BC,#01FF		; SAA silence
+SAARESET:		LD	BC,#01FF		; SAA silence
 		LD	A,#1C
 		OUT	(C),A
 		XOR	A
@@ -9368,7 +9369,7 @@ INFSUB:		LD	DE,COPYRIGHT+5
 
 MM:		DW	#FFFF
 
-USERJP:		JP	#0052
+USERJP:		JP	GSRESET
 
 DISKTOOLS:	DW	#0052
 
@@ -9730,7 +9731,7 @@ HARD:		XOR	A
 		CALL	AYCTRL			; AY2
 		LD	A,#FF
 		CALL	AYCTRL			; AY1
-		JP	HARD2
+		JP	SAARESET
 
 		DW	#FFFF
 
