@@ -45,7 +45,7 @@ ERROR_1:	LD	HL,(#5C5D)
 PRINT_A:	JP	PRINT_A_2
 
 ; BSROM - For AY silencer
-AYREG:		LD	BC,#FFFD
+AYREG:		LD	BC,#FFFD		; BSROM - AY control port
 		JR	OUTCARET
 
 ; Collect a character
@@ -58,7 +58,7 @@ NEXT_CHAR:	CALL	CH_ADD_1
 		JR	TEST_CHAR
 
 ; BSROM - For AY silencer
-OUTCARET:	OUT	(C),A
+OUTCARET:	OUT	(C),A			; BSROM - AY control exit point
 		RET
 
 ; Calculator restart
@@ -66,7 +66,7 @@ OUTCARET:	OUT	(C),A
 		JP	CALCULATE
 
 ; BSROM - For AY silencer
-AYDAT:		LD	BC,#BFFD
+AYDAT:		LD	BC,#BFFD		; BSROM - AY data port
 		JR	OUTCARET
 
 ; Create free locations in work space
@@ -106,7 +106,7 @@ ERROR_3:	LD	(IY+#00),L
 
 ; BSROM - Warm reset of General Sound
 GSRESET:	DI
-		LD	A,#F3
+		LD	A,#F3			; BSROM - GS command - warm reset
 		OUT	(#BB),A
 		EI
 		RET
@@ -116,7 +116,7 @@ GSRESET:	DI
 RESET:		JP	NMI_MENU		; BSROM - jumps to NMI menu
 
 ; BSROM - For SAA silencer
-SAARESET:	LD	BC,#01FF		; SAA silence
+SAARESET:	LD	BC,#01FF		; BSROM - SAA reset
 		LD	A,#1C
 		OUT	(C),A
 		XOR	A
@@ -9439,11 +9439,11 @@ PUST:		CALL	KEY_SCAN
 		LD	A,XH
 		LD	HL,MMRET
 		PUSH	HL
-		CP	'U'			; U - user function.
+		CP	'U'			; U - General Sound warm reset.
 		JR	Z,USERJP
 		CP	'E'			; E - extended 128k reset.
 		JR	Z,RES128
-		CP	'I'			; I - quiet AY. Reset FDC, DMA and stop disk drive if MB-02 is present.
+		CP	'I'			; I - quiet (3x)AY & SAA. Reset FDC, DMA and stop disk drive if MB-02 is present.
 		JP	Z,HARD
 		CP	'T'			; T - set tape as actual device (only on MB-02).
 		JP	Z,SETTAP
@@ -9451,7 +9451,7 @@ PUST:		CALL	KEY_SCAN
 		JP	Z,SETDSK
 		CP	'B'			; B - warm start. BASIC program with variables is not deleted.
 		JP	Z,BASIC
-		CP	'Z'			; Z - user function like 'U' but this key is reserved for MB-02 applications.
+		CP	'Z'			; Z - user function reserved for MB-02 applications.
 		LD	HL,(DISKTOOLS)
 		JR	NZ,DSKIP
 		JP	(HL)
@@ -9718,7 +9718,7 @@ NEWTAB:		DB	'#'
 		DB	'='
 		DW	USERJP
 
-; Quiet AY & SAA. Reset FDC, DMA, stop drives if MB-02 is present
+; Quiet (3x)AY & SAA. Reset FDC, DMA, stop drives if MB-02 is present
 HARD:		XOR	A
 		OUT	(#13),A			; FDD motor
 		LD	A,#D0
@@ -9962,9 +9962,9 @@ BNKOUT:		OUT	(#17),A
 
 ; BSROM - For AY silencer
 AYCTRL:		CALL	AYREG
-		LD	A,#07
+		LD	A,#07			; BSROM - AY Mixer control register
 		CALL	AYREG
-		LD	A,#BF
+		LD	A,#BF			; AY - disable all tones and noises, IOA=input IOB=output
 		CALL	AYDAT
 		RET
 
