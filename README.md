@@ -8,7 +8,7 @@ A set of sources for MB-02+ and/or MB-03+ Ultimate (formatted for SjASMPlus):
 - _bsdos308-mb03:_ Source code of DOS bank, integrated 26znak patch, active drive 3. Intended for MB-03+ Ultimate. Should work also on MB-02+.
 - _bsrom140-mb02:_ Complete source code of ROM bank (BSROM with ROM BIOS).
 - _bsrom118-mb02:_ Complete source code of ROM bank (BSROM with ROM BIOS).
-- _bsrom140-mb03:_ Complete source code of ROM bank (BSROM with ROM BIOS) for MB-03+ Ultimate (added silence for 3xAY and SAA in extended 128k reset).
+- _bsrom140-mb03:_ Complete source code of ROM bank (BSROM with ROM BIOS) for MB-03+ Ultimate (added silence for 3xAY and SAA in extended 128k reset, and GS reset in NMI menu).
 - _booter:_ New boot ROM with fixed DMA sequence. Shoult work with any clone of Z80DMA.
 - _makesys:_ MB-02+ system disk creator with fixed DMA sequence.
 - _masterboot-33:_ Complete source code of master boot sector. 
