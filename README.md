@@ -17,3 +17,4 @@ A set of sources for MB-02+ and/or MB-03+ Ultimate (formatted for SjASMPlus):
 - _samtracker2mb:_ Sample Tracker 2 with simple MB-02+ extension.
 - _fastcommander.a80:_ Unfinished file commander by Eye^K3L / +Gama.
 - _rtcview.a80:_ Simple RTC viewer / clock.
+- _hodinky.a80:_ Clock with ability to set RTC (in SK language).
