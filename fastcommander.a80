@@ -46,23 +46,26 @@ dos_sdmsx	equ	#35			;vypis chybovych hlaseni default/custom
 dos_unerax	equ	#36			;obnovenie jedneho suboru
 dos_unerix	equ	#37			;obnovenie intervalu suborov
 
+;systemove premenne BSDOSu
+XXX		equ	#03E0			;stlpec alebo nizsi bajt pozicie vypisu
+
 ;format poloziek
 ;00: identifikator
 ;01-02: cislo
 ;03-30: text (28)
 ;31: 0
 
-START:		di
-		ld	sp,STACK		;SP na vlastny stack
+start:		di
+		ld	sp,stack		;SP na vlastny stack
 		call	dos_wr_enabled		;prestrankuje do DOSu
-		call	STATUS			;zisti konfiguraciu pocitaca
+		call	status			;zisti konfiguraciu pocitaca
 
 		xor	a
 		out	(254),a			;cierny border
 
-		ld	hl,INTRPT		;interrupt na rutinu zobrazujucu hodiny
-		ld	(45567),hl
-		ld	a,177
+		ld	hl,interrupt		;interrupt na rutinu zobrazujucu hodiny
+		ld	(#b1ff),hl		;!toto treba premysliet, mohlo by sa niecim poskodit!
+		ld	a,#b1
 		ld	i,a
 		im	2
 		ei
@@ -72,25 +75,25 @@ START:		di
 
 		ld	a,2			;slpec vypisu=2 (lavy panel)
 		ld	(PRINTD+1),a
-		ld	(PANELY+1),sp		;odlozime si SP
-		ld	(MAIN+1),sp
-PANELY1:	call	WORKB			;zobrazi panely
-PANELY:		ld	sp,0			;obnovenie zasobnika
+		ld	(panely+1),sp		;odlozime si SP
+		ld	(main+1),sp
+panely1:	call	WORKB			;zobrazi panely
+panely:		ld	sp,0			;obnovenie zasobnika
 
 		ld	e,0			;ak nie je mechanika aktivna, motor sa bude vypinat
 		ld	a,fdc_setoff		;sluzba SETOFF
 		rst	#18			;FDC BIOS
 
-		call	SWITCH			;prehodi sa na neaktivny panel
-		call	SWAPPRNT		;vypis sa prepne na pravy panel
+		call	switch			;prehodi sa na neaktivny panel
+		call	swap_print		;vypis sa prepne na pravy panel
 		call	REREAD1			;nacita a zobrazi subory v neaktivnom paneli
-		call	SWITCH			;prehodi sa na aktivny panel
-		call	SWAPPRNT		;vypis sa prepne na lavy panel
+		call	switch			;prehodi sa na aktivny panel
+		call	swap_print		;vypis sa prepne na lavy panel
 		call	REREAD1			;nacita a zobrazi subory v aktivnom paneli
 
-MAIN:		ld	sp,0			;obnovenie zasobnika
+main:		ld	sp,0			;obnovenie zasobnika
 		call	CHANGE			;zisti ci nebol vymeneny disk
-MAIN1:		call	CBAR			;nakresli kurzor
+main1:		call	show_cursor		;nakresli kurzor
 
 		ld	e,1			;vypis znakov bude prebiehat do pamate, nie na obrazovku
 		ld	a,dos_sddx		;sluzba SDDX
@@ -108,7 +111,7 @@ MAIN1:		call	CBAR			;nakresli kurzor
 		call	PRINT			;vytlacime cislo suboru
 
 ;Hlavny program pre obsluhu klavesnice
-MAIN0:		call	KEY			;zavola sa INKEY$ z ROM
+main0:		call	inkey			;zavola sa INKEY$ z ROM
 		cp	11			;^ - kurzor hore
 		jp	z,NAHORU
 		cp	10			;v - kurzor dole
@@ -119,10 +122,10 @@ MAIN0:		call	KEY			;zavola sa INKEY$ z ROM
 		jp	z,ONE
 		cp	9			;> - pravy panel
 		jp	z,TWO
-		cp	'1'			;1 - zmena mechaniky v aktivnom paneli - dole
-		jp	z,LFT
-		cp	'2'			;2 - zmena mechaniky v aktivnom paneli - hore
-		jp	z,RGT
+		cp	'1'			;1 - zmena mechaniky v aktivnom paneli - vlavo
+		jp	z,chnge_drv_left
+		cp	'2'			;2 - zmena mechaniky v aktivnom paneli - vpravo
+		jp	z,chnge_drv_rght
 		cp	'3'			;3 - viewer suboru, po sektoroch
 		jp	z,VIEW
 		cp	'5'			;5 - kopirovanie, sekvencne po sektoroch
@@ -130,7 +133,7 @@ MAIN0:		call	KEY			;zavola sa INKEY$ z ROM
 		cp	'x'			;x - ukoncenie programu
 		jp	z,EXIT
 		cp	'd'			;d - zmena adresara
-		jp	z,CHDIR
+		jp	z,change_dir
 		cp	'p'			;p - zotrasenie adresara
 		jp	z,PRESS
 		cp	'+'			;+ - oznacenie suborov
@@ -151,190 +154,200 @@ MAIN0:		call	KEY			;zavola sa INKEY$ z ROM
 		jp	z,RENAME
 		cp	'u'			;u - undelete suboru
 		jp	z,UNDELETE
-		ld	hl,MAIN			;uschova adresy hlavneho programu kvoli REREAD
+		ld	hl,main			;uschova adresy hlavneho programu kvoli REREAD
 		push	hl			;lebo sa vracia priamo na MAIN, nie sem
 		cp	'r'			;r - znovunacitanie disku
 		jp	z,REREAD
 		pop	hl			;obnova adresy hlavneho programu
-		jr	MAIN0
+		jr	main0
 
 ;Prepnutie vypisu panelov zo stlpca 2 (lavy panel), na stlpec 34 (pravy panel), and vice versa
-SWAPPRNT:	ld	a,(PRINTD+1)		;nacitame nastavenie stlpca
+swap_print:	ld	a,(PRINTD+1)		;nacitame nastavenie stlpca
 		cp	2
-		jr	z,SWPP			;ak sme vlavo tak nic
+		jr	z,swpp			;ak sme vlavo tak nic
 		ld	a,2
-		jr	SWPS
-SWPP:		ld	a,34			;inak sme vpravo
-SWPS:		ld	(PRINTD+1),a
+		jr	swps
+swpp:		ld	a,34			;inak sme vpravo
+swps:		ld	(PRINTD+1),a
 		ret
 
 ;Zobrazenie kurzora, je len atributovy
-CBAR:		ld	hl,(POZICE1)		;nacitame poziciu kurzora
-		call	ADRSET			;zistime si pixelovu polohu
-		call	AAA			;vypocitame adresu pociatocneho atributu
+show_cursor:	ld	hl,(POZICE1)		;nacitame poziciu kurzora
+		call	pixel_address		;zistime si pixelovu adresu
+		call	attr_address		;vypocitame adresu atributu pod pixelovou adresou
 		ld	b,14
-CBR:		res	3,(hl)			;zobrazime kurzor
+sc:		res	3,(hl)			;zobrazime kurzor
 		inc	l
-		djnz	CBR
+		djnz	sc
 		ret
 
 ;Zmazanie kurzora
-CLBAR:		ld	hl,(POZICE1)		;to iste ako v CBAR,
-CLBAR1:		call	ADRSET
-		call	AAA
+hide_cursor:	ld	hl,(POZICE1)		;to iste ako v show_cursor,
+hide_cursor1:	call	pixel_address
+		call	attr_address
 		ld	b,14
-CLBAR0:		set	3,(hl)			;len kurzor sa maze
+hc:		set	3,(hl)			;len kurzor sa maze
 		inc	l
-		djnz	CLBAR0
+		djnz	hc
 		ret
 
-LFT		call	CLBAR
-		ld	a,(PRINTD+1)
-		cp	2
-		jp	z,CHDRV
+;zmena cisla mechaniky v aktivnom paneli, vlavo
+chnge_drv_left:	call	hide_cursor		;skryje kurzor
+		ld	a,(PRINTD+1)		;zisti sa ci je aktivovany
+		cp	2			;lavy panel
+		jp	z,change_drive		;ak ano, rovno pokracuje na zmenu mechaniky
 		ld	a,2
-		ld	(PRINTD+1),a
-		call	SWITCH
-		ld	hl,PANEL1
-		ld	(OORT1),hl
+		ld	(PRINTD+1),a		;ak nie je aktivovany
+		call	switch			;tak ho aktivuje
+		ld	hl,PANEL1		;toto je prehadzovanie
+		ld	(OORT1),hl		;nejakych ukazatelov na buffre
 		ld	hl,PANEL1+512
 		ld	(OORT2),hl
-		jp	CHDRV
-RGT		call	CLBAR
-		ld	a,(PRINTD+1)
-		cp	34
-		jr	z,CHDRV
+		jp	change_drive		;pokracujeme zmenou mechaniky
+
+;zmena cisla mechaniky v aktivnom paneli, vpravo
+chnge_drv_rght:	call	hide_cursor		;skryje kurzor
+		ld	a,(PRINTD+1)		;zisti sa ci je aktivovany
+		cp	34			;pravy panel
+		jr	z,change_drive		;ak ano, rovno pokracuje na zmenu mechaniky
 		ld	a,34
-		ld	(PRINTD+1),a
-		call	SWITCH
-		ld	hl,PANEL1
+		ld	(PRINTD+1),a		;ak nie je aktivovany
+		call	switch			;tak ho aktivuje
+		ld	hl,PANEL1		;opat prehodenie ukazatelov na buffre
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
 		ld	(OORT2),hl
-CHDRV		ld	a,(PRINTD+1)
-		srl	a
+change_drive:	ld	a,(PRINTD+1)		;zmena mechaniky uz je spolocna pre oba smery
+		srl	a			
 		ld	b,0
 		ld	c,a
-		ld	hl,10*256-1
-		add	hl,bc
+		ld	hl,10*256-1		;vypocita sa pozicia pre ramcek okna dialogu
+		add	hl,bc			;teda ci zobrazujeme ramcek vlavo, alebo vpravo
 		ld	de,3*256+15
-		call	IN
-		exx
+		call	IN			;schova obsah obrazovky pod oknom dialogu
+		exx				;odlozi si registre kde mame poziciu ramceka
 		ld	a,(PRINTD+1)
 		ld	b,0
 		ld	c,a
-		ld	hl,11*256+0
+		ld	hl,11*256+0		;vypocita sa pozicia pre zobrazenie otazky
 		add	hl,bc
-		ld	de,CHDTX2
+		ld	de,txt_drive_num	;zobrazi sa otazka
 		call	PRINT
-		exx
-		ld	a,120
+		exx				;obnovi sa pozicia ramceka
+		ld	a,120			;vykresli sa ramcek
 		call	MENU2
 		ld	a,(PRINTD+1)
 		ld	b,0
 		ld	c,a
-		ld	hl,10*256+8
+		ld	hl,10*256+8		;vypocita sa poloha pre titulok dialogu
 		add	hl,bc
-		ld	de,CHDTX1
+		ld	de,txt_ch_drive		;vypise sa titulok
 		call	PRINT
-CHIN		call	PAUSE
+
+change_drv_in:	call	PAUSE			;pocka sa 5 preruseni
 		ld	a,(PRINTD+1)
 		ld	b,0
 		ld	c,a
-		ld	hl,11*256+23
+		ld	hl,11*256+23		;vypocita sa pozicia pre input
 		add	hl,bc
-		ld	de,12346
-		ld	a,(OPT)
+		ld	de,#303a		;nastavenie intervalu pre input, akceptuju sa len cisla
+		ld	a,(OPT)			;zisti sa ci je povoleny hdd (0-255 mechanik)
 		bit	2,a
-		jp	z,NEHDD
-HDD		ld	iyl,4
-		call	INTXT
-		jr	nc,CHIN
-		ld	de,TEXT
+		jp	z,hdd_no		;ak nie, pokracovanie na osetrenie mechanik 1,2,3,4 a 9
+
+;vstup znakov v pripade povoleneho hdd
+hdd_yes:	ld	iyl,4			;sirka vstupu su 3 znaky  a kurzor
+		call	INTXT			;zavola sa input
+		jr	nc,change_drv_in	;ak uzivatel stlaci break, tak sa opakuje? (nemalo by sa len vyskocit?)
+		ld	de,TEXT			;nastavi sa na zaciatok zadaneho textu
 		ld	hl,0
-HDD1		ld	a,(de)
-		sub	'0'
-		jr	c,HDD2
+hdd_yes1:	ld	a,(de)			;precita sa znak
+		sub	#30			;test na mechaniku 0?
+		jr	c,hdd_yes2		;ak ano, tak tu by malo by skor jr c,change_drv_in
 		cp	10
-		jr	nc,HDD2
-		inc	de
-		add	hl,hl
+		jr	nc,hdd_yes2		;zisti sa ci to nie je koniec cisla
+		inc	de			;posun na dalsi znak
+		add	hl,hl			;v najblizsich krokoch sa vynasobi hl desiatimi
 		ld	c,l
 		ld	b,h
 		add	hl,hl
 		add	hl,hl
 		add	hl,bc
-		ld	c,a
+		ld	c,a			;a pripocita sa uz precitane cislo
 		ld	b,0
 		add	hl,bc
-		jr	HDD1
-HDD2		ld	e,l
+		jr	hdd_yes1		;opakuje sa, kym nie je koniec cisla
+
+hdd_yes2:	ld	e,l			;kontrola ci cislo nie je vacssie ako 255
 		ld	a,h
 		or	a
-		jr	nz,CHIN
-		jr	SETHDD
+		jr	nz,change_drv_in	;navrat ak je, (chyba test na mechaniku 0, vid vyssie)
+		jr	sethdd			;pokracovanie na nastavenie mechaniky
 
-NEHDD		ld	iyl,2
-		call	INTXT
-		jr	nc,CHIN
-		ld	a,(TEXT)
-		sub	48
-		jr	c,CHIN
+;vstup znakov v pripade nepovoleneho hdd
+hdd_no:		ld	iyl,2			;sirka vstupu je 1 znak a kurzor
+		call	INTXT			;zavola sa input
+		jr	nc,change_drv_in	;ak uzivatel stlaci break, tak sa opakuje? (nemalo by sa len vyskocit?)
+		ld	a,(TEXT)		;nacita sa prvy znak
+		sub	#30			;test na mechaniku 0?
+		jr	c,change_drv_in		;znova ak uzivatel zadal 0
 		ld	hl,DRV9
 		cp	9
-		jr	z,CHECK1
+		jr	z,check1		;test ci je pritomna mechanika 9 (aktivny ramdisk)
 		cp	5
-		jr	nc,IDRV
+		jr	nc,IDRV			;ak su zadane mechaniky 5-8 nasleduje chybova hlaska
 		or	a
 		jr	z,IDRV
-		ld	hl,DRV4
-		ld	b,4
-CHECK0		cp	b
-		jr	z,CHECK1
+		ld	hl,DRV4			;porovnanim s premennou obsahujucou pocet pripojenych mechanik
+		ld	b,4			;skusa ci zadana mechanika (z 1-4) je pripojena
+check0:		cp	b
+		jr	z,check1
 		dec	hl
 		dec	hl
-		djnz	CHECK0
-CHECK1		ld	e,a
+		djnz	check0
+check1:		ld	e,a
 		xor	a
 		cp	(hl)
-		jr	z,IDRV
-SETHDD		ld	a,e
+		jr	z,IDRV			;ak nie je, nasleduje chybova hlaska
+
+sethdd:		ld	a,e			;ak testy dopadli dobre, nastavi zadanu mechaniku na aktivnu
 		ld	(ACTDRV1),a
 
 		ld	a,dos_setdrv		;sluzba SETDRV, v E mame cislo mechaniky
 		rst	#20			;BSDOS
 
-		call	OUT
-		call	REREAD
-		jp	MAIN
-IDRV		call	OUT
+		call	OUT			;obnovi obsah obrazovky pod dialogom
+		call	REREAD			;obnovenie obsahu panelu
+		jp	main			;navrat do hlavneho programu
 
-		ld	hl,bad_string		;adresa textu
+;vyhodi chybovu hlasku ak uzivatel zadal neplatnu mechaniku
+IDRV		call	OUT			;obnovi obsah obrazovky pod dialogom
+
+		ld	hl,txt_bad_string	;adresa chybovej hlasky
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
-		call	PAUSE
-		jp	c,CHDRV
-		jp	MAIN
-CHDTX1		db	"Change Drive"
+		call	PAUSE			;pocka 5 preruseni
+		jp	c,change_drive		;ak bol stlaceny ENTER ide znova, inak navrat
+		jp	main			;do hlavneho programu
+
+txt_ch_drive:	db	"Change Drive"
 		nop
-CHDTX2		db	"Enter number of"
-		db	" drive:      "
+txt_drive_num:	db	"Enter number of drive:      "
 		nop
 
-
-CHDIR		ld	hl,10*256+7
+change_dir:	ld	hl,10*256+7
 		ld	de,3*256+18
 		call	IN
 		exx
 		ld	hl,11*256+16
-		ld	de,CHDTXT2
+		ld	de,txt_dir_num
 		call	PRINT
 		exx
 		ld	a,120
 		call	MENU2
 		ld	hl,10*256+26
-		ld	de,CHDTXT1
+		ld	de,txt_ch_dir
 		call	PRINT
 		ld	hl,11*256+43
 		ld	de,12346
@@ -355,21 +368,24 @@ CHDIR		ld	hl,10*256+7
 
 		call	OUT
 		call	REREAD
-CHDIRE		jp	MAIN
+CHDIRE		jp	main
+
 CHDIREB		call	OUT
-		jp	MAIN
+		jp	main
+
 IDIR		call	OUT
 
-		ld	hl,bad_string		;adresa textu
+		ld	hl,txt_bad_string	;adresa textu
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
 		call	PAUSE
-		jp	c,CHDIR
-		jp	MAIN
-CHDTXT1		db	"Change Dir"
+		jp	c,change_dir
+		jp	main
+
+txt_ch_dir:	db	"Change Dir"
 		nop
-CHDTXT2		db	"Enter number of"
+txt_dir_num:	db	"Enter number of"
 		db	" directory:    "
 		db	"   "
 		nop
@@ -500,13 +516,13 @@ POC		or	a
 NEPOC		push	hl
 		pop	ix
 		call	PRINTD
-		jp	MAIN
+		jp	main
 
 ONE		ld	a,(PRINTD+1)
 		cp	2
-		jp	z,MAIN
+		jp	z,main
 
-		call	CLBAR
+		call	hide_cursor
 		ld	a,(ACTDRV2)
 
 		ld	e,a			;v E mame cislo mechaniky
@@ -518,11 +534,11 @@ ONE		ld	a,(PRINTD+1)
 		ld	e,a			;v E mame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
 		rst	#20			;BSDOS
-		jp	nc,MAIN
+		jp	nc,main
 
 		ld	a,2
 		ld	(PRINTD+1),a
-		call	SWITCH
+		call	switch
 		ld	hl,PANEL1
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
@@ -531,15 +547,15 @@ ONE		ld	a,(PRINTD+1)
 		ld	a,(ACTDRV1)
 		ld	hl,ACTDRV2
 		cp	(hl)
-		jp	nz,MAIN
+		jp	nz,main
 		call	REREAD
-		jp	MAIN1
+		jp	main1
 
 TWO		ld	a,(PRINTD+1)
 		cp	34
-		jp	z,MAIN
+		jp	z,main
 
-		call	CLBAR
+		call	hide_cursor
 		ld	a,(ACTDRV2)
 
 		ld	e,a			;v E mame cislo mechaniky
@@ -551,11 +567,11 @@ TWO		ld	a,(PRINTD+1)
 		ld	e,a			;v E mame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
 		rst	#20			;BSDOS
-		jp	nc,MAIN
+		jp	nc,main
 
 		ld	a,34
 		ld	(PRINTD+1),a
-		call	SWITCH
+		call	switch
 		ld	hl,PANEL1
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
@@ -565,15 +581,15 @@ TWO		ld	a,(PRINTD+1)
 		ld	a,(ACTDRV1)
 		ld	hl,ACTDRV2
 		cp	(hl)
-		jp	nz,MAIN
+		jp	nz,main
 		call	REREAD
-		jp	MAIN1
+		jp	main1
 
-SWITCH		call	OZNCHAN
+switch:		call	OZNCHAN
 		ld	hl,FILE2
 		ld	de,FILE1
 		ld	bc,2*1024+14
-SW		ld	a,(hl)
+sw:		ld	a,(hl)
 		ld	xh,a
 		ld	a,(de)
 		ld	(hl),a
@@ -584,7 +600,7 @@ SW		ld	a,(hl)
 		dec	bc
 		ld	a,b
 		or	c
-		jr	nz,SW
+		jr	nz,sw
 		ret
 
 NAHORU		ld	ix,POZICE1
@@ -598,7 +614,7 @@ NAHORU		ld	ix,POZICE1
 		ld	h,a
 		dec	a
 		ld	(ix+1),a
-		call	CLBAR1
+		call	hide_cursor1
 		ld	hl,(INPANEL1)
 		ld	de,32
 		or	a
@@ -628,7 +644,7 @@ NAH_U		ld	bc,(FILE1)
 		or	a
 		sbc	hl,de
 		ld	(INPANEL1),hl
-		jp	MAIN1
+		jp	main1
 NAH_U0		call	CHANGE
 		ld	hl,(OORT1)
 		ld	de,(OORT2)
@@ -651,7 +667,7 @@ NAH_U0		call	CHANGE
 		ld	de,480
 		add	hl,de
 		ld	(INPANEL1),hl
-		jp	MAIN1
+		jp	main1
 
 DOLU		ld	ix,POZICE1
 		ld	a,(ix+1)
@@ -664,7 +680,7 @@ DOLU		ld	ix,POZICE1
 		ld	h,a
 		inc	a
 		ld	(ix+1),a
-		call	CLBAR1
+		call	hide_cursor1
 		ld	hl,(INPANEL1)
 		ld	de,32
 		add	hl,de
@@ -695,7 +711,7 @@ DOLU_U		ld	bc,(FILE1)
 		ld	de,32
 		add	hl,de
 		ld	(INPANEL1),hl
-		jp	MAIN1
+		jp	main1
 DOLU_U0		call	CHANGE
 		ld	hl,(OORT2)
 		ld	de,(OORT1)
@@ -711,11 +727,11 @@ DOLU_U0		call	CHANGE
 		call	PRINTD
 		ld	hl,(OORT2)
 		ld	(INPANEL1),hl
-		jp	MAIN1
+		jp	main1
 
-DOMAIN		call	CBAR
+DOMAIN		call	show_cursor
 		call	PAUSE
-		jp	MAIN1
+		jp	main1
 
 
 ;bc=cislo souboru
@@ -831,7 +847,7 @@ CHDRVP		call	PAUSE
 		ld	b,6
 CHDR0		inc	sp
 		djnz	CHDR0
-		jp	CHDRV
+		jp	change_drive
 
 NEUT		ld	a,'-'
 		ret
@@ -884,8 +900,8 @@ CYAN		pop	hl
 		ld	a,77
 COLOR		push	hl
 		ex	af,af'
-		call	ADRSET
-		call	AAA
+		call	pixel_address
+		call	attr_address
 		ex	af,af'
 		ld	b,14
 COL0		ld	(hl),a
@@ -907,13 +923,13 @@ COL0		ld	(hl),a
 		djnz	PRINTD1
 		ret
 
-UPPER		call	CLBAR
+UPPER		call	hide_cursor
 		ld	hl,0*256+1
 		ld	a,3
 		call	INV
 		ld	ix,DATA
 UPPER0		push	hl
-		call	KEY
+		call	inkey
 		pop	hl
 UPPER1		cp	9
 		jr	z,RIGHT
@@ -957,7 +973,7 @@ EN		ld	l,28
 		ret
 ESC		ld	a,(ix+5)
 		call	INV
-		jp	MAIN
+		jp	main
 ENTER		ld	(IXPOS),ix
 		ld	(HLPOS),hl
 		ld	a,l
@@ -1021,7 +1037,7 @@ MNU2		ld	hl,1*256+2
 		jp	z,RENAME
 		cp	8
 		jp	z,UNDELETE
-		jp	MAIN
+		jp	main
 
 TMNU2		db	" View          "
 		db	"   3 "
@@ -1061,7 +1077,7 @@ MNU3		ld	hl,1*256+5
 		call	MENU1
 		call	BAR
 		cp	1
-		jp	z,MAIN
+		jp	z,main
 		cp	2
 		jp	z,REDISK
 		jp	SETTIME
@@ -1097,7 +1113,7 @@ MNU4		ld	hl,1*256+10
 		jp	z,UZNALL
 		cp	6
 		jp	z,II
-		jp	MAIN
+		jp	main
 
 
 TMNU4		db	" Press Director"
@@ -1137,15 +1153,15 @@ MNU5		ld	hl,1*256+14
 		cp	1
 		jr	z,RR
 		cp	2
-		jp	z,CHDIR
+		jp	z,change_dir
 		cp	3
-		jp	z,LFT
+		jp	z,chnge_drv_left
 		cp	4
-		jp	z,RGT
-		jp	MAIN
+		jp	z,chnge_drv_rght
+		jp	main
 
 RR		call	REREAD
-		jp	MAIN1
+		jp	main1
 TMNU5		db	" Re-read       "
 		db	"       R "
 		nop
@@ -1173,7 +1189,7 @@ BAR		inc	h
 		call	INV
 		call	PAUSE
 BAR0		push	hl
-		call	KEY
+		call	inkey
 		pop	hl
 		cp	11
 		jr	z,UP
@@ -1264,7 +1280,7 @@ ABOUT		ld	hl,10*256+8
 		call	PRINT
 		call	AKEY
 		call	OUT
-		jp	MAIN
+		jp	main
 ABTXT1		db	"About FC"
 		nop
 ABTXT2		db	" Fast Commander"
@@ -1312,7 +1328,7 @@ OPTIONS		ld	hl,10*256+10
 		call	INV
 		ld	h,11
 TK		push	hl
-		call	KEY
+		call	inkey
 		pop	hl
 		cp	11
 		jr	z,NNN
@@ -1328,7 +1344,7 @@ TK		push	hl
 HAPPY		ld	a,xh
 		ld	(OPT),a
 NO		call	OUT
-		jp	MAIN
+		jp	main
 FLOP		ld	a,h
 		sub	11
 		add	a,a
@@ -1358,7 +1374,7 @@ MDF2		set	0,a
 		ld	xh,a
 		call	PAUSE
 		jr	TK
-REM		call	ADRSET
+REM		call	pixel_address
 		ld	b,8
 REM0		ld	a,(hl)
 		and	240
@@ -1407,7 +1423,7 @@ OPTXT2		db	" ( ) Beep after"
 		db	"nable  "
 		nop
 
-EXIT:		ld	hl,QTXT			;adresa textu
+EXIT:		ld	hl,quit_message		;adresa textu
 		ld	a,dos_messx		;sluzba MESSX		
 		rst	#20			;BSDOS
 
@@ -1415,9 +1431,9 @@ EXIT:		ld	hl,QTXT			;adresa textu
 		jp	RETDOS
 
 BACK		call	OUT
-		jp	MAIN
+		jp	main
 
-QTXT:		db	"Exit to Dos ?"
+quit_message:	db	"Exit to Dos ?"
 		db	#00,#C9
 
 CHANGE		ld	a,dos_getcst		;sluzba GETCST
@@ -1447,23 +1463,23 @@ OPICE		ld	a,(de)
 		jr	nz,OPICE
 		ret
 
-CHREP:		ld	hl,CHTXT		;adresa textu
+CHREP:		ld	hl,disk_changed		;adresa textu
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
 		jr	nc,CHABORT		;navrat ak bola stlacena medzera
 		pop	hl
 		call	REREAD			;inak znovunacitanie panelov
-		jp	MAIN1
+		jp	main1
 CHABORT:	pop	hl
-		jp	MAIN
+		jp	main
 
-CHTXT:		db	"Disk changed !"
+disk_changed:	db	"Disk changed !"
 		db	#00,#C9
 
 SYSTEM		di
 		ld	a,233
-		ld	(INTRPT),a
+		ld	(interrupt),a
 		ld	hl,CPU1
 		ei
 		halt
@@ -1475,7 +1491,7 @@ CPU0		inc	bc
 CPU2		pop	hl
 		pop	hl
 		ld	a,243
-		ld	(INTRPT),a
+		ld	(interrupt),a
 		ei
 LN		equ	$-SYSTEM
 		ld	(KOEF2),bc
@@ -1686,7 +1702,7 @@ NP		call	PRINT
 		call	AKEY
 		call	OUT
 		call	PAUSE
-		jp	MAIN
+		jp	main
 PAGE		push	af
 		ld	a,%01100000
 		or	c
@@ -1771,7 +1787,7 @@ PRESS		call	CHANGE
 
 		call	OUT
 		call	REREAD
-		jp	MAIN1
+		jp	main1
 PRTXT		db	"     Deflating "
 		db	"Directory      "
 		nop
@@ -1784,16 +1800,16 @@ OZN		ld	bc,(FILE1)
 		or	a
 		jr	z,OZNNE
 		ld	hl,(POZICE1)
-		call	ADRSET
-		call	AAA
+		call	pixel_address
+		call	attr_address
 		ld	b,14
 OZNJO		set	1,(hl)
 		inc	l
 		djnz	OZNJO
 		jp	DOLU
 OZNNE		ld	hl,(POZICE1)
-		call	ADRSET
-		call	AAA
+		call	pixel_address
+		call	attr_address
 		ld	b,14
 OZNN		res	1,(hl)
 		inc	l
@@ -1874,7 +1890,7 @@ OZNALL		call	CHANGE
 		ld	hl,(LENDIR1)
 		ld	a,h
 		or	l
-		jp	z,MAIN
+		jp	z,main
 		ld	hl,10*256+8
 		ld	de,5*256+16
 		call	IN
@@ -1932,7 +1948,7 @@ UZNALL		call	CHANGE
 		ld	hl,(LENDIR1)
 		ld	a,h
 		or	l
-		jp	z,MAIN
+		jp	z,main
 		ld	hl,10*256+8
 		ld	de,5*256+16
 		call	IN
@@ -1987,7 +2003,7 @@ OZNMASK		call	CHANGE
 		ld	hl,(LENDIR1)
 		ld	a,h
 		or	l
-		jp	z,MAIN
+		jp	z,main
 		ld	hl,10*256+8
 		ld	de,5*256+16
 		call	IN
@@ -2155,7 +2171,7 @@ CR		nop
 NMASK		pop	hl
 		call	OUT
 		call	PAUSE
-		jp	MAIN
+		jp	main
 MATXT1		db	"         Enter "
 		db	"New Mask:      "
 		nop
@@ -2342,7 +2358,7 @@ TTOT		db	"              "
 DELETE		ld	hl,(LENDIR1)
 		ld	a,h
 		or	l
-		jp	z,MAIN
+		jp	z,main
 		ld	bc,1
 FDEL		push	bc
 		call	OZNTEST
@@ -2415,7 +2431,7 @@ OUTD		pop	bc
 
 OUTDD		call	OUT
 		call	REREAD
-		jp	MAIN1
+		jp	main1
 NDL		or	a
 		jr	z,ND
 		xor	a
@@ -2446,7 +2462,7 @@ DETXT		db	"         Deleti"
 
 DELJEDEN	ld	bc,(FILE1)
 		call	TDEL
-		jp	nc,MAIN
+		jp	nc,main
 		call	DELREP
 		call	CHANGE
 		ld	bc,(FILE1)
@@ -2455,9 +2471,9 @@ DELJEDEN	ld	bc,(FILE1)
 		rst	#20			;BSDOS
 
 		call	REREAD
-		jp	MAIN1
+		jp	main1
 
-DELREP:		ld	hl,DELTXT		;adresa textu
+DELREP:		ld	hl,delete_it		;adresa textu
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
@@ -2465,9 +2481,9 @@ DELREP:		ld	hl,DELTXT		;adresa textu
 		ret
 
 DELABORT:	pop	hl
-		jp	MAIN
+		jp	main
 
-DELTXT:		db	" Delete it ?  "
+delete_it:	db	" Delete it ?  "
 		db	#00,#C9
 
 ;in:bc-file
@@ -2485,7 +2501,7 @@ UNDELETE	call	CHANGE
 		ld	hl,(LENDIR1)
 		ld	a,h
 		or	l
-		jp	z,MAIN
+		jp	z,main
 		ld	bc,1
 FUNDEL		push	bc
 		call	OZNTEST
@@ -2556,7 +2572,7 @@ OUTU		pop	bc
 
 OUTUU		call	OUT
 		call	REREAD
-		jp	MAIN1
+		jp	main1
 NUN		or	a
 		jr	z,NU
 		xor	a
@@ -2583,7 +2599,7 @@ UNTXT		db	"        Undelet"
 		nop
 UNJEDEN		ld	bc,(FILE1)
 		call	TDEL
-		jp	c,MAIN
+		jp	c,main
 		call	CHANGE
 		ld	bc,(FILE1)
 
@@ -2591,13 +2607,13 @@ UNJEDEN		ld	bc,(FILE1)
 		rst	#20			;BSDOS
 
 		call	REREAD
-		jp	MAIN1
+		jp	main1
 
 COPY		call	CHANGE
 		ld	hl,(LENDIR1)
 		ld	a,h
 		or	l
-		jp	z,MAIN
+		jp	z,main
 		ld	bc,1
 FCOP		push	bc
 		call	OZNTEST
@@ -2648,7 +2664,7 @@ NCOP		inc	bc
 		push	bc
 OUTCO		pop	bc
 		call	OUT
-		jp	PANELY
+		jp	panely
 
 COTXT		db	"        Copying"
 		db	" Files         "
@@ -2668,7 +2684,7 @@ COTXT		db	"        Copying"
 
 COPJEDEN	ld	bc,(FILE1)
 		call	TDEL
-		jp	nc,MAIN
+		jp	nc,main
 		call	CHANGE
 		ld	hl,10*256+8
 		ld	de,7*256+16
@@ -2685,7 +2701,7 @@ COPJEDEN	ld	bc,(FILE1)
 		ld	bc,(FILE1)
 		call	COPFILE
 		call	OUT
-		jp	PANELY
+		jp	panely
 
 ;bc=file number
 COPFILE		ld	hl,#3E3
@@ -2873,13 +2889,13 @@ RESOUT		ld	a,#26
 		jp	RESOUT1
 
 DFULL		call	OUT
-		jp	PANELY
+		jp	panely
 
 RENAME		call	CHANGE
 		ld	hl,(LENDIR1)
 		ld	a,h
 		or	l
-		jp	z,MAIN
+		jp	z,main
 		ld	bc,1
 FREN		push	bc
 		call	OZNTEST
@@ -2917,15 +2933,15 @@ NREN		inc	bc
 		jr	nz,NXTRN
 		push	bc
 OUTRN		pop	bc
-		jp	PANELY
+		jp	panely
 RENJEDEN	ld	bc,(FILE1)
 		call	TDEL
-		jp	nc,MAIN
+		jp	nc,main
 		call	CHANGE
 		ld	bc,(FILE1)
 		call	RENAM
 		call	OUT
-		jp	PANELY
+		jp	panely
 
 RENAM		ld	hl,FASTMEM+#06
 		ld	de,NAME
@@ -2981,7 +2997,7 @@ RNTXT3		db	"File Rename"
 
 VIEW		ld	bc,(FILE1)
 		call	TDEL
-		jp	nc,MAIN
+		jp	nc,main
 		call	CHANGE
 		call	VPOZADI
 		ld	bc,(FILE1)
@@ -3063,7 +3079,7 @@ VIEW1		ld	hl,BOOT
 		call	VIEWP
 VIEW0		call	ESCAPE
 		jr	nc,OUTV
-		call	KEY
+		call	inkey
 		cp	11
 		jr	z,VUP
 		cp	10
@@ -3073,8 +3089,8 @@ VIEW0		call	ESCAPE
 		cp	9
 		jr	z,VSECL
 		jr	VIEW0
-OUTV		ld	sp,(PANELY+1)
-		jp	PANELY1
+OUTV		ld	sp,(panely+1)
+		jp	panely1
 
 VDO		ld	bc,(POCSEC)
 		ld	hl,(LENSEC)
@@ -3347,7 +3363,7 @@ REDISKX		ld	a,dos_getcst		;sluzba GETCST
 		rst	#18			;FDC BIOS
 
 RDB		call	OUT
-		jp	MAIN
+		jp	main
 RDTXT1		db	" Old name of di"
 		db	"sk:"
 		nop
@@ -3399,16 +3415,16 @@ RERNG		ld	a,(hl)
 		db	#ED,#71
 ;out (c),0
 BP		call	OUT
-		jp	MAIN
+		jp	main
 ITIME		call	OUT
 		
-		ld	hl,bad_string		;adresa textu
+		ld	hl,txt_bad_string	;adresa textu
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 		
 		call	PAUSE
 		jp	c,SETTIME
-		jp	MAIN
+		jp	main
 
 RNG:		db	51,58,54,58,54,58
 STTXT1:		db	"Set Time"
@@ -3417,14 +3433,14 @@ STTXT2:		db	" Enter new time"
 		db	" (hhmmss):     "
 		db	"    "
 		nop
-bad_string:	db	"Bad string. Again ?"
+txt_bad_string:	db	"Bad string. Again ?"
 		db	#00,#C9
 
 
 ;Podprogram pre obsluhu klavesnice
 ;klasicky INKEY$ zavisly od ZX ROM!
 ;output: a=stlacena klavesa
-KEY:		call	rom_wr_protect		;odstrankujeme do ROM
+inkey:		call	rom_wr_protect		;odstrankujeme do ROM
 		ld	iy,39
 		call	654			;#028e
 		ret	nz
@@ -3435,7 +3451,7 @@ KEY:		call	rom_wr_protect		;odstrankujeme do ROM
 		call	819			;#0333
 		jp	dos_wr_enabled		;navrat s prestrankovanim do DOSu
 
-AKEY		call	KEY
+AKEY		call	inkey
 		cp	13
 		ret	z
 		call	ESCAPE
@@ -3449,11 +3465,13 @@ ESCAPE		ld	a,247
 		in	a,(254)
 		rra
 		ret
+
 PAUSE		ld	b,5
 		ei
 PAUSE0		halt
 		djnz	PAUSE0
 		ret
+
 CPHLDE		or	a
 		sbc	hl,de
 		add	hl,de
@@ -3500,7 +3518,7 @@ NAS0		add	hl,de
 
 ;BSDOS #DEC8X, nezarovnane
 DEC8S:		ld	ix,NUM			;nastavenie pozicie vypisu
-		ld	(#03E0),ix		;cez systemovu premennu XXX
+		ld	(XXX),ix		;cez systemovu premennu XXX
 		ld	c,0			;vypisovat budeme iba platne znaky
 		ld	a,dos_dec8x		;sluzba DEC8X
 		rst	#20			;BSDOS
@@ -3511,7 +3529,7 @@ DEC8S:		ld	ix,NUM			;nastavenie pozicie vypisu
 
 ;BSDOS #DEC16X, nezarovnane
 DEC16S:		ld	ix,NUM			;nastavenie pozicie vypisu
-		ld	(#03E0),ix		;cez systemovu premennu XXX
+		ld	(XXX),ix		;cez systemovu premennu XXX
 		ld	c,0			;vypisovat budeme iba platne znaky
 		ld	a,dos_dec16x		;sluzba DEC16X
 		rst	#20			;BSDOS
@@ -3522,7 +3540,7 @@ DEC16S:		ld	ix,NUM			;nastavenie pozicie vypisu
 
 ;BSDOS #DEC32X, nezarovnane
 DEC32S:		ld	ix,NUM			;nastavenie pozicie vypisu
-		ld	(#03E0),ix		;cez systemovu premennu XXX
+		ld	(XXX),ix		;cez systemovu premennu XXX
 		ld	c,0			;vypisovat budeme iba platne znaky
 		ld	b,5			;vypiseme maximalne 5 znakov
 		ld	a,dos_dec32x		;sluzba DEC32X
@@ -3535,7 +3553,7 @@ DEC32S:		ld	ix,NUM			;nastavenie pozicie vypisu
 ;BSDOS #DEC8X, zarovnane v pravo
 ;input: iy=pozicia textu
 DEC8:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
-		ld	(#03E0),iy		;pozicia textu do systemovej premennej XXX
+		ld	(XXX),iy		;pozicia textu do systemovej premennej XXX
 		ld	a,dos_dec8x		;sluzba DEC8X - Vypisuje osembitove desiatkove cislo
 		rst	#20			;BSDOS
 		ret
@@ -3543,7 +3561,7 @@ DEC8:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
 ;BSDOS #DEC16X, zarovnane v pravo
 ;input: iy=pozicia textu
 DEC16:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul			
-		ld	(#03E0),iy		;pozicia textu do systemovej premennej XXX
+		ld	(XXX),iy		;pozicia textu do systemovej premennej XXX
 		ld	a,dos_dec16x		;sluzba DEC16X - vypisuje 16-bitove desiatkove cislo
 		rst	#20			;BSDOS
 		ret
@@ -3551,7 +3569,7 @@ DEC16:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
 ;BSDOS #DEC32X, zarovnane v pravo
 ;input: iy=pozicia textu
 DEC32:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
-		ld	(#03E0),iy		;pozicia textu do systemovej premennej XXX
+		ld	(XXX),iy		;pozicia textu do systemovej premennej XXX
 		ld	b,7			;vypiseme maximalne 7 znakov
 		ld	a,dos_dec32x		;sluzba DEC32X - vypisuje 32-bitove desiatkove cislo
 		rst	#20			;BSDOS
@@ -3628,8 +3646,8 @@ INTXT0		ld	(hl),32
 		pop	de
 		pop	hl
 		push	hl
-		call	ADRSET
-		call	AAA
+		call	pixel_address
+		call	attr_address
 		ld	b,iyl
 		srl	b
 		inc	b
@@ -3644,7 +3662,7 @@ INTXT1		call	ESCAPE
 		jp	nc,BRK
 		push	hl
 		push	iy
-		call	KEY
+		call	inkey
 		pop	iy
 		pop	hl
 		cp	39
@@ -3740,7 +3758,7 @@ ETR		scf
 BRK		or	a
 		ret
 REMOV		push	hl
-		call	ADRSET
+		call	pixel_address
 		ld	a,h
 		add	a,7
 		ld	h,a
@@ -3748,7 +3766,7 @@ REMOV		push	hl
 		pop	hl
 		ret
 REMOV2		push	hl
-		call	ADRSET
+		call	pixel_address
 		ld	b,8
 REMOV20		ld	(hl),0
 		inc	h
@@ -3768,7 +3786,7 @@ INV0		push	bc
 		pop	hl
 		ret
 INV1		push	hl
-		call	ADRSET
+		call	pixel_address
 		or	a
 		jr	nz,SCND
 		ld	b,8
@@ -3795,7 +3813,7 @@ IN		push	hl
 		ld	a,l
 		add	a,a
 		ld	l,a
-		call	ADRSET
+		call	pixel_address
 		ld	(OUT+1),hl
 		ld	a,d
 		ld	(LOP2-1),a
@@ -3826,7 +3844,7 @@ RANG1		ld	bc,0
 		pop	bc
 		djnz	LOP1
 		pop	hl
-		call	AAA
+		call	attr_address
 		ld	b,0
 LOP2		push	bc
 RANG2		ld	bc,0
@@ -3855,7 +3873,7 @@ RANG3		ld	bc,0
 		djnz	LOP3
 		pop	de
 		ex	de,hl
-		call	AAA
+		call	attr_address
 		ex	de,hl
 		ld	a,0
 LOP4		ld	bc,0
@@ -3882,8 +3900,8 @@ DOWNHL		inc	h
 		ret
 
 ;Vypocet adresy atributu pod pixelovou adresou
-;hl=pixelova adresa
-AAA:		ld	a,h
+;input: hl=pixelova adresa
+attr_address:	ld	a,h
 		rrca
 		rrca
 		rrca
@@ -3908,8 +3926,8 @@ MENU1		push	hl
 		add	a,a
 		ld	l,a
 		push	hl
-		call	ADRSET
-		call	AAA
+		call	pixel_address
+		call	attr_address
 		ld	b,d
 		ld	a,e
 		ld	(SIRKA+1),a
@@ -3983,8 +4001,8 @@ MENU2		ld	(LLP2+1),a
 		add	a,a
 		ld	l,a
 		push	hl
-		call	ADRSET
-		call	AAA
+		call	pixel_address
+		call	attr_address
 		ld	b,d
 		ld	a,e
 		ld	(LSIRKA+1),a
@@ -4080,7 +4098,7 @@ CHAR:		push	bc
 		push	de
 		push	hl
 		push	af
-		call	ADRSET
+		call	pixel_address
 		or	a
 		jr	z,SECND2
 		ld	c,#F0
@@ -4205,9 +4223,9 @@ SECND1:		pop	af
 		pop	bc
 		ret
 
-;Vypocet adresy
+;Vypocet pixelovej adresy zo suradnic vypisu
 ;input: hl=pozicia (h=riadky 0-23, l=stlpce 0-63)
-ADRSET:		ld	a,h
+pixel_address:	ld	a,h
 		push	hl
 		and	%00011000
 		or	%01000000
@@ -4223,12 +4241,12 @@ ADRSET:		ld	a,h
 		bit	0,c
 		jr	nz,MODIFY
 		ld	a,1
-CONT:		srl	c
+pa_cont:	srl	c
 		ld	b,0
 		add	hl,bc
 		ret
 MODIFY:		xor	a
-		jr	CONT
+		jr	pa_cont
 
 ;a=0 abort
 ;a=1 znovu aktivuj
@@ -4495,7 +4513,7 @@ YC		ld	a,8
 		add	a,12
 		ld	(LRQ+1),a
 YC1		push	hl
-		call	KEY
+		call	inkey
 		pop	hl
 		cp	8
 		call	z,LR
@@ -4532,7 +4550,7 @@ QD		ld	a,(LR+2)
 BCK		or	a
 		ret
 
-STATUS		ld	hl,MSG			;vypis chybovych hlaseni obsluzi FC
+status:		ld	hl,MSG			;vypis chybovych hlaseni obsluzi FC
 		ld	a,dos_sdmsx		;sluzba SDMSX
 		rst	#20			;BSDOS
 
@@ -4601,19 +4619,22 @@ NE_128		ld	(MEM128),a
 NE128		xor	a
 		jr	NE_128
 
-INTRPT		di
+;obsluha prerusenia, zobrazenie hodin
+interrupt:	di
 		push	af
 		push	bc
 		push	de
 		push	hl
-		call	CLOCK
+		call	clock
 		pop	hl
 		pop	de
 		pop	bc
 		pop	af
 		ei
 		ret
-CLOCK		ld	a,(OPT)
+
+;hodiny sa vykresluju len ak su povolene v options, inak sa kreslia len medzery
+clock:		ld	a,(OPT)
 		bit	1,a
 		jr	z,SPACES
 		ld	hl,LTIME
@@ -5025,10 +5046,10 @@ FONT		db	#00, #00, #00, #00, #00, #00, #00, #00
 FT
 		ds	256
 ;aby bylo vic pro stack
-STACK
+stack
 A0STACK		equ	$-FT
 
-A0LEN		equ	$-START
+A0LEN		equ	$-start
 A0LAST
 
 		org	#AD00
@@ -5063,5 +5084,5 @@ STORE		ds	2052
 
 A0COMP
 
-		savebin "fc01delta.cod",START,$-START
+		savebin "fc01delta.cod",start,$-start
 		
