@@ -5,8 +5,21 @@
 		
 
 		org	24200
-;		ent	START
 
+;definicie pre lahsiu orientaciu v zdrojaku
+
+;sluzby ROM BIOSu
+ROMDIS		equ	#3c98			;ROM banka, zakazany zapis
+DOSDIS		equ	#3c9A			;DOS banka, zakazany zapis
+ROMENA		equ	#3c9c			;ROM banka, povoleny zapis
+DOSENA		equ	#3c9e			;DOS banka, povoleny zapis
+
+;sluzby FDC BIOSu
+FDSETOFF	equ	#11			;mod vypinania motorov
+FDAKTIVE	equ	#0c			;aktvuje danu mechaniku
+
+;sluzby BSDOSu
+BDSDDX		equ	#0c			;sposob vypisovania znakov pre sluzbu DISP
 
 ;format polozek
 ;00: identifikator
@@ -14,124 +27,138 @@
 ;03-30: text (28)
 ;31: 0
 
-START		di
-		ld	sp,STACK
-		call	#3C9E
-		call	STATUS
+START:		di
+		ld	sp,STACK		;SP na vlastny stack
+		call	DOSENA			;prestrankuje do DOSu
+		call	STATUS			;zisti konfiguraciu pocitaca
+
 		xor	a
-		out	(254),a
-		ld	hl,INTRPT
+		out	(254),a			;cierny border
+
+		ld	hl,INTRPT		;interrupt na rutinu zobrazujucu hodiny
 		ld	(45567),hl
 		ld	a,177
 		ld	i,a
 		im	2
 		ei
-		call	OZNDEL1
+
+		call	OZNDEL1			;zrusi oznacenie v oboch paneloch
 		call	OZNDEL2
-		ld	a,2
+
+		ld	a,2			;slpec vypisu=2 (lavy panel)
 		ld	(PRINTD+1),a
-		ld	(PANELY+1),sp
+		ld	(PANELY+1),sp		;odlozime si SP
 		ld	(MAIN+1),sp
-PANELY1		call	WORKB
-PANELY		ld	sp,0
-		ld	e,0
-		ld	a,#11
-		rst	#18
-;setoff na vypinani motoru
-		call	SWITCH
-		call	SWAPPRNT
-		call	REREAD1
-		call	SWITCH
-		call	SWAPPRNT
-		call	REREAD1
-MAIN		ld	sp,0
-		call	CHANGE
-MAIN1		call	CBAR
-		ld	e,1
-		ld	a,#0C
-		rst	#20
-		ld	hl,(FILE1)
-		ld	c,48
-		ld	iy,NUMBER
-		call	DEC16+2
-		ld	a,(PRINTD+1)
-		add	a,20
-		ld	l,a
-		ld	h,19
-		ld	de,NUMBER
-		call	PRINT
-MAIN0		call	KEY
-		cp	11
+PANELY1:	call	WORKB			;zobrazi panely
+PANELY:		ld	sp,0			;obnovenie zasobnika
+
+		ld	e,0			;ak nie je mechanika aktivna, motor sa bude vypinat
+		ld	a,FDSETOFF		;sluzba SETOFF
+		rst	#18			;FDC BIOS
+
+		call	SWITCH			;prehodi sa na neaktivny panel
+		call	SWAPPRNT		;vypis sa prepne na pravy panel
+		call	REREAD1			;nacita a zobrazi subory v neaktivnom paneli
+		call	SWITCH			;prehodi sa na aktivny panel
+		call	SWAPPRNT		;vypis sa prepne na lavy panel
+		call	REREAD1			;nacita a zobrazi subory v aktivnom paneli
+
+MAIN:		ld	sp,0			;obnovenie zasobnika
+		call	CHANGE			;zisti ci nebol vymeneny disk
+MAIN1:		call	CBAR			;nakresli kurzor
+
+		ld	e,1			;vypis znakov bude prebiehat do pamate, nie na obrazovku
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
+
+		ld	hl,(FILE1)		;vezme cislo suboru
+		ld	c,'0'			;nevyznamne nuly sa zobrazia
+		ld	iy,NUMBER		;do iy ide adresa bufferu
+		call	DEC16+2			;zavola zobrazenie cisla
+		ld	a,(PRINTD+1)		;v PRINTD+1 by malo byt 2, cize lavy panel
+		add	a,20			;stlpec 2+22
+		ld	l,a			;l=cislo stlpca
+		ld	h,19			;h=cislo riadku
+		ld	de,NUMBER		;de=adresa textu
+		call	PRINT			;vytlacime cislo suboru
+
+;Hlavny program pre obsluhu klavesnice
+MAIN0:		call	KEY			;zavola sa INKEY$ z ROM
+		cp	11			;^ - kurzor hore
 		jp	z,NAHORU
-		cp	10
+		cp	10			;v - kurzor dole
 		jp	z,DOLU
-		cp	'0'
+		cp	'0'			;0 - hlavne menu
 		jp	z,UPPER
-		cp	8
+		cp	8			;< - lavy panel
 		jp	z,ONE
-		cp	9
+		cp	9			;> - pravy panel
 		jp	z,TWO
-		cp	'1'
+		cp	'1'			;1 - zmena mechaniky v aktivnom paneli - dole
 		jp	z,LFT
-		cp	'2'
+		cp	'2'			;2 - zmena mechaniky v aktivnom paneli - hore
 		jp	z,RGT
-		cp	'3'
+		cp	'3'			;3 - viewer suboru, po sektoroch
 		jp	z,VIEW
-		cp	'5'
+		cp	'5'			;5 - kopirovanie, sekvencne po sektoroch
 		jp	z,COPY
-		cp	'x'
+		cp	'x'			;x - ukoncenie programu
 		jp	z,EXIT
-		cp	'd'
+		cp	'd'			;d - zmena adresara
 		jp	z,CHDIR
-		cp	'p'
+		cp	'p'			;p - zotrasenie adresara
 		jp	z,PRESS
-		cp	'+'
+		cp	'+'			;+ - oznacenie suborov
 		jp	z,OZNALL
-		cp	'*'
+		cp	'*'			;* - zmena oznacenia suborov
 		jp	z,UZNALL
-		cp	'-'
+		cp	'-'			;- - odznacenie suborov
 		jp	z,ODZNALL
-		cp	'i'
+		cp	'i'			;i - informacie o adresari
 		jp	z,II
-		cp	7
+		cp	7			;EDIT- oznacenie suborov podla masky
 		jp	z,OZNMASK
-		cp	13
+		cp	13			;ENTER - oznacenie jedneho suboru
 		jp	z,OZN
-		cp	'8'
+		cp	'8'			;8 - zmazanie oznacenych suborov
 		jp	z,DELETE
-		cp	'9'
+		cp	'9'			;9 - premenovanie suboru
 		jp	z,RENAME
-		cp	'u'
+		cp	'u'			;u - undelete suboru
 		jp	z,UNDELETE
-		ld	hl,MAIN
-		push	hl
-		cp	'r'
+		ld	hl,MAIN			;uschova adresy hlavneho programu kvoli REREAD
+		push	hl			;lebo sa vracia priamo na MAIN, nie sem
+		cp	'r'			;r - znovunacitanie disku
 		jp	z,REREAD
-		pop	hl
+		pop	hl			;obnova adresy hlavneho programu
 		jr	MAIN0
 
-SWAPPRNT	ld	a,(PRINTD+1)
+;Prepnutie vypisu panelov zo stlpca 2 (lavy panel), na stlpec 34 (pravy panel), and vice versa
+SWAPPRNT:	ld	a,(PRINTD+1)		;nacitame nastavenie stlpca
 		cp	2
-		jr	z,SWPP
+		jr	z,SWPP			;ak sme vlavo tak nic
 		ld	a,2
 		jr	SWPS
-SWPP		ld	a,34
-SWPS		ld	(PRINTD+1),a
+SWPP:		ld	a,34			;inak sme vpravo
+SWPS:		ld	(PRINTD+1),a
 		ret
 
-CBAR		ld	hl,(POZICE1)
-		call	ADRSET
-		call	AAA
+;Zobrazenie kurzora, je len atributovy
+CBAR:		ld	hl,(POZICE1)		;nacitame poziciu kurzora
+		call	ADRSET			;zistime si pixelovu polohu
+		call	AAA			;vypocitame adresu pociatocneho atributu
 		ld	b,14
-CBR		res	3,(hl)
+CBR:		res	3,(hl)			;zobrazime kurzor
 		inc	l
 		djnz	CBR
 		ret
-CLBAR		ld	hl,(POZICE1)
-CLBAR1		call	ADRSET
+
+;Zmazanie kurzora
+CLBAR:		ld	hl,(POZICE1)		;to iste ako v CBAR,
+CLBAR1:		call	ADRSET
 		call	AAA
 		ld	b,14
-CLBAR0		set	3,(hl)
+CLBAR0:		set	3,(hl)			;len kurzor sa maze
 		inc	l
 		djnz	CLBAR0
 		ret
@@ -249,14 +276,14 @@ CHECK1		ld	e,a
 SETHDD		ld	a,e
 		ld	(ACTDRV1),a
 		ld	a,#13
-		rst	#20
+		rst	#20			;BSDOS
 		call	OUT
 		call	REREAD
 		jp	MAIN
 IDRV		call	OUT
 		ld	hl,ITT
 		ld	a,#34
-		rst	#20
+		rst	#20			;BSDOS
 		call	PAUSE
 		jp	c,CHDRV
 		jp	MAIN
@@ -294,7 +321,7 @@ CHDIR		ld	hl,10*256+7
 		jp	nc,IDIR
 		ld	e,l
 		ld	a,#14
-		rst	#20
+		rst	#20			;BSDOS
 		call	OUT
 		call	REREAD
 CHDIRE		jp	MAIN
@@ -303,7 +330,7 @@ CHDIREB		call	OUT
 IDIR		call	OUT
 		ld	hl,ITT
 		ld	a,#34
-		rst	#20
+		rst	#20			;BSDOS
 		call	PAUSE
 		jp	c,CHDIR
 		jp	MAIN
@@ -316,8 +343,8 @@ CHDTXT2		db	"Enter number of"
 
 WRTN		push	hl
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 		ld	e,l
 		ld	c,48
 		ld	iy,NUMBE+1
@@ -333,17 +360,17 @@ WRTN		push	hl
 
 REREAD		call	OZNDEL1
 REREAD1		ld	a,#1E
-		rst	#20
+		rst	#20			;BSDOS
 ;kill
 		ld	a,(ACTDRV1)
 		ld	e,a
 		ld	a,#13
-		rst	#20
+		rst	#20			;BSDOS
 ;setdrv
 		ld	a,(ACTDIR1)
 		ld	e,a
 		ld	a,#14
-		rst	#20
+		rst	#20			;BSDOS
 ;setdir
 RRP1
 		ld	a,(ACTDRV1)
@@ -370,18 +397,18 @@ RRP1
 		add	hl,de
 		ld	(POZICE1),hl
 		ld	a,#12
-		rst	#20
+		rst	#20			;BSDOS
 		ld	a,d
 		ld	(ACTDIR1),a
 		ld	l,d
 		call	WRTN
 FREE		ld	a,#1F
-		rst	#20
+		rst	#20			;BSDOS
 		ret	nc
 		push	bc
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 		pop	bc
 		ld	h,b
 		ld	l,c
@@ -440,11 +467,11 @@ ONE		ld	a,(PRINTD+1)
 		ld	a,(ACTDRV2)
 		ld	e,a
 		ld	a,#13
-		rst	#20
+		rst	#20			;BSDOS
 		ld	a,(ACTDIR2)
 		ld	e,a
 		ld	a,#14
-		rst	#20
+		rst	#20			;BSDOS
 		jp	nc,MAIN
 
 		ld	a,2
@@ -470,11 +497,11 @@ TWO		ld	a,(PRINTD+1)
 		ld	a,(ACTDRV2)
 		ld	e,a
 		ld	a,#13
-		rst	#20
+		rst	#20			;BSDOS
 		ld	a,(ACTDIR2)
 		ld	e,a
 		ld	a,#14
-		rst	#20
+		rst	#20			;BSDOS
 		jp	nc,MAIN
 
 		ld	a,34
@@ -647,7 +674,7 @@ DOMAIN		call	CBAR
 READDIR		push	bc
 		push	ix
 		ld	a,#18
-		rst	#20
+		rst	#20			;BSDOS
 		jp	nc,CHDRVP
 		ld	hl,0
 		call	CPHLDE
@@ -660,7 +687,7 @@ READ1		push	af
 		push	bc
 		push	bc
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		pop	bc
 		jp	nc,CHDRVP
 		call	z,BAD
@@ -688,8 +715,8 @@ READ3		ld	a,(hl)
 		cpi
 		jp	pe,READ3
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 		ld	l,(ix+#12)
 		ld	h,(ix+#13)
 		ld	iy,ITEM+14
@@ -1327,7 +1354,7 @@ OPTXT2		db	" ( ) Beep after"
 
 EXIT		ld	a,#34
 		ld	hl,QTXT
-		rst	#20
+		rst	#20			;BSDOS
 		jr	nc,BACK
 		jp	RETDOS
 BACK		call	OUT
@@ -1336,7 +1363,7 @@ QTXT		db	"Exit to Dos ?"
 		db	#00,#C9
 
 CHANGE		ld	a,#12
-		rst	#20
+		rst	#20			;BSDOS
 		call	AKTIVE
 		cp	2
 		jr	nz,CHREP
@@ -1362,7 +1389,7 @@ OPICE		ld	a,(de)
 		ret
 CHREP		ld	a,#34
 		ld	hl,CHTXT
-		rst	#20
+		rst	#20			;BSDOS
 		jr	nc,CHABORT
 		pop	hl
 		call	REREAD
@@ -1412,9 +1439,11 @@ LN		equ	$-SYSTEM
 		ld	b,10
 		ld	a,16
 		call	PMNU
-		ld	a,#0C
+
 		ld	e,1
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
+
 		ld	de,(KOEF2)
 		ld	hl,3614
 		call	CPHLDE
@@ -1675,7 +1704,7 @@ PRESS		call	CHANGE
 		ld	a,120
 		call	MENU2
 		ld	a,#27
-		rst	#20
+		rst	#20			;BSDOS
 		call	OUT
 		call	REREAD
 		jp	MAIN1
@@ -1799,7 +1828,7 @@ NXTALL		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		jr	z,OUTALL
 		pop	bc
 		ld	a,(FASTMEM)
@@ -1855,7 +1884,7 @@ NXTULL		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		jr	z,OUTULL
 		pop	bc
 		ld	a,(FASTMEM)
@@ -1908,7 +1937,7 @@ NXTM		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		jr	z,OUTM
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2070,8 +2099,8 @@ MATXT3		db	"               "
 II		call	CHANGE
 		call	INFO
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 		ld	iy,SFIL
 		ld	hl,(STO)
 		call	DEC16
@@ -2139,7 +2168,7 @@ NXTINFO		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		jr	z,OUTINFO
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2152,11 +2181,11 @@ ZINFO		push	bc
 		ld	hl,(FASTMEM+#18)
 		ld	de,(FASTMEM+#1A)
 		ld	a,#0F
-		rst	#20
+		rst	#20			;BSDOS
 		ld	hl,(TLEN1)
 		ld	de,(TLEN2)
 		ld	a,#0A
-		rst	#20
+		rst	#20			;BSDOS
 		ld	(TLEN1),hl
 		ld	(TLEN2),de
 		pop	bc
@@ -2172,11 +2201,11 @@ ZINFO		push	bc
 		ld	hl,(FASTMEM+#18)
 		ld	de,(FASTMEM+#1A)
 		ld	a,#0F
-		rst	#20
+		rst	#20			;BSDOS
 		ld	hl,(SLEN1)
 		ld	de,(SLEN2)
 		ld	a,#0A
-		rst	#20
+		rst	#20			;BSDOS
 		ld	(SLEN1),hl
 		ld	(SLEN2),de
 		pop	bc
@@ -2266,7 +2295,7 @@ NXTD		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		jr	z,OUTD
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2297,7 +2326,7 @@ OUTD		pop	bc
 		ld	l,c
 		ld	bc,(INTFRST)
 		ld	a,#29
-		rst	#20
+		rst	#20			;BSDOS
 OUTDD		call	OUT
 		call	REREAD
 		jp	MAIN1
@@ -2311,7 +2340,7 @@ NDL		or	a
 		ld	l,c
 		ld	bc,(INTFRST)
 		ld	a,#29
-		rst	#20
+		rst	#20			;BSDOS
 		pop	bc
 		jr	ND
 INTERVAL	nop
@@ -2334,12 +2363,12 @@ DELJEDEN	ld	bc,(FILE1)
 		call	CHANGE
 		ld	bc,(FILE1)
 		ld	a,#28
-		rst	#20
+		rst	#20			;BSDOS
 		call	REREAD
 		jp	MAIN1
 DELREP		ld	a,#34
 		ld	hl,DELTXT
-		rst	#20
+		rst	#20			;BSDOS
 		jr	nc,DELABORT
 		ret
 DELABORT	pop	hl
@@ -2352,7 +2381,7 @@ DELTXT		db	" Delete it ?  "
 ;meni:FASTMEM
 TDEL		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		ld	a,(FASTMEM)
 		rla
 		ret
@@ -2394,7 +2423,7 @@ NXTU		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		jr	z,OUTU
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2425,7 +2454,7 @@ OUTU		pop	bc
 		ld	l,c
 		ld	bc,(INTFRST)
 		ld	a,#37
-		rst	#20
+		rst	#20			;BSDOS
 OUTUU		call	OUT
 		call	REREAD
 		jp	MAIN1
@@ -2439,7 +2468,7 @@ NUN		or	a
 		ld	l,c
 		ld	bc,(INTFRST)
 		ld	a,#37
-		rst	#20
+		rst	#20			;BSDOS
 		pop	bc
 		jr	NU
 UNTXT		db	"        Undelet"
@@ -2457,7 +2486,7 @@ UNJEDEN		ld	bc,(FILE1)
 		call	CHANGE
 		ld	bc,(FILE1)
 		ld	a,#36
-		rst	#20
+		rst	#20			;BSDOS
 		call	REREAD
 		jp	MAIN1
 
@@ -2494,7 +2523,7 @@ NXTCO		push	bc
 		call	PROZENT
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		jr	z,OUTCO
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2575,7 +2604,7 @@ COPFILE		ld	hl,#3E3
 		ld	hl,(FASTMEM+#18)
 		ld	de,(FASTMEM+#1A)
 		ld	a,#0F
-		rst	#20
+		rst	#20			;BSDOS
 		ld	(LENFILE+1),bc
 NXBYTE		ld	hl,(#18+FASTMEM)
 		ld	de,(#1A+FASTMEM)
@@ -2585,7 +2614,7 @@ NXBYTE		ld	hl,(#18+FASTMEM)
 		or	e
 		jp	z,CLOSE
 		ld	a,#08
-		rst	#20
+		rst	#20			;BSDOS
 		ld	(FASTMEM+#18),hl
 		ld	(FASTMEM+#1A),de
 		call	READBYTE
@@ -2620,10 +2649,12 @@ SEQIN		ld	bc,-1
 FILENUM		ld	hl,0
 		ld	a,#22
 		ld	e,1
-		rst	#20
-		ld	e,#FF
-		ld	a,#11
-		rst	#18
+		rst	#20			;BSDOS
+
+		ld	e,#FF			;nevypinaj motor ani ked nie je mechanika aktivna
+		ld	a,FDSETOFF		;sluzba SETOFF
+		rst	#18			;FDC BIOS
+		
 		ld	hl,#3E3
 		set	7,(hl)
 		ld	hl,(READBYTE+1)
@@ -2649,10 +2680,12 @@ SEQOUT		ld	bc,-1
 DESTNUM		ld	hl,0
 		ld	a,#25
 		ld	e,1
-		rst	#20
-		ld	e,#FF
-		ld	a,#11
-		rst	#18
+		rst	#20			;BSDOS
+
+		ld	e,#FF			;nevypinaj motor ani ked nie je mechanika aktivna
+		ld	a,FDSETOFF		;sluzba SETOFF
+		rst	#18			;FDC BIOS
+
 		ld	hl,#3E3
 		set	7,(hl)
 RESOUT1		ld	hl,0
@@ -2681,22 +2714,22 @@ PREDEJ		nop
 SETSOUR		ld	a,(ACTDRV1)
 		ld	e,a
 		ld	a,#13
-		rst	#20
+		rst	#20			;BSDOS
 		ld	a,(ACTDIR1)
 		ld	e,a
 		ld	a,#14
-		rst	#20
+		rst	#20			;BSDOS
 		ld	a,128
 		ld	(#03E3),a
 		ret
 SETDEST		ld	a,(ACTDRV2)
 		ld	e,a
 		ld	a,#13
-		rst	#20
+		rst	#20			;BSDOS
 		ld	a,(ACTDIR2)
 		ld	e,a
 		ld	a,#14
-		rst	#20
+		rst	#20			;BSDOS
 		ld	a,128
 		ld	(#03E3),a
 		ret
@@ -2704,7 +2737,7 @@ SETDEST		ld	a,(ACTDRV2)
 RESIN		ld	(FILENUM+1),bc
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		ld	hl,-1
 		ld	(SEQIN+1),hl
 		ld	hl,0
@@ -2713,7 +2746,7 @@ RESIN		ld	(FILENUM+1),bc
 
 RESOUT		ld	a,#26
 		ld	ix,FASTMEM
-		rst	#20
+		rst	#20			;BSDOS
 		jp	nc,DFULL
 		ld	(DESTNUM+1),hl
 		ld	hl,-1
@@ -2744,7 +2777,7 @@ NXTRN		push	bc
 ;		call PROZENT
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 		jr	z,OUTRN
 		pop	bc
 		ld	a,(FASTMEM)
@@ -2812,7 +2845,7 @@ RENAM		ld	hl,FASTMEM+#06
 REX		ld	hl,0
 		ld	ix,FASTMEM
 		ld	a,#1B
-		rst	#20
+		rst	#20			;BSDOS
 RNB		call	OUT
 		ret
 RNTXT1		db	" Old name of fi"
@@ -2833,17 +2866,17 @@ VIEW		ld	bc,(FILE1)
 		ld	bc,(FILE1)
 		ld	ix,FASTMEM
 		ld	a,#16
-		rst	#20
+		rst	#20			;BSDOS
 ;getsub
 		jp	z,OUTV
 		ld	de,(FASTMEM+#1A)
 		ld	hl,(FASTMEM+#18)
 		ld	a,#0F
-		rst	#20
+		rst	#20			;BSDOS
 		ld	(LENSEC),bc
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 		ld	hl,(LENSEC)
 		ld	iy,VTXT1
 		call	DEC16
@@ -2854,8 +2887,8 @@ VIEW		ld	bc,(FILE1)
 		ld	de,NUMBER
 		call	PRINT
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 		ld	de,(FASTMEM+#1A)
 		ld	hl,(FASTMEM+#18)
 		ld	iy,NUMBER32
@@ -2885,10 +2918,10 @@ VIEW1		ld	hl,BOOT
 		ld	bc,(POCSEC)
 		ld	e,1
 		ld	a,#22
-		rst	#20
+		rst	#20			;BSDOS
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 		ld	hl,(POCSEC)
 		inc	hl
 		ld	iy,VTXT2
@@ -3014,8 +3047,8 @@ PROZENT		push	hl
 		push	de
 		push	bc
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 		ld	hl,(LENDIR1)
 		pop	bc
 		push	bc
@@ -3033,8 +3066,8 @@ PROFILE		push	hl
 		push	de
 		push	bc
 		ld	e,1
-		ld	a,#0C
-		rst	#20
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
 LENFILE		ld	hl,0
 		pop	bc
 		push	bc
@@ -3105,7 +3138,7 @@ PROY		ld	(hl),219
 
 REDISK		call	CHANGE
 REDISKY		ld	a,#12
-		rst	#20
+		rst	#20			;BSDOS
 		call	AKTIVE
 		or	a
 		jp	z,RDB
@@ -3119,7 +3152,7 @@ REDISKY		ld	a,#12
 		cp	1
 		jr	z,REDISKY
 		ld	a,#0D
-		rst	#18
+		rst	#18			;FDC BIOS
 		ld	hl,BOOT+#26
 		ld	de,NAME
 		ld	bc,10
@@ -3156,7 +3189,7 @@ REDISKY		ld	a,#12
 		ld	bc,10
 		ldir
 REDISKX		ld	a,#12
-		rst	#20
+		rst	#20			;BSDOS
 		call	AKTIVE
 		or	a
 		jr	z,RDB
@@ -3170,7 +3203,7 @@ REDISKX		ld	a,#12
 		cp	1
 		jr	z,REDISKX
 		ld	a,#0D
-		rst	#18
+		rst	#18			;FDC BIOS
 RDB		call	OUT
 		jp	MAIN
 RDTXT1		db	" Old name of di"
@@ -3228,7 +3261,7 @@ BP		call	OUT
 ITIME		call	OUT
 		ld	hl,ITT
 		ld	a,#34
-		rst	#20
+		rst	#20			;BSDOS
 		call	PAUSE
 		jp	c,SETTIME
 		jp	MAIN
@@ -3244,17 +3277,20 @@ ITT		db	"Bad string. Aga"
 		db	#00,#C9
 
 
-;------------------------------
-KEY		call	#3C98
+;Podprogram pre obsluhu klavesnice
+;klasicky INKEY$ zavisly od ZX ROM!
+;output: a=stlacena klavesa
+KEY:		call	ROMDIS			;odstrankujeme do ROM
 		ld	iy,39
-		call	654
+		call	654			;#028e
 		ret	nz
-		call	798
+		call	798			;#031e
 		ret	nc
 		dec	d
 		ld	e,a
-		call	819
-		jp	#3C9E
+		call	819			;#0333
+		jp	DOSENA			;navrat s prestrankovanim do DOSu
+
 AKEY		call	KEY
 		cp	13
 		ret	z
@@ -3321,7 +3357,7 @@ DEC8S		ld	ix,NUM
 		ld	(#03E0),ix
 		ld	c,0
 		ld	a,#05
-		rst	#20
+		rst	#20			;BSDOS
 		xor	a
 		ld	(NUM+3),a
 		ret
@@ -3329,7 +3365,7 @@ DEC16S		ld	ix,NUM
 		ld	(#03E0),ix
 		ld	c,0
 		ld	a,#06
-		rst	#20
+		rst	#20			;BSDOS
 		xor	a
 		ld	(NUM+5),a
 		ret
@@ -3338,29 +3374,36 @@ DEC32S		ld	ix,NUM
 		ld	c,0
 		ld	b,5
 		ld	a,#07
-		rst	#20
+		rst	#20			;BSDOS
 		xor	a
 		ld	(NUM+5),a
 		ret
-;iy=adresa bufferu
-DEC8		ld	c,32
-		ld	(#03E0),iy
-		ld	a,#05
-		rst	#20
+
+;BSDOS #DEC8X
+;input: iy=adresa bufferu s textom
+DEC8:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
+		ld	(#03E0),iy		;adresa bufferu do systemovej premennej XXX
+		ld	a,#05			;sluzba DEC8X - Vypisuje osembitove desiatkove cislo
+		rst	#20			;BSDOS
 		ret
-;iy=adresa bufferu
-DEC16		ld	c,32
-		ld	(#03E0),iy
-		ld	a,#06
-		rst	#20
+
+;BSDOS #DEC16X
+;input: iy=adresa bufferu s textom
+DEC16:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul			
+		ld	(#03E0),iy		;adresa bufferu do systemovej premennej XXX
+		ld	a,#06			;sluzba DEC16X - vypisuje 16-bitove desiatkove cislo
+		rst	#20			;BSDOS
 		ret
-;iy=adresa bufferu
-DEC32		ld	c,32
-		ld	(#03E0),iy
-		ld	b,7
-		ld	a,#07
-		rst	#20
+
+;BSDOS #DEC32X
+;iput: iy=adresa bufferu s textom
+DEC32:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
+		ld	(#03E0),iy		;adresa bufferu do systemovej premennej XXX
+		ld	b,7			;vypiseme maximalne 7 znakov
+		ld	a,#07			;sluzba DEC32X - vypisuje 32-bitove desiatkove cislo
+		rst	#20			;BSDOS
 		ret
+
 ;ix=cislo
 ;nc=overflow
 A2N		ld	hl,TEXT
@@ -3685,8 +3728,9 @@ DOWNHL		inc	h
 		ld	h,a
 		ret
 
+;Vypocet adresy atributu pod pixelovou adresou
 ;hl=pixelova adresa
-AAA		ld	a,h
+AAA:		ld	a,h
 		rrca
 		rrca
 		rrca
@@ -3860,9 +3904,10 @@ LINE00		ld	a,205
 		djnz	LINE00
 		ret
 
-;hl=umisteni
-;de=adresa textu
-PRINT		ld	a,(de)
+;Tlac textu, 64 znakov na riadok
+;input:	hl=pozicia (h=riadok, l=stlpec)
+;	de=adresa textu
+PRINT:		ld	a,(de)
 		or	a
 		ret	z
 		call	CHAR
@@ -3875,9 +3920,10 @@ PRINT		ld	a,(de)
 		inc	h
 		jr	PRINT
 
-;hl=umisteni
-;a=kod znaku
-CHAR		push	bc
+;Tlac znaku, 64 znakov na riadok
+;input:	hl=pozicia (h=riadok, l=stlpec)
+;	a=kod znaku
+CHAR:		push	bc
 		push	de
 		push	hl
 		push	af
@@ -3886,8 +3932,8 @@ CHAR		push	bc
 		jr	z,SECND2
 		ld	c,#F0
 		jr	SECND1
-SECND2		ld	c,#0F
-SECND1		pop	af
+SECND2:		ld	c,#0F
+SECND1:		pop	af
 		ex	de,hl
 		ld	l,a
 		ld	h,0
@@ -4005,8 +4051,10 @@ SECND1		pop	af
 		pop	de
 		pop	bc
 		ret
-;hl=umisteni (0-23,0-63)
-ADRSET		ld	a,h
+
+;Vypocet adresy
+;input: hl=pozicia (h=riadky 0-23, l=stlpce 0-63)
+ADRSET:		ld	a,h
 		push	hl
 		and	%00011000
 		or	%01000000
@@ -4022,11 +4070,11 @@ ADRSET		ld	a,h
 		bit	0,c
 		jr	nz,MODIFY
 		ld	a,1
-CONT		srl	c
+CONT:		srl	c
 		ld	b,0
 		add	hl,bc
 		ret
-MODIFY		xor	a
+MODIFY:		xor	a
 		jr	CONT
 
 ;a=0 abort
@@ -4035,14 +4083,14 @@ MODIFY		xor	a
 ;a=3 ok, vymenena disketa
 AKTIVE		di
 		ld	a,#0C
-		rst	#18
+		rst	#18			;FDC BIOS
 		ei
 		cp	1
 		ret	nz
 		ld	(BIOS),a
 		ld	hl,DNREADY
 		ld	a,#34
-		rst	#20
+		rst	#20			;BSDOS
 		jr	c,AKTMX
 		xor	a
 		ret
@@ -4053,7 +4101,7 @@ AKTMX		ld	a,1
 ;a=2 ok
 RDSEC		di
 		ld	a,#04
-		rst	#18
+		rst	#18			;FDC BIOS
 		ei
 		rra
 		ld	hl,TIMEOUT
@@ -4077,7 +4125,7 @@ RDSEC		di
 		ld	hl,NREADY
 		jr	nz,RWSE
 		ld	a,#0D
-		rst	#18
+		rst	#18			;FDC BIOS
 ;passive
 		ld	a,2
 		ret
@@ -4085,7 +4133,7 @@ RDSEC		di
 ;a=1 znovu zapisuj
 ;a=2 ok
 WRSEC		ld	a,#05
-		rst	#18
+		rst	#18			;FDC BIOS
 		rra
 		ld	hl,TIMEOUT
 		jr	c,RWSE
@@ -4109,18 +4157,18 @@ WRSEC		ld	a,#05
 		ld	hl,NREADY
 		jr	c,RWSE
 		ld	a,#0D
-		rst	#18
+		rst	#18			;FDC BIOS
 ;passive
 		ld	a,2
 		ret
 RWSE		push	hl
 		ld	a,#0D
-		rst	#18
+		rst	#18			;FDC BIOS
 		pop	hl
 		ld	a,1
 		ld	(BIOS),a
 		ld	a,#34
-		rst	#20
+		rst	#20			;BSDOS
 		jr	c,RWSEX
 		xor	a
 		ret
@@ -4324,9 +4372,9 @@ BCK		or	a
 
 STATUS		ld	hl,MSG
 		ld	a,#35
-		rst	#20
+		rst	#20			;BSDOS
 		xor	a
-		rst	#20
+		rst	#20			;BSDOS
 		ld	(VER),bc
 		ld	bc,#80
 		add	ix,bc
@@ -4336,7 +4384,7 @@ STATUS		ld	hl,MSG
 TDRV		ld	e,b
 		ld	a,#0E
 		push	bc
-		rst	#18
+		rst	#18			;FDC BIOS
 		pop	bc
 		ld	(ix+0),e
 		ld	(ix+1),d
@@ -4346,7 +4394,7 @@ TDRV		ld	e,b
 		ld	a,(25)
 		ld	(DRV9),a
 		ld	a,#12
-		rst	#20
+		rst	#20			;BSDOS
 		jp	nc,RETDOS
 		ld	a,e
 		ld	(ACTDRV1),a
@@ -4527,11 +4575,11 @@ RETDOS		di
 		ld	sp,0
 		ld	hl,0
 		ld	a,#35
-		rst	#20
+		rst	#20			;BSDOS
 		ld	e,0
-		ld	a,#0C
-		rst	#20
-		call	#3C98
+		ld	a,BDSDDX		;sluzba SDDX
+		rst	#20			;BSDOS
+		call	ROMDIS
 		im	1
 		ld	hl,23295
 		ld	de,23294
