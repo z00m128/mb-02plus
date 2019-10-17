@@ -1,10 +1,16 @@
 ;FAST COMMANDER 0.1delta
 ;by EYE^K3l 1998 & +GAMA 2002
+;format poloziek
+;00: identifikator
+;01-02: cislo
+;03-30: text (28)
+;31: 0
 
 		device	zxspectrum48
 		
 
 		org	24200
+
 
 ;definicie pre lahsiu orientaciu v zdrojaku
 
@@ -49,12 +55,7 @@ dos_unerix	equ	#37			;obnovenie intervalu suborov
 ;systemove premenne BSDOSu
 XXX		equ	#03E0			;stlpec alebo nizsi bajt pozicie vypisu
 
-;format poloziek
-;00: identifikator
-;01-02: cislo
-;03-30: text (28)
-;31: 0
-
+;vlastny program
 start:		di
 		ld	sp,stack		;SP na vlastny stack
 		call	dos_wr_enabled		;prestrankuje do DOSu
@@ -86,10 +87,10 @@ panely:		ld	sp,0			;obnovenie zasobnika
 
 		call	switch			;prehodi sa na neaktivny panel
 		call	swap_print		;vypis sa prepne na pravy panel
-		call	REREAD1			;nacita a zobrazi subory v neaktivnom paneli
+		call	refresh_pane1		;nacita a zobrazi subory v neaktivnom paneli
 		call	switch			;prehodi sa na aktivny panel
 		call	swap_print		;vypis sa prepne na lavy panel
-		call	REREAD1			;nacita a zobrazi subory v aktivnom paneli
+		call	refresh_pane1		;nacita a zobrazi subory v aktivnom paneli
 
 main:		ld	sp,0			;obnovenie zasobnika
 		call	CHANGE			;zisti ci nebol vymeneny disk
@@ -154,10 +155,10 @@ main0:		call	inkey			;zavola sa INKEY$ z ROM
 		jp	z,RENAME
 		cp	'u'			;u - undelete suboru
 		jp	z,UNDELETE
-		ld	hl,main			;uschova adresy hlavneho programu kvoli REREAD
+		ld	hl,main			;uschova adresy hlavneho programu kvoli refresh_pane
 		push	hl			;lebo sa vracia priamo na MAIN, nie sem
 		cp	'r'			;r - znovunacitanie disku
-		jp	z,REREAD
+		jp	z,refresh_pane
 		pop	hl			;obnova adresy hlavneho programu
 		jr	main0
 
@@ -199,9 +200,9 @@ chnge_drv_left:	call	hide_cursor		;skryje kurzor
 		ld	a,2
 		ld	(PRINTD+1),a		;ak nie je aktivovany
 		call	switch			;tak ho aktivuje
-		ld	hl,PANEL1		;toto je prehadzovanie
-		ld	(OORT1),hl		;nejakych ukazatelov na buffre
-		ld	hl,PANEL1+512
+		ld	hl,PANEL1		; !!! toto je prepinacka		    !!!
+		ld	(OORT1),hl		; !!! PANEL1(+ #200)/OORT/OORT2 medzi sebou !!!
+		ld	hl,PANEL1+512		; !!! vyznam mi zatial unika		    !!!
 		ld	(OORT2),hl
 		jp	change_drive		;pokracujeme zmenou mechaniky
 
@@ -282,7 +283,7 @@ hdd_yes2:	ld	e,l			;kontrola ci cislo nie je vacssie ako 255
 		ld	a,h
 		or	a
 		jr	nz,change_drv_in	;navrat ak je, (chyba test na mechaniku 0, vid vyssie)
-		jr	sethdd			;pokracovanie na nastavenie mechaniky
+		jr	set_act_drv		;pokracovanie na nastavenie mechaniky
 
 ;vstup znakov v pripade nepovoleneho hdd
 hdd_no:		ld	iyl,2			;sirka vstupu je 1 znak a kurzor
@@ -295,9 +296,9 @@ hdd_no:		ld	iyl,2			;sirka vstupu je 1 znak a kurzor
 		cp	9
 		jr	z,check1		;test ci je pritomna mechanika 9 (aktivny ramdisk)
 		cp	5
-		jr	nc,IDRV			;ak su zadane mechaniky 5-8 nasleduje chybova hlaska
+		jr	nc,err_msg_cdrv		;ak su zadane mechaniky 5-8 nasleduje chybova hlaska
 		or	a
-		jr	z,IDRV
+		jr	z,err_msg_cdrv
 		ld	hl,DRV4			;porovnanim s premennou obsahujucou pocet pripojenych mechanik
 		ld	b,4			;skusa ci zadana mechanika (z 1-4) je pripojena
 check0:		cp	b
@@ -308,20 +309,20 @@ check0:		cp	b
 check1:		ld	e,a
 		xor	a
 		cp	(hl)
-		jr	z,IDRV			;ak nie je, nasleduje chybova hlaska
+		jr	z,err_msg_cdrv		;ak nie je, nasleduje chybova hlaska
 
-sethdd:		ld	a,e			;ak testy dopadli dobre, nastavi zadanu mechaniku na aktivnu
+set_act_drv:	ld	a,e			;ak testy dopadli dobre, nastavi zadanu mechaniku na aktivnu
 		ld	(ACTDRV1),a
 
 		ld	a,dos_setdrv		;sluzba SETDRV, v E mame cislo mechaniky
 		rst	#20			;BSDOS
 
 		call	OUT			;obnovi obsah obrazovky pod dialogom
-		call	REREAD			;obnovenie obsahu panelu
+		call	refresh_pane		;obnovenie obsahu panelu
 		jp	main			;navrat do hlavneho programu
 
 ;vyhodi chybovu hlasku ak uzivatel zadal neplatnu mechaniku
-IDRV		call	OUT			;obnovi obsah obrazovky pod dialogom
+err_msg_cdrv:	call	OUT			;obnovi obsah obrazovky pod dialogom
 
 		ld	hl,txt_bad_string	;adresa chybovej hlasky
 		ld	a,dos_messx		;sluzba MESSX
@@ -336,160 +337,165 @@ txt_ch_drive:	db	"Change Drive"
 txt_drive_num:	db	"Enter number of drive:      "
 		nop
 
-change_dir:	ld	hl,10*256+7
+;Zmena adresara
+change_dir:	ld	hl,10*256+7		;pozicia ramceka pre dialog
 		ld	de,3*256+18
-		call	IN
-		exx
-		ld	hl,11*256+16
+		call	IN			;uschova obsah obrazovky pod dialogom
+		exx				;odlozi poziciu ramceka
+		ld	hl,11*256+16		;pozicia dotazu na cislo adresara		
 		ld	de,txt_dir_num
-		call	PRINT
-		exx
+		call	PRINT			;vypis dotazu
+		exx				;obnovi poziciu ramceka
 		ld	a,120
-		call	MENU2
-		ld	hl,10*256+26
+		call	MENU2			;vykresli ramcek
+		ld	hl,10*256+26		;pozicia titulku dialogu
 		ld	de,txt_ch_dir
-		call	PRINT
-		ld	hl,11*256+43
-		ld	de,12346
-		ld	iyl,4
-		call	INTXT
-		jp	nc,CHDIREB
-		call	A2N
-		jp	nc,IDIR
+		call	PRINT			;vykresli titulok
+		ld	hl,11*256+43		;pozicia pre input
+		ld	de,#303a		;interval pre input (len cisla)
+		ld	iyl,4			;sirka vstupu 3 znaky a kurzor
+		call	INTXT			;zavola input
+		jp	nc,cd_end_break		;ak bol stlaceny break, adresar sa nemeni
+		call	A2N			;skonvertuje text na cislo (vrati ho v IX)
+		jp	nc,err_msg_cdir		;ak uzivatel zadal blbost, skok na chybovu hlasku
 		push	ix
 		pop	hl
-		ld	de,256
-		call	CPHLDE
-		jp	nc,IDIR
+		ld	de,256			;kontrola na 256 (chyba - ma tu byt 255)
+		call	cp_hl_de		;ak je cislo vacsie,
+		jp	nc,err_msg_cdir		;skok na chybovu hlasku, inak zmena adresara
 
 		ld	e,l			;do E dame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
 		rst	#20			;BSDOS
 
-		call	OUT
-		call	REREAD
-CHDIRE		jp	main
+		call	OUT			;obnovi obsah obrazovky pod oknom dialogu
+		call	refresh_pane		;znovunacita mechaniky
+		jp	main			;navrat do hlavneho programu
 
-CHDIREB		call	OUT
-		jp	main
+cd_end_break:	call	OUT			;obnovi obsah obrazovky pod oknom dialogu
+		jp	main			;navrat do hlavneho programu
 
-IDIR		call	OUT
+err_msg_cdir:	call	OUT
 
 		ld	hl,txt_bad_string	;adresa textu
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
-		call	PAUSE
-		jp	c,change_dir
-		jp	main
+		call	PAUSE			;pocka 5 preruseni
+		jp	c,change_dir		;ak bol stlaceny ENTER ide znova, inak navrat
+		jp	main			;do hlavneho programu
 
 txt_ch_dir:	db	"Change Dir"
 		nop
 txt_dir_num:	db	"Enter number of"
-		db	" directory:    "
-		db	"   "
+		db	" directory:       "
 		nop
 
-WRTN		push	hl
+;Vypis cisla adresara - pouzije sa len raz v znovunacitani obsahu panelu, takze by sa to asi dalo zaclenit
+wr_dir_num:	push	hl			;v l mame cislo aktualneho adresara
 
 		ld	e,1			;vypis znakov bude prebiehat do pamate, nie na obrazovku
 		ld	a,dos_sddx		;sluzba SDDX
 		rst	#20			;BSDOS
 
-		ld	e,l
-		ld	c,48
-		ld	iy,NUMBE+1
-		call	DEC8+2
-		ld	a,(PRINTD+1)
+		ld	e,l			;v l stale mame cislo aktivneho adresara
+		ld	c,'0'			;nevyznamne miesta nahradi nulami
+		ld	iy,NUMBE+1		;miesto v pamati pre vypis
+		call	DEC8+2			;ulozi cislo do pamate ako text
+		ld	a,(PRINTD+1)		;nasleduje nastavenie pozicie v paneli
 		add	a,13
 		ld	l,a
 		ld	h,19
 		ld	de,NUMBE
-		call	PRINT
-		pop	hl
+		call	PRINT			;a vykreslenie cisla do panelu
+		pop	hl			;obnovime si cislo aktualneho adresara
 		ret
 
-REREAD:		call	OZNDEL1
+;Znovunacitanie obsahu panelu
+refresh_pane:	call	OZNDEL1			;zrusi oznacenie suborov
 
-REREAD1:	ld	a,dos_killx		;sluzba KILLX
+refresh_pane1:	ld	a,dos_killx		;sluzba KILLX zrusi buffre DOSu
 		rst	#20			;BSDOS
 
-		ld	a,(ACTDRV1)
+		ld	a,(ACTDRV1)		;nastavi aktivnu mechaniku
 
 		ld	e,a			;v E mame cislo mechaniky
 		ld	a,dos_setdrv		;sluzba SETDRV
 		rst	#20			;BSDOS
 
-		ld	a,(ACTDIR1)
+		ld	a,(ACTDIR1)		;nastavi aktualny adresar
 
 		ld	e,a			;v E mame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
 		rst	#20			;BSDOS
 
-RRP1		ld	a,(ACTDRV1)
+rp_lp:		ld	a,(ACTDRV1)		;vezme cislo mechaniky
 		ld	e,a
-		call	AKTIVE
-		ld	hl,JIST1
-		ld	de,1
-		call	RDSEC
-		cp	2
-		jr	nz,RRP1
-		ld	hl,0
+		call	activate_drive		;aktivuje mechaniku
+		ld	hl,JIST1		;ukazatel na buffer
+		ld	de,1			;d=stopa 0, l=strana 0, sektor 1
+		call	read_sector		;precita boot sektor
+		cp	2			;ak je chyba
+		jr	nz,rp_lp		;opakuje citanie
+		ld	hl,0			;nulovanie ukazatela na subor
 		ld	(FILE1),hl
-		ld	bc,0
-		ld	ix,PANEL1
-		call	READDIR
-		ld	ix,PANEL1
-		call	PRINTD
-		ld	hl,PANEL1
+		ld	bc,0			;?cislo suboru sa nastavi na 0 = nulta adresarova polozka?
+		ld	ix,PANEL1		;nastavi sa na buffer
+		call	read_directory		;precita sa adresarova polozka
+		ld	ix,PANEL1		;nastavi sa na buffer
+		call	PRINTD			;vykresli obsah aktivneho panelu
+		ld	hl,PANEL1		;nasleduje pozicia kurzora v buffri
 		ld	(INPANEL1),hl
 		ld	hl,2*256
-		ld	a,(PRINTD+1)
+		ld	a,(PRINTD+1)		;a vypocet jeho grafickej pozicie, kam sa bude kreslit
 		ld	e,a
 		ld	d,0
 		add	hl,de
-		ld	(POZICE1),hl
+		ld	(POZICE1),hl		;ta sa ulozi do premennej
 
-		ld	a,dos_getcst		;sluzba GETCST
+		ld	a,dos_getcst		;sluzba GETCST, zisti aktualnu cestu
+		rst	#20			;BSDOS
+						;vrati v d=aktualny adresar, v e=aktualny disk, v hl=load-kurzor
+
+		ld	a,d			;zisteny aktualny adresar
+		ld	(ACTDIR1),a		;sa ulozi do premennej
+		ld	l,d			
+		call	wr_dir_num		;a vykresli do aktivneho panelu
+
+		ld	a,dos_freex		;sluzba FREEX, vracia v dehl=volne miesto v bajtoch, bc=volne miesto v sektoroch 
 		rst	#20			;BSDOS
 
-		ld	a,d
-		ld	(ACTDIR1),a
-		ld	l,d
-		call	WRTN
-
-FREE		ld	a,dos_freex		;sluzba FREEX
-		rst	#20			;BSDOS
-
-		ret	nc
-		push	bc
+		ret	nc			;navrat pri chybe
+		
+		push	bc			;odlozi si volne miesto v sektoroch
 
 		ld	e,1			;vypis znakov bude prebiehat do pamate, nie na obrazovku
 		ld	a,dos_sddx		;sluzba SDDX
 		rst	#20			;BSDOS
 
-		pop	bc
-		ld	h,b
-		ld	l,c
-		ld	c,48
-		ld	iy,NUMBER
-		call	DEC16+2
-		ld	h,21
+		pop	bc			;vyberie volne miesto v sektoroch, ale je to zbytocne lebo sddx bc neposkodzuje
+		
+		ld	h,b			;prehodi si bc do hl, keby dal o riadkok vyssie pop hl	
+		ld	l,c			;tak si tieto dva riadky usetri
+		ld	c,'0'			;nevyznamne cisla nahradi nulami
+		ld	iy,NUMBER		;miesto v pamati pre vypis
+		call	DEC16+2			;ulozi cislo do pamate ako text
+		ld	h,21			;nastavi si graficku poziciu do panelu
 		ld	a,(PRINTD+1)
 		add	a,10
 		ld	l,a
 		ld	de,NUMBER
-		call	PRINT
-		ld	hl,JIST1+#26
-		ld	de,NAME
+		call	PRINT			;a cislo tam vykresli
+		ld	hl,JIST1+#26		;v JIST1 je boot sektor, takze si z neho 
+		ld	de,NAME			;vezme meno disku
 		ld	bc,10
-		ldir
-		ld	h,20
+		ldir				;presunie si ho do buffra
+		ld	h,20			;a potom si nastavi graficku poziciu do panelu
 		ld	a,(PRINTD+1)
 		add	a,13
 		ld	l,a
 		ld	de,NAME
-		call	PRINT
+		call	PRINT			;a to meno disku vykresli
 WRTD		ld	a,(ACTDRV1)
 		ld	e,a
 		ld	c,48
@@ -548,7 +554,7 @@ ONE		ld	a,(PRINTD+1)
 		ld	hl,ACTDRV2
 		cp	(hl)
 		jp	nz,main
-		call	REREAD
+		call	refresh_pane
 		jp	main1
 
 TWO		ld	a,(PRINTD+1)
@@ -582,7 +588,7 @@ TWO		ld	a,(PRINTD+1)
 		ld	hl,ACTDRV2
 		cp	(hl)
 		jp	nz,main
-		call	REREAD
+		call	refresh_pane
 		jp	main1
 
 switch:		call	OZNCHAN
@@ -626,12 +632,12 @@ NAH_U		ld	bc,(FILE1)
 		ld	h,b
 		ld	l,c
 		ld	de,65535
-		call	CPHLDE
+		call	cp_hl_de
 		jp	z,DOMAIN
 		ld	(FILE1),bc
 		ld	hl,(INPANEL1)
 		ld	de,(OORT1)
-		call	CPHLDE
+		call	cp_hl_de
 		jr	z,NAH_U0
 		or	a
 		ld	de,32
@@ -691,7 +697,7 @@ DOLU_U		ld	bc,(FILE1)
 		ld	d,b
 		ld	e,c
 		ld	hl,(LENDIR1)
-		call	CPHLDE
+		call	cp_hl_de
 		jp	z,DOMAIN
 		ld	(FILE1),bc
 		ld	hl,(OORT1)
@@ -699,7 +705,7 @@ DOLU_U		ld	bc,(FILE1)
 		add	hl,de
 		ex	de,hl
 		ld	hl,(INPANEL1)
-		call	CPHLDE
+		call	cp_hl_de
 		jr	z,DOLU_U0
 		ld	de,14*32
 		or	a
@@ -733,41 +739,57 @@ DOMAIN		call	show_cursor
 		call	PAUSE
 		jp	main1
 
-
-;bc=cislo souboru
-;ix=panel1,panel2
-READDIR		push	bc
+;Nacita polozky z adresara a skonvertuje ich na text:
+;
+;format poloziek
+;00: identifikator
+;01-02: cislo
+;03-30: text (28)
+;31: 0 
+;
+;input: bc=cislo souboru od ktoreho bude vypis 
+;ix=ukazatel na buffer panel1/panel2
+;
+; !!! Toto asi mal byt univerzalny podporogram, ale zda sa ze sa pouzije len raz
+; !!! na nacitanie nultej adresarovej polozky.
+; !!! S inou adresarovou polozkou to ale nebude fungovat dobre, vid nizsie
+;
+read_directory:	push	bc			;odlozi vstupne premenne
 		push	ix
 
-		ld	a,dos_kolkox		;sluzba KOLKOX
+		ld	a,dos_kolkox		;sluzba KOLKOX, v DE vrati pocet adresarovych poloziek v aktualnom adresari 
 		rst	#20			;BSDOS
 
-		jp	nc,CHDRVP
+		jp	nc,CHDRVP		;ak je chyba, skok na obsluhu chyby
 		ld	hl,0
-		call	CPHLDE
-		call	z,TO32
-		ld	(LENDIR1),de
-		pop	ix
-		pop	bc
+		call	cp_hl_de		;ak je pocet poloziek 0
+		call	z,de_to_32		;nastavi pocet adresarovych poloziek na 32
+		ld	(LENDIR1),de		;pocet adresarovych poloziek ulozi do premennej
+		pop	ix			;vyzdvihne adresu buffra
+		pop	bc			;vyzdvihne cislo suboru
 		ld	a,32
-READ1		push	af
-		push	bc
-		push	bc
+READ1		push	af			;odlozi 32
+		push	bc			;odlozi cislo suboru
+		push	bc			;odlozi cislo suboru
 
-		ld	a,dos_getsub		;sluzba GETSUB, v IX je adresa buffra
+						;vstup je nas ix=buffer, bc=cislo suboru
+		ld	a,dos_getsub		;sluzba GETSUB, v buffri vrati 32 bajtovu adresarovu polozku suboru
 		rst	#20			;BSDOS
+						;zaroven vracia nc=chyba a z=neplatna adresarova polozka
 
-		pop	bc
-		jp	nc,CHDRVP
-		call	z,BAD
-		ld	(ix+1),c
+		pop	bc			;vyzdvihne cislo suboru
+		jp	nc,CHDRVP		;ak dos_getsub dopadol zle, skok na obsluhu chyby
+		call	z,BAD			;ak je polozka neplatna, vytvori prazdnu polozku = adresar neexistuje
+		ld	(ix+1),c		;do polozky ulozi cislo suboru
 		ld	(ix+2),b
-		ld	a,(ix+0)
+		ld	a,(ix+0)		;tu skontroluje typ polozky
 		or	a
-		jp	z,EMPTY
-		cp	#80
-		jp	z,DIR
-		ld	a,(ix+#05)
+		jp	z,EMPTY			;ak je prazdna, odskok na vytvorenie popisu prazdnej polozky
+		
+		cp	#80			;!!! hmm, ak nie sme v nultej adresarovej polozke tak to nejak
+		jp	z,DIR			;!!! fungovat bude, ale je to zle !!!
+		
+		ld	a,(ix+#05)		;nastavi sa na meno
 		add	a,48
 		ld	(ITEM),a
 		push	ix
@@ -815,11 +837,13 @@ NEXT		xor	a
 BAD		xor	a
 		ld	(ix+0),a
 		ret
-TO32		ld	de,32
+
+de_to_32:	ld	de,32
 		ret
 
 EMPTY		ld	hl,EMITEM
 		jr	EMDI
+
 DIR		push	ix
 		pop	hl
 		ld	de,6
@@ -1160,7 +1184,7 @@ MNU5		ld	hl,1*256+14
 		jp	z,chnge_drv_rght
 		jp	main
 
-RR		call	REREAD
+RR		call	refresh_pane
 		jp	main1
 TMNU5		db	" Re-read       "
 		db	"       R "
@@ -1439,17 +1463,17 @@ quit_message:	db	"Exit to Dos ?"
 CHANGE		ld	a,dos_getcst		;sluzba GETCST
 		rst	#20			;BSDOS
 
-		call	AKTIVE
+		call	activate_drive		
 		cp	2
 		jr	nz,CHREP
 		ld	hl,BOOT
 		ld	de,1
-		call	RDSEC
+		call	read_sector
 		cp	1
 		jr	z,CHANGE
 		or	a
 		jr	z,CHABORT
-		ld	de,JIST1
+		ld	de,JIST1		;
 		ld	hl,BOOT
 		ld	bc,1024
 OPICE		ld	a,(de)
@@ -1469,7 +1493,7 @@ CHREP:		ld	hl,disk_changed		;adresa textu
 
 		jr	nc,CHABORT		;navrat ak bola stlacena medzera
 		pop	hl
-		call	REREAD			;inak znovunacitanie panelov
+		call	refresh_pane		;inak znovunacitanie panelov
 		jp	main1
 CHABORT:	pop	hl
 		jp	main
@@ -1524,18 +1548,18 @@ LN		equ	$-SYSTEM
 
 		ld	de,(KOEF2)
 		ld	hl,3614
-		call	CPHLDE
+		call	cp_hl_de
 		ld	de,COMP3
 		jr	c,DONE
 		ld	de,(KOEF1)
 		ld	hl,3935
-		call	CPHLDE
+		call	cp_hl_de
 		exx
 		ld	de,COMP2
 		jr	c,DONE
 		exx
 		ld	hl,3878
-		call	CPHLDE
+		call	cp_hl_de
 		ld	de,COMP1
 		jr	c,DONE
 		ld	de,COMP4
@@ -1786,7 +1810,7 @@ PRESS		call	CHANGE
 		rst	#20			;BSDOS
 
 		call	OUT
-		call	REREAD
+		call	refresh_pane
 		jp	main1
 PRTXT		db	"     Deflating "
 		db	"Directory      "
@@ -2430,7 +2454,7 @@ OUTD		pop	bc
 		rst	#20			;BSDOS
 
 OUTDD		call	OUT
-		call	REREAD
+		call	refresh_pane
 		jp	main1
 NDL		or	a
 		jr	z,ND
@@ -2470,7 +2494,7 @@ DELJEDEN	ld	bc,(FILE1)
 		ld	a,dos_erasex		;sluzba ERASEX
 		rst	#20			;BSDOS
 
-		call	REREAD
+		call	refresh_pane
 		jp	main1
 
 DELREP:		ld	hl,delete_it		;adresa textu
@@ -2571,7 +2595,7 @@ OUTU		pop	bc
 		rst	#20			;BSDOS
 
 OUTUU		call	OUT
-		call	REREAD
+		call	refresh_pane
 		jp	main1
 NUN		or	a
 		jr	z,NU
@@ -2606,7 +2630,7 @@ UNJEDEN		ld	bc,(FILE1)
 		ld	a,dos_unerax		;sluzba UNERAX
 		rst	#20			;BSDOS
 
-		call	REREAD
+		call	refresh_pane
 		jp	main1
 
 COPY		call	CHANGE
@@ -2757,7 +2781,7 @@ SEQREAD1		ld	de,SECTIN
 		ld	de,1024
 		ld	hl,(READBYTE+1)
 		inc	hl
-		call	CPHLDE
+		call	cp_hl_de
 		jr	z,SEQINSET
 SEQIN1		ld	(READBYTE+1),hl
 		ret
@@ -2794,7 +2818,7 @@ WRITBYTE	ld	hl,0
 		ld	de,1024
 		ld	hl,(WRITBYTE+1)
 		inc	hl
-		call	CPHLDE
+		call	cp_hl_de
 		jr	z,SEQOUTST
 		ld	(WRITBYTE+1),hl
 		ret
@@ -3292,14 +3316,14 @@ REDISK		call	CHANGE
 REDISKY		ld	a,dos_getcst		;sluzba GETCST
 		rst	#20			;BSDOS
 
-		call	AKTIVE
+		call	activate_drive
 		or	a
 		jp	z,RDB
 		cp	1
 		jr	z,REDISKY
 		ld	de,1
 		ld	hl,BOOT
-		call	RDSEC
+		call	read_sector
 		or	a
 		jp	z,RDB
 		cp	1
@@ -3346,14 +3370,14 @@ REDISKY		ld	a,dos_getcst		;sluzba GETCST
 REDISKX		ld	a,dos_getcst		;sluzba GETCST
 		rst	#20			;BSDOS
 
-		call	AKTIVE
+		call	activate_drive
 		or	a
 		jr	z,RDB
 		cp	1
 		jr	z,REDISKX
 		ld	de,1
 		ld	hl,BOOT
-		call	WRSEC
+		call	write_sector
 		or	a
 		jr	z,RDB
 		cp	1
@@ -3472,10 +3496,12 @@ PAUSE0		halt
 		djnz	PAUSE0
 		ret
 
-CPHLDE		or	a
+;Nahrada cp hl,de
+cp_hl_de:	or	a
 		sbc	hl,de
 		add	hl,de
 		ret
+
 CPHLBC		or	a
 		sbc	hl,bc
 		add	hl,bc
@@ -4248,129 +4274,149 @@ pa_cont:	srl	c
 MODIFY:		xor	a
 		jr	pa_cont
 
+;Aktivacia mechaniky, testuje aj ci sa zmenila disketa
+;input: e=cislo mechaniky
+;output:
 ;a=0 abort
-;a=1 znovu aktivuj
-;a=2 ok, nevymenena disketa
-;a=3 ok, vymenena disketa
-AKTIVE		di
+;a=1 opakuj aktivaciu
+;a=2 disk je aktivny, disketa nebola vymenena
+;a=3 disk je aktivny, disketa bola vymenena
+activate_drive:	di
 		ld	a,fdc_aktive		;sluzba AKTIVE
 		rst	#18			;FDC BIOS
 		ei
-		cp	1
-		ret	nz
-		ld	(BIOS),a
+
+		cp	1			;obsluha stavu disk not ready
+		ret	nz			;navrat ak sa aktivacia podarila
+		ld	(BIOS),a		;ulozi sa status
 		
-		ld	hl,disk_not_ready	;adresa textu
+		ld	hl,msg_dsk_nr		;adresa textu Disk not ready
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
-		jr	c,AKTMX
-		xor	a
-		ret
-AKTMX		ld	a,1
-		ret
+		jr	c,adrverr		;ak bol abort
+		xor	a			;nastavi status na abort
+		ret				;a navrat
+
+adrverr:	ld	a,1			;inak nastavi status na - chyba, opakuj aktivaciu
+		ret				;a navrat
+
+
+;Nacitanie sektoru, chyby su osetrene
+;input: hl=adresa
+;d=cislo stopy, e=strana a sektor
 ;a=0 abort
-;a=1 znovu nacitej
+;a=1 chyba, opakuj nacitanie
 ;a=2 ok
-RDSEC		di
+read_sector:	di
 		ld	a,fdc_rdsec		;sluzba RDSEC
 		rst	#18			;FDC BIOS
 		ei
 		rra
-		ld	hl,time_out
-		jr	c,RWSE
+		ld	hl,msg_time_out		;time out
+		jr	c,rw_err_msg
 		rra
-		ld	hl,disk_not_ready
-		jr	c,RWSE
+		ld	hl,msg_dsk_nr		;disk not ready
+		jr	c,rw_err_msg
 		rra
-		ld	hl,data_lost
-		jr	c,RWSE
+		ld	hl,msg_data_lost	;data lost
+		jr	c,rw_err_msg
 		rra
-		ld	hl,crc_error
-		jr	c,RWSE
+		ld	hl,msg_crc_err		;crc error
+		jr	c,rw_err_msg
 		rra
-		ld	hl,rec_not_found
-		jr	c,RWSE
+		ld	hl,msg_rec_nf		;record not found
+		jr	c,rw_err_msg
 		rra
-		ld	hl,break
-		jr	c,RWSE
+		ld	hl,msg_break		;break
+		jr	c,rw_err_msg
 		bit	7,a
-		ld	hl,ready_error
-		jr	nz,RWSE
+		ld	hl,msg_rd_err		;ready error
+		jr	nz,rw_err_msg
 
-		ld	a,fdc_pasive		;sluzba PASIVE
+		ld	a,fdc_pasive		;sluzba PASIVE, deaktivuje mechaniku
 		rst	#18			;FDC BIOS
 
-		ld	a,2
+		ld	a,2			;ak nebola ziadna chyba, navrat so statusom OK
 		ret
+
+;Zapis sektora, chyby su osetrene
+;input: hl=adresa
+;d=cislo stopy, e=strana a sektor
 ;a=0 abort
-;a=1 znovu zapisuj
+;a=1 chyba, opakuj zapis
 ;a=2 ok
-WRSEC		ld	a,fdc_wrsec		;sluzba WRSEC
+write_sector:	ld	a,fdc_wrsec		;sluzba WRSEC
 		rst	#18			;FDC BIOS
 
 		rra
-		ld	hl,time_out
-		jr	c,RWSE
+		ld	hl,msg_time_out		;time out
+		jr	c,rw_err_msg
 		rra
-		ld	hl,disk_not_ready
-		jr	c,RWSE
+		ld	hl,msg_dsk_nr		;disk not ready
+		jr	c,rw_err_msg
 		rra
-		ld	hl,data_lost
-		jr	c,RWSE
+		ld	hl,msg_data_lost	;data lost
+		jr	c,rw_err_msg
 		rra
 		rra
-		ld	hl,rec_not_found
-		jr	c,RWSE
+		ld	hl,msg_rec_nf		;record not founf
+		jr	c,rw_err_msg
 		rra
-		ld	hl,break
-		jr	c,RWSE
+		ld	hl,msg_break		;break
+		jr	c,rw_err_msg
 		rra
-		ld	hl,write_protect
-		jr	c,RWSE
+		ld	hl,msg_wp		;write protect
+		jr	c,rw_err_msg
 		rra
-		ld	hl,ready_error
-		jr	c,RWSE
+		ld	hl,msg_rd_err		;ready error
+		jr	c,rw_err_msg
 
 		ld	a,fdc_pasive		;sluzba PASIVE
 		rst	#18			;FDC BIOS
 
-		ld	a,2
+		ld	a,2			;ak nebola ziadna chyba, navrat so statusom OK
 		ret
 
-RWSE		push	hl
+;Vypis chyboveho hlasenia
+;input: hl=adresa chyboveho hlasenia
+;output:
+;a=0 abort
+;a=1 chyba, opakuj ukon
+rw_err_msg:	push	hl
 
 		ld	a,fdc_pasive		;sluzba PASIVE
 		rst	#18			;FDC BIOS
 
 		pop	hl
-		ld	a,1
+		ld	a,1			;ulozi status
 		ld	(BIOS),a
 
-		ld	a,dos_messx		;sluzba MESSX, v HL mame adresu textu
+		ld	a,dos_messx		;sluzba MESSX, v HL mame adresu chyboveho hlasenia
 		rst	#20			;BSDOS
 
-		jr	c,RWSEX
-		xor	a
-		ret
-RWSEX		ld	a,1
-		ret
+		jr	c,rwserrend		;ak bol abort
+		xor	a			;nastavi status na abort
+		ret				;a navrat
 
-time_out:	db	"Time out"
+rwserrend:	ld	a,1			;nastavi status - chyba, opakuj ukon
+		ret				;a navrat
+
+msg_time_out:	db	"Time out"
 		db	#00,#C9
-disk_not_ready:	db	"Disk not ready"
+msg_dsk_nr:	db	"Disk not ready"
 		db	#00,#C9
-data_lost:	db	"Data lost"
+msg_data_lost:	db	"Data lost"
 		db	#00,#C9
-crc_error:	db	"CRC error"
+msg_crc_err:	db	"CRC error"
 		db	#00,#C9
-rec_not_found:	db	"Record not found"
+msg_rec_nf:	db	"Record not found"
 		db	#00,#C9
-break:		db	"Break"
+msg_break:	db	"Break"
 		db	#00,#C9
-write_protect:	db	"Write protect"
+msg_wp:		db	"Write protect"
 		db	#00,#C9
-ready_error:	db	"Ready error"
+msg_rd_err:	db	"Ready error"
 		db	#00,#C9
 
 MSG		ld	(MSGSP1),sp
