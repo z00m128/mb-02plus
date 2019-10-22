@@ -1,5 +1,6 @@
 ;FAST COMMANDER 0.1delta
 ;by EYE^K3l 1998 & +GAMA 2002
+
 ;format poloziek
 ;00: identifikator
 ;01-02: cislo
@@ -10,7 +11,9 @@
 		
 
 		org	24200
-
+;posunul som na 24200, lebo +Gama to dal na 23296, aby mal viac miesta
+;lenze prepise systemky a pokym si nebudem isty, ze ich netreba,
+;tak mam istotu, ze to nepada kvoli tomu
 
 ;definicie pre lahsiu orientaciu v zdrojaku
 
@@ -109,20 +112,20 @@ main1:		call	show_cursor		;nakresli kurzor
 		ld	l,a			;l=cislo stlpca
 		ld	h,19			;h=cislo riadku
 		ld	de,NUMBER		;de=adresa textu
-		call	PRINT			;vytlacime cislo suboru
+		call	print64			;vytlacime cislo suboru
 
 ;Hlavny program pre obsluhu klavesnice
 main0:		call	inkey			;zavola sa INKEY$ z ROM
 		cp	11			;^ - kurzor hore
-		jp	z,NAHORU
+		jp	z,cursor_up
 		cp	10			;v - kurzor dole
-		jp	z,DOLU
+		jp	z,cursor_down
 		cp	'0'			;0 - hlavne menu
 		jp	z,UPPER
 		cp	8			;< - lavy panel
-		jp	z,ONE
+		jp	z,panel_one
 		cp	9			;> - pravy panel
-		jp	z,TWO
+		jp	z,panel_two
 		cp	'1'			;1 - zmena mechaniky v aktivnom paneli - vlavo
 		jp	z,chnge_drv_left
 		cp	'2'			;2 - zmena mechaniky v aktivnom paneli - vpravo
@@ -200,9 +203,9 @@ chnge_drv_left:	call	hide_cursor		;skryje kurzor
 		ld	a,2
 		ld	(PRINTD+1),a		;ak nie je aktivovany
 		call	switch			;tak ho aktivuje
-		ld	hl,PANEL1		; !!! toto je prepinacka		    !!!
-		ld	(OORT1),hl		; !!! PANEL1(+ #200)/OORT/OORT2 medzi sebou !!!
-		ld	hl,PANEL1+512		; !!! vyznam mi zatial unika		    !!!
+		ld	hl,PANEL1		;prepne ukazatele na buffre
+		ld	(OORT1),hl
+		ld	hl,PANEL1+512
 		ld	(OORT2),hl
 		jp	change_drive		;pokracujeme zmenou mechaniky
 
@@ -233,7 +236,7 @@ change_drive:	ld	a,(PRINTD+1)		;zmena mechaniky uz je spolocna pre oba smery
 		ld	hl,11*256+0		;vypocita sa pozicia pre zobrazenie otazky
 		add	hl,bc
 		ld	de,txt_drive_num	;zobrazi sa otazka
-		call	PRINT
+		call	print64
 		exx				;obnovi sa pozicia ramceka
 		ld	a,120			;vykresli sa ramcek
 		call	MENU2
@@ -243,9 +246,9 @@ change_drive:	ld	a,(PRINTD+1)		;zmena mechaniky uz je spolocna pre oba smery
 		ld	hl,10*256+8		;vypocita sa poloha pre titulok dialogu
 		add	hl,bc
 		ld	de,txt_ch_drive		;vypise sa titulok
-		call	PRINT
+		call	print64
 
-change_drv_in:	call	PAUSE			;pocka sa 5 preruseni
+change_drv_in:	call	wait_5_ints		;pocka sa 5 preruseni
 		ld	a,(PRINTD+1)
 		ld	b,0
 		ld	c,a
@@ -257,7 +260,7 @@ change_drv_in:	call	PAUSE			;pocka sa 5 preruseni
 		jp	z,hdd_no		;ak nie, pokracovanie na osetrenie mechanik 1,2,3,4 a 9
 
 ;vstup znakov v pripade povoleneho hdd
-hdd_yes:	ld	iyl,4			;sirka vstupu su 3 znaky  a kurzor
+hdd_yes:	ld	iyl,4			;sirka vstupu su 3 znaky a kurzor
 		call	INTXT			;zavola sa input
 		jr	nc,change_drv_in	;ak uzivatel stlaci break, tak sa opakuje? (nemalo by sa len vyskocit?)
 		ld	de,TEXT			;nastavi sa na zaciatok zadaneho textu
@@ -312,7 +315,7 @@ check1:		ld	e,a
 		jr	z,err_msg_cdrv		;ak nie je, nasleduje chybova hlaska
 
 set_act_drv:	ld	a,e			;ak testy dopadli dobre, nastavi zadanu mechaniku na aktivnu
-		ld	(ACTDRV1),a
+		ld	(active_drive_1),a
 
 		ld	a,dos_setdrv		;sluzba SETDRV, v E mame cislo mechaniky
 		rst	#20			;BSDOS
@@ -328,7 +331,7 @@ err_msg_cdrv:	call	OUT			;obnovi obsah obrazovky pod dialogom
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
-		call	PAUSE			;pocka 5 preruseni
+		call	wait_5_ints		;pocka 5 preruseni
 		jp	c,change_drive		;ak bol stlaceny ENTER ide znova, inak navrat
 		jp	main			;do hlavneho programu
 
@@ -344,13 +347,13 @@ change_dir:	ld	hl,10*256+7		;pozicia ramceka pre dialog
 		exx				;odlozi poziciu ramceka
 		ld	hl,11*256+16		;pozicia dotazu na cislo adresara		
 		ld	de,txt_dir_num
-		call	PRINT			;vypis dotazu
+		call	print64			;vypis dotazu
 		exx				;obnovi poziciu ramceka
 		ld	a,120
 		call	MENU2			;vykresli ramcek
 		ld	hl,10*256+26		;pozicia titulku dialogu
 		ld	de,txt_ch_dir
-		call	PRINT			;vykresli titulok
+		call	print64			;vykresli titulok
 		ld	hl,11*256+43		;pozicia pre input
 		ld	de,#303a		;interval pre input (len cisla)
 		ld	iyl,4			;sirka vstupu 3 znaky a kurzor
@@ -381,7 +384,7 @@ err_msg_cdir:	call	OUT
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
-		call	PAUSE			;pocka 5 preruseni
+		call	wait_5_ints		;pocka 5 preruseni
 		jp	c,change_dir		;ak bol stlaceny ENTER ide znova, inak navrat
 		jp	main			;do hlavneho programu
 
@@ -407,7 +410,7 @@ wr_dir_num:	push	hl			;v l mame cislo aktualneho adresara
 		ld	l,a
 		ld	h,19
 		ld	de,NUMBE
-		call	PRINT			;a vykreslenie cisla do panelu
+		call	print64			;a vykreslenie cisla do panelu
 		pop	hl			;obnovime si cislo aktualneho adresara
 		ret
 
@@ -417,19 +420,19 @@ refresh_pane:	call	OZNDEL1			;zrusi oznacenie suborov
 refresh_pane1:	ld	a,dos_killx		;sluzba KILLX zrusi buffre DOSu
 		rst	#20			;BSDOS
 
-		ld	a,(ACTDRV1)		;nastavi aktivnu mechaniku
+		ld	a,(active_drive_1)	;nastavi aktivnu mechaniku
 
 		ld	e,a			;v E mame cislo mechaniky
 		ld	a,dos_setdrv		;sluzba SETDRV
 		rst	#20			;BSDOS
 
-		ld	a,(ACTDIR1)		;nastavi aktualny adresar
+		ld	a,(active_dir_1)	;nastavi aktualny adresar
 
 		ld	e,a			;v E mame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
 		rst	#20			;BSDOS
 
-rp_lp:		ld	a,(ACTDRV1)		;vezme cislo mechaniky
+rp_lp:		ld	a,(active_drive_1)	;vezme cislo aktivnej mechaniky
 		ld	e,a
 		call	activate_drive		;aktivuje mechaniku
 		ld	hl,JIST1		;ukazatel na buffer
@@ -458,7 +461,7 @@ rp_lp:		ld	a,(ACTDRV1)		;vezme cislo mechaniky
 						;vrati v d=aktualny adresar, v e=aktualny disk, v hl=load-kurzor
 
 		ld	a,d			;zisteny aktualny adresar
-		ld	(ACTDIR1),a		;sa ulozi do premennej
+		ld	(active_dir_1),a	;sa ulozi do premennej
 		ld	l,d			
 		call	wr_dir_num		;a vykresli do aktivneho panelu
 
@@ -485,7 +488,7 @@ rp_lp:		ld	a,(ACTDRV1)		;vezme cislo mechaniky
 		add	a,10
 		ld	l,a
 		ld	de,NUMBER
-		call	PRINT			;a cislo tam vykresli
+		call	print64			;a cislo tam vykresli
 		ld	hl,JIST1+#26		;v JIST1 je boot sektor, takze si z neho 
 		ld	de,NAME			;vezme meno disku
 		ld	bc,10
@@ -495,106 +498,113 @@ rp_lp:		ld	a,(ACTDRV1)		;vezme cislo mechaniky
 		add	a,13
 		ld	l,a
 		ld	de,NAME
-		call	PRINT			;a to meno disku vykresli
-WRTD		ld	a,(ACTDRV1)
+		call	print64			;a to meno disku vykresli
+		ld	a,(active_drive_1)	;tuto sa ide vykreslit cislo mechaniky
 		ld	e,a
-		ld	c,48
-		ld	iy,NUMBE+1
-		call	DEC8+2
-		ld	a,(PRINTD+1)
-		add	a,7
+		ld	c,'0'			;nevyznamne cisla nahradi nulami
+		ld	iy,NUMBE+1		;miesto v pamati pre vypis
+		call	DEC8+2			;ulozi cislo do pamate ako text
+		ld	a,(PRINTD+1)		;nastavi graficku poziciu
+		add	a,7			
 		ld	l,a
 		ld	h,19
 		ld	de,NUMBE
-		call	PRINT
+		call	print64			;a cislo vykresli
 		ret
 
-REREOZN		ld	hl,(INPANEL1)
+;Vypocita polohu kurzora v paneli a vykresli panel
+;output: ix=polozka v bufferi, ktora oznacuje riadok, na ktorom je kurzor
+cursor_pos_cnt:	ld	hl,(INPANEL1)		;poloha v paneli
 		ld	a,(POZICE1+1)
 		sub	2
 		or	a
-		jr	z,NEPOC
+		jr	z,cp_not_count		;prepocet neprebehne ak sa poloha kurzora nezmenila
 		ld	b,a
 		ld	de,32
-POC		or	a
+cp_count:	or	a			;vypocita sa nova poloha kurzora ak sa kurzor posunul
 		sbc	hl,de
-		djnz	POC
-NEPOC		push	hl
+		djnz	cp_count
+cp_not_count:	push	hl			;nastavi sa ukazatel v bufferi
 		pop	ix
-		call	PRINTD
-		jp	main
+		call	PRINTD			;vytlaci sa panel
+		jp	main			;a vrati do hlavneho programu
 
-ONE		ld	a,(PRINTD+1)
+;Nastavi lavy panel ako aktualny
+panel_one:	ld	a,(PRINTD+1)		;kontrola ci uz nie sme v lavom paneli
 		cp	2
-		jp	z,main
+		jp	z,main			;ak ano navrat
 
-		call	hide_cursor
-		ld	a,(ACTDRV2)
+		call	hide_cursor		;schovame kurzor
+		ld	a,(active_drive_2)	;mechanika pre pasivny panel
 
 		ld	e,a			;v E mame cislo mechaniky
 		ld	a,dos_setdrv		;sluzba SETDRV
 		rst	#20			;BSDOS
 
-		ld	a,(ACTDIR2)
+		ld	a,(active_dir_2)	;adresar pre pasivny panel
 
 		ld	e,a			;v E mame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
 		rst	#20			;BSDOS
-		jp	nc,main
 
-		ld	a,2
+		jp	nc,main			;pri chybe navrat do hlavneho programu
+
+		ld	a,2			;nastavi vypis na lavy panel (stlpec 2)
 		ld	(PRINTD+1),a
-		call	switch
-		ld	hl,PANEL1
+		call	switch			;prepne panely
+		ld	hl,PANEL1		;?diskoteka s bufframi?
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
 		ld	(OORT2),hl
-
-		ld	a,(ACTDRV1)
-		ld	hl,ACTDRV2
+		ld	a,(active_drive_1)	;porovna ci je nastavena mechanika v oboch paneloch rovnaka
+		ld	hl,active_drive_2
 		cp	(hl)
-		jp	nz,main
-		call	refresh_pane
-		jp	main1
+		jp	nz,main			;ak nie, tak navrat, lebo disketa uz je nacitana
+		call	refresh_pane		;ak ano, tak precitaj disketu
+		jp	main1			;a navrat
 
-TWO		ld	a,(PRINTD+1)
+;Nastavi pravy panel ako aktualny.
+;Je to skoro rovnaky podprogram ako panel_one.
+;Asi sa to da zlucit do jedneho, len zavolat s rozdielnym cislom stlpca
+panel_two:	ld	a,(PRINTD+1)		;kontrola ci uz nie sme v pravom paneli
 		cp	34
-		jp	z,main
+		jp	z,main			;ak ano, tak navrat
 
-		call	hide_cursor
-		ld	a,(ACTDRV2)
+		call	hide_cursor		;schovame kurzor
+		ld	a,(active_drive_2)	;mechanika pre pasivny panel
 
 		ld	e,a			;v E mame cislo mechaniky
 		ld	a,dos_setdrv		;sluzba SETDRV
 		rst	#20			;BSDOS
 
-		ld	a,(ACTDIR2)
+		ld	a,(active_dir_2)	;adresar pre pasivny panel
 
 		ld	e,a			;v E mame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
 		rst	#20			;BSDOS
-		jp	nc,main
 
-		ld	a,34
+		jp	nc,main			;pri chybe navrat
+
+		ld	a,34			;nastavi vypis na pravy panel (stlpec 34)
 		ld	(PRINTD+1),a
-		call	switch
-		ld	hl,PANEL1
+		call	switch			;prepne panely
+		ld	hl,PANEL1		;?diskoteka s bufframi?
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
 		ld	(OORT2),hl
-		ld	hl,(POZICE1)
-
-		ld	a,(ACTDRV1)
-		ld	hl,ACTDRV2
+		ld	hl,(POZICE1)		;?toto je asi navyse?
+		ld	a,(active_drive_1)	;provna ci je mechanika v oboch paneloch rovnaka
+		ld	hl,active_drive_2
 		cp	(hl)
-		jp	nz,main
-		call	refresh_pane
-		jp	main1
+		jp	nz,main			;ak nie, tak navrat
+		call	refresh_pane		;ak ano, tak znova nacita disketu
+		jp	main1			;a navrat
 
-switch:		call	OZNCHAN
-		ld	hl,FILE2
+;Prepne panely aktivny za pasivny
+switch:		call	OZNCHAN			;prepne informaciu o oznacenych suboroch z aktivneho do pasivneho panelu
+		ld	hl,FILE2		;prepne buffery k panelom
 		ld	de,FILE1
-		ld	bc,2*1024+14
+		ld	bc,2*1024+14		;a aj buffery k sektoru z panelu a boot sektoru
 sw:		ld	a,(hl)
 		ld	xh,a
 		ld	a,(de)
@@ -609,135 +619,147 @@ sw:		ld	a,(hl)
 		jr	nz,sw
 		ret
 
-NAHORU		ld	ix,POZICE1
+;Posun kurzora dohora
+cursor_up:	ld	ix,POZICE1		;kontrola ci uz nie je kurzor na vrchu
 		ld	a,(ix+1)
 		cp	2
-		jr	z,NAH_U
-		ld	bc,(FILE1)
+		jr	z,cur_move_up:		;ak ano, odskok na odsun poloziek dohora
+		ld	bc,(FILE1)		;inak znizi ukazatel na subor
 		dec	bc
 		ld	(FILE1),bc
-		ld	l,(ix+0)
+		ld	l,(ix+0)		;prepocita polohu kurzora
 		ld	h,a
 		dec	a
 		ld	(ix+1),a
-		call	hide_cursor1
-		ld	hl,(INPANEL1)
+		call	hide_cursor1		;schova kurzor
+		ld	hl,(INPANEL1)		;znizi ukazatel v paneli o jednu polozku
 		ld	de,32
 		or	a
 		sbc	hl,de
 		ld	(INPANEL1),hl
-		jp	DOMAIN
-NAH_U		ld	bc,(FILE1)
+		jp	do_main			;a navrat
+
+;Znizi ukazatele na subor a prekresli panel
+cur_move_up:	ld	bc,(FILE1)		;vezme ukazatel na subor
 		dec	bc
 		ld	h,b
 		ld	l,c
 		ld	de,65535
-		call	cp_hl_de
-		jp	z,DOMAIN
-		ld	(FILE1),bc
-		ld	hl,(INPANEL1)
+		call	cp_hl_de		;a zisti ci nie je na nultom subore
+		jp	z,do_main		;ak ano navrat
+		ld	(FILE1),bc		;ak nie vrati znizeny ukazatel nazad do premennej
+		ld	hl,(INPANEL1)		;porovna polozku v paneli s polohou v ?buffri?
 		ld	de,(OORT1)
 		call	cp_hl_de
-		jr	z,NAH_U0
-		or	a
+		jr	z,cmu_read_prev		;ak je na zaciatku buffra, odskok na nacitanie predchadzajucich poloziek adresara	
+		or	a			;inak znizi aj ukazatel o jednu polozku
 		ld	de,32
 		sbc	hl,de
 		push	hl
 		pop	ix
-		call	PRINTD
-		ld	hl,(INPANEL1)
-		ld	de,32
-		or	a
+		call	PRINTD			;a prekresli panel s posunutymi polozkami
+		ld	hl,(INPANEL1)		;znova znizi polozku v paneli
+		ld	de,32			;ale asi zbytocne, lebo pred chvilou to ratal
+		or	a			;stacil dvakrat push hl a namiesto tohto pop hl	
 		sbc	hl,de
-		ld	(INPANEL1),hl
-		jp	main1
-NAH_U0		call	CHANGE
-		ld	hl,(OORT1)
-		ld	de,(OORT2)
+		ld	(INPANEL1),hl		;ulozi znizenu polozku nazad do premennej
+		jp	main1			;a navrat
+
+;Nacita predchadzajuce polozky adresara
+;tie operacie s bufframi su v celom programe pekelne, bolo by to treba zjednodusit
+cmu_read_prev:	call	CHANGE			;test ci nam uzivatel pod zadkom nevymenil disketu
+		ld	hl,(OORT1)		;?posun buffrov o 512 bytes?
+		ld	de,(OORT2)		;?t.j. 16 poloziek?
 		ld	bc,512
 		ldir
-		ld	hl,(FILE1)
+		ld	hl,(FILE1)		;vezme povodny ukazatel na subory
 		ld	de,15
 		or	a
-		sbc	hl,de
+		sbc	hl,de			;odpocita 15 poloziek
 		ld	b,h
 		ld	c,l
-		ld	ix,(OORT1)
+		ld	ix,(OORT1)		;?nastavi sa na zaciatok buffrov?
 		ld	a,16
-		call	READ1
-		ld	ix,(OORT1)
+		call	READ1			;nacita 16 predoslych poloziek
+		ld	ix,(OORT1)		;prepocita polohu v buffri
 		ld	de,480
 		add	ix,de
-		call	PRINTD
-		ld	hl,(OORT1)
-		ld	de,480
+		call	PRINTD			;vykresli panel
+		ld	hl,(OORT1)		;este ten isty prepocet
+		ld	de,480			;pre panel
 		add	hl,de
-		ld	(INPANEL1),hl
-		jp	main1
+		ld	(INPANEL1),hl		;ulozi do premennej
+		jp	main1			;a navrat
 
-DOLU		ld	ix,POZICE1
+;Posun kurzora dole
+cursor_down:	ld	ix,POZICE1		;kontrola ci uz nie je kurzor na spodku
 		ld	a,(ix+1)
 		cp	17
-		jr	z,DOLU_U
-		ld	bc,(FILE1)
+		jr	z,cur_move_down		;ak ano odskok na odsun poloziek dole
+		ld	bc,(FILE1)		;inak zvysi ukazatel na subor
 		inc	bc
 		ld	(FILE1),bc
-		ld	l,(ix+0)
+		ld	l,(ix+0)		;prepocita polohu kurzora
 		ld	h,a
 		inc	a
 		ld	(ix+1),a
-		call	hide_cursor1
-		ld	hl,(INPANEL1)
+		call	hide_cursor1		;schova kurzor
+		ld	hl,(INPANEL1)		;zvysi ukazatel v paneli o jednu polozku
 		ld	de,32
 		add	hl,de
 		ld	(INPANEL1),hl
-		jr	DOMAIN
-DOLU_U		ld	bc,(FILE1)
+		jr	do_main			;a navrat
+
+;Zvysi ukazatel na subor a prekresli panel
+cur_move_down:	ld	bc,(FILE1)		;vezme ukazatel na subor
 		inc	bc
 		ld	d,b
 		ld	e,c
 		ld	hl,(LENDIR1)
-		call	cp_hl_de
-		jp	z,DOMAIN
-		ld	(FILE1),bc
-		ld	hl,(OORT1)
+		call	cp_hl_de		;zisti ci nie je na konci adresara
+		jp	z,do_main		;ak je tak navrat
+		ld	(FILE1),bc		;vrati zvyseny ukazatel do premennej
+		ld	hl,(OORT1)		;?otestuje ci sme nevytiekli z buffra?
 		ld	de,1024-32
 		add	hl,de
 		ex	de,hl
-		ld	hl,(INPANEL1)
+		ld	hl,(INPANEL1)		
 		call	cp_hl_de
-		jr	z,DOLU_U0
-		ld	de,14*32
+		jr	z,cmd_read_next		;ak ano tak nacitaj dalsie polozky
+		ld	de,14*32		;posun ukazatela v paneli
 		or	a
 		sbc	hl,de
 		push	hl
 		pop	ix
-		call	PRINTD
-		ld	hl,(INPANEL1)
+		call	PRINTD			;vykreslenie panelu
+		ld	hl,(INPANEL1)		;prepocet ukazatela v paneli
 		ld	de,32
 		add	hl,de
-		ld	(INPANEL1),hl
-		jp	main1
-DOLU_U0		call	CHANGE
-		ld	hl,(OORT2)
+		ld	(INPANEL1),hl		;jeho ulozenie do premennej
+		jp	main1			;a navrat
+
+;Nacita nasledujuce polozky adresara
+cmd_read_next:	call	CHANGE			;test ci uzivatel nevymenil diskety
+		ld	hl,(OORT2)		;?posun buffrov o 16 poloziek?
 		ld	de,(OORT1)
 		ld	bc,512
 		ldir
-		ld	bc,(FILE1)
+		ld	bc,(FILE1)		;vezme povodny ukazatel na subory
 		ld	ix,(OORT2)
 		ld	a,16
-		call	READ1
-		ld	ix,(OORT1)
+		call	READ1			;precita 16 nasledujucich poloziek
+		ld	ix,(OORT1)		;prepocita ukazatel v paneli
 		ld	de,32
 		add	ix,de
-		call	PRINTD
-		ld	hl,(OORT2)
-		ld	(INPANEL1),hl
-		jp	main1
+		call	PRINTD			;zobrazi panel
+		ld	hl,(OORT2)		;ukazatel v buffroch je rovnaky ako ukazatel v paneli
+		ld	(INPANEL1),hl		;ulozi posunuty ukazatel
+		jp	main1			;a navrat
 
-DOMAIN		call	show_cursor
-		call	PAUSE
-		jp	main1
+;Navrat do hlavneho programu so zobrazenim kurzora a pauzou
+do_main:	call	show_cursor		;zobrazi kurzor
+		call	wait_5_ints		;pocka 5 preruseni
+		jp	main1			;a navrat
 
 ;Nacita polozky z adresara a skonvertuje ich na text:
 ;
@@ -867,7 +889,7 @@ EMDI		push	ix
 		ldir
 		jp	NEXT
 
-CHDRVP		call	PAUSE
+CHDRVP		call	wait_5_ints
 		ld	b,6
 CHDR0		inc	sp
 		djnz	CHDR0
@@ -937,7 +959,7 @@ COL0		ld	(hl),a
 		inc	de
 		inc	de
 		inc	de
-		call	PRINT
+		call	print64
 		pop	hl
 		inc	h
 		pop	ix
@@ -976,7 +998,7 @@ RIGHT		ld	a,(ix+5)
 		call	z,BE
 		ld	a,(ix+5)
 		call	INV
-		call	PAUSE
+		call	wait_5_ints
 		jr	UPPER0
 LEFT		ld	a,(ix+5)
 		call	INV
@@ -987,7 +1009,7 @@ LEFT		ld	a,(ix+5)
 		call	z,EN
 		ld	a,(ix+5)
 		call	INV
-		call	PAUSE
+		call	wait_5_ints
 		jr	UPPER0
 BE		ld	l,1
 		ld	ix,DATA
@@ -1211,7 +1233,7 @@ BAR		inc	h
 		rla
 		ld	(INVP+1),a
 		call	INV
-		call	PAUSE
+		call	wait_5_ints
 BAR0		push	hl
 		call	inkey
 		pop	hl
@@ -1234,7 +1256,7 @@ UP		call	INVP
 		cp	1
 		call	z,CH1
 		call	INVP
-		call	PAUSE
+		call	wait_5_ints
 		jr	BAR0
 CH1		ld	h,0
 		ret
@@ -1244,7 +1266,7 @@ DOWN		call	INVP
 COMP		cp	0
 		call	z,CH2
 		call	INVP
-		call	PAUSE
+		call	wait_5_ints
 		jr	BAR0
 CH2		ld	h,2
 		ret
@@ -1257,7 +1279,7 @@ RT		inc	sp
 		pop	af
 		ld	ix,(IXPOS)
 		ld	hl,(HLPOS)
-		call	PAUSE
+		call	wait_5_ints
 		cp	32
 		jp	z,UPPER0
 		jp	UPPER1
@@ -1270,13 +1292,13 @@ CHOICE		ld	a,h
 		ld	a,(ix+5)
 		call	INV
 		pop	af
-		jp	PAUSE
+		jp	wait_5_ints
 
 PMNU		ld	(TDH+1),a
 PMNU0		push	bc
 		push	hl
 		push	de
-		call	PRINT
+		call	print64
 		pop	hl
 TDH		ld	bc,0
 		add	hl,bc
@@ -1301,7 +1323,7 @@ ABOUT		ld	hl,10*256+8
 		call	MENU2
 		ld	hl,10*256+28
 		ld	de,ABTXT1
-		call	PRINT
+		call	print64
 		call	AKEY
 		call	OUT
 		jp	main
@@ -1331,10 +1353,10 @@ OPTIONS		ld	hl,10*256+10
 		call	MENU2
 		ld	hl,10*256+28
 		ld	de,OPTXT1
-		call	PRINT
+		call	print64
 		ld	hl,10*256+35
 		ld	a,205
-		call	CHAR
+		call	char64
 		ld	ix,OPT
 		ld	h,11
 		bit	0,(ix+0)
@@ -1390,13 +1412,13 @@ MDF3		bit	0,a
 		ld	a,xh
 MDF1		res	0,a
 		ld	xh,a
-		call	PAUSE
+		call	wait_5_ints
 		jr	TK
 IH		call	PX
 		ld	a,xh
 MDF2		set	0,a
 		ld	xh,a
-		call	PAUSE
+		call	wait_5_ints
 		jr	TK
 REM		call	pixel_address
 		ld	b,8
@@ -1426,12 +1448,12 @@ ARAB		ld	l,25
 		ld	a,17
 		jp	INV
 ARAB0		call	ARAB
-		call	PAUSE
+		call	wait_5_ints
 		jp	TK
 PX		ld	a,'X'
 		ld	l,23
 		push	hl
-		call	CHAR
+		call	char64
 		pop	hl
 		ret
 OPT		db	%00000110
@@ -1564,7 +1586,7 @@ LN		equ	$-SYSTEM
 		jr	c,DONE
 		ld	de,COMP4
 DONE		ld	hl,7*256+31
-		call	PRINT
+		call	print64
 		ld	de,(KOEF1)
 		ld	b,9
 		call	NAS
@@ -1602,7 +1624,7 @@ DONE		ld	hl,7*256+31
 		ldir
 		ld	hl,8*256+31
 		ld	de,SPEED
-		call	PRINT
+		call	print64
 		ld	hl,0
 		ld	c,8
 SRAM0		ld	a,96
@@ -1643,7 +1665,7 @@ SYS128		ld	de,SRAM+13
 		ldir
 		ld	hl,9*256+31
 		ld	de,SRAM
-		call	PRINT
+		call	print64
 		ld	de,NONE
 		ld	l,0
 RTC0		ld	bc,5*256+3
@@ -1656,7 +1678,7 @@ RTC1		in	a,(c)
 		jr	nz,RTC0
 		ld	de,DET
 NORTC		ld	hl,10*256+31
-		call	PRINT
+		call	print64
 		ld	bc,65533
 		ld	a,7
 		ld	e,63
@@ -1670,7 +1692,7 @@ NORTC		ld	hl,10*256+31
 		jr	nz,NOTAY
 		ld	de,DET
 NOTAY		ld	hl,11*256+31
-		call	PRINT
+		call	print64
 		ld	ix,DRV1
 		ld	hl,12*256+31
 		ld	b,4
@@ -1696,7 +1718,7 @@ NHD		push	de
 		ld	a,(NUM+1)
 		ld	(de),a
 		dec	de
-NP		call	PRINT
+NP		call	print64
 		pop	hl
 		pop	bc
 		inc	h
@@ -1712,20 +1734,20 @@ NP		call	PRINT
 		ldi
 		ld	hl,16*256+31
 		ld	de,VERS
-		call	PRINT
+		call	print64
 		pop	de
 		pop	hl
 		ld	a,120
 		call	MENU2
 		ld	hl,6*256+26
 		ld	de,STEXT1
-		call	PRINT
+		call	print64
 		ld	hl,6*256+26
 		ld	a,205
-		call	CHAR
+		call	char64
 		call	AKEY
 		call	OUT
-		call	PAUSE
+		call	wait_5_ints
 		jp	main
 PAGE		push	af
 		ld	a,%01100000
@@ -1830,7 +1852,7 @@ OZN		ld	bc,(FILE1)
 OZNJO		set	1,(hl)
 		inc	l
 		djnz	OZNJO
-		jp	DOLU
+		jp	cursor_down
 OZNNE		ld	hl,(POZICE1)
 		call	pixel_address
 		call	attr_address
@@ -1838,7 +1860,7 @@ OZNNE		ld	hl,(POZICE1)
 OZNN		res	1,(hl)
 		inc	l
 		djnz	OZNN
-		jp	DOLU
+		jp	cursor_down
 OZNCHAN		ld	hl,49152
 		ld	ix,57344
 		ld	de,8190
@@ -1944,12 +1966,12 @@ ZNALL		call	OZNSWAP
 		jr	nz,ZNALL
 NXALL		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,NXTALL
 		push	bc
 OUTALL		pop	bc
 		call	OUT
-		jp	REREOZN
+		jp	cursor_pos_cnt
 NALL		call	OZNSWAP
 		jr	z,NALL
 		jr	NXALL
@@ -1966,7 +1988,7 @@ OZNTXT		db	"      Selecting"
 
 ODZNALL		call	CHANGE
 		call	OZNDEL1
-		jp	REREOZN
+		jp	cursor_pos_cnt
 
 UZNALL		call	CHANGE
 		ld	hl,(LENDIR1)
@@ -2001,12 +2023,12 @@ NXTULL		push	bc
 		call	OZNSWAP
 NXULL		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,NXTULL
 		push	bc
 OUTULL		pop	bc
 		call	OUT
-		jp	REREOZN
+		jp	cursor_pos_cnt
 NULL		call	OZNSWAP
 		or	a
 		jr	nz,NULL
@@ -2068,12 +2090,12 @@ ZNM		call	OZNSWAP
 		jr	z,ZNM
 NXM		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,NXTM
 		push	bc
 OUTM		pop	bc
 		call	OUT
-		jp	REREOZN
+		jp	cursor_pos_cnt
 NM		call	OZNSWAP
 		or	a
 		jr	nz,NM
@@ -2164,13 +2186,13 @@ MASK		ld	hl,10*256+8
 		exx
 		ld	hl,11*256+17
 		ld	de,MATXT1
-		call	PRINT
+		call	print64
 		ld	hl,12*256+17
 		ld	de,MATXT2
-		call	PRINT
+		call	print64
 		ld	hl,13*256+17
 		ld	de,MATXT3
-		call	PRINT
+		call	print64
 		exx
 		ld	a,120
 		call	MENU2
@@ -2194,7 +2216,7 @@ MASK		ld	hl,10*256+8
 CR		nop
 NMASK		pop	hl
 		call	OUT
-		call	PAUSE
+		call	wait_5_ints
 		jp	main
 MATXT1		db	"         Enter "
 		db	"New Mask:      "
@@ -2250,7 +2272,7 @@ II		call	CHANGE
 		call	MENU2
 		call	AKEY
 		call	OUT
-		jp	REREOZN
+		jp	cursor_pos_cnt
 
 INFO		ld	hl,0
 		ld	(STO),hl
@@ -2333,7 +2355,7 @@ ZINFO		push	bc
 		pop	bc
 NEINCINF		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,NXTINFO
 		push	bc
 OUTINFO		pop	bc
@@ -2390,7 +2412,7 @@ FDEL		push	bc
 		jr	nz,DELVIC
 		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,FDEL
 		jp	DELJEDEN
 DELVIC		call	DELREP
@@ -2438,7 +2460,7 @@ NXTD		push	bc
 		ld	(INTERVAL),a
 ND		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,NXTD
 		push	bc
 OUTD		pop	bc
@@ -2533,7 +2555,7 @@ FUNDEL		push	bc
 		jr	nz,UNVIC
 		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,FUNDEL
 		jp	UNJEDEN
 UNVIC		ld	hl,0
@@ -2579,7 +2601,7 @@ NXTU		push	bc
 		ld	(INTERVAL),a
 NU		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,NXTU
 		push	bc
 OUTU		pop	bc
@@ -2645,7 +2667,7 @@ FCOP		push	bc
 		jr	nz,COPVIC
 		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,FCOP
 		jp	COPJEDEN
 COPVIC		call	CHANGE
@@ -2683,7 +2705,7 @@ NXTCO		push	bc
 		pop	bc
 NCOP		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,NXTCO
 		push	bc
 OUTCO		pop	bc
@@ -2737,7 +2759,7 @@ COPFILE		ld	hl,#3E3
 		ldir
 		ld	de,NAME
 		ld	hl,14*256+29
-		call	PRINT
+		call	print64
 		pop	bc
 		call	RESIN
 		call	SETDEST
@@ -2861,13 +2883,13 @@ CLOSE1		call	SETSOUR
 
 PREDEJ		nop
 
-SETSOUR		ld	a,(ACTDRV1)
+SETSOUR		ld	a,(active_drive_1)
 
 		ld	e,a			;v E mame cislo mechaniky
 		ld	a,dos_setdrv		;sluzba SETDRV
 		rst	#20			;BSDOS
 
-		ld	a,(ACTDIR1)
+		ld	a,(active_dir_1)
 
 		ld	e,a			;v E mame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
@@ -2876,13 +2898,13 @@ SETSOUR		ld	a,(ACTDRV1)
 		ld	a,128
 		ld	(#03E3),a
 		ret
-SETDEST		ld	a,(ACTDRV2)
+SETDEST		ld	a,(active_drive_2)
 
 		ld	e,a			;v E mame cislo mechaniky
 		ld	a,dos_setdrv		;sluzba SETDRV
 		rst	#20			;BSDOS
 
-		ld	a,(ACTDIR2)
+		ld	a,(active_dir_2)
 		ld	e,a			;v E mame cislo adresara
 		ld	a,dos_setdir		;sluzba SETDIR
 		rst	#20			;BSDOS
@@ -2927,7 +2949,7 @@ FREN		push	bc
 		jr	nz,RENVIC
 		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,FREN
 		jp	RENJEDEN
 RENVIC		call	CHANGE
@@ -2953,7 +2975,7 @@ NXTRN		push	bc
 		pop	bc
 NREN		inc	bc
 		ld	hl,(LENDIR1)
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	nz,NXTRN
 		push	bc
 OUTRN		pop	bc
@@ -2978,22 +3000,22 @@ RENAM		ld	hl,FASTMEM+#06
 		exx
 		ld	hl,11*256+17
 		ld	de,RNTXT1
-		call	PRINT
+		call	print64
 		ld	hl,11*256+35
 		ld	de,NAME
-		call	PRINT
+		call	print64
 		ld	hl,12*256+17
 		ld	de,RNTXT2
-		call	PRINT
+		call	print64
 		exx
 		ld	a,120
 		call	MENU2
 		ld	hl,10*256+26
 		ld	de,RNTXT3
-		call	PRINT
+		call	print64
 		ld	hl,10*256+37
 		ld	a,205
-		call	CHAR
+		call	char64
 		ld	hl,12*256+35
 		ld	de,8315
 		ld	iyl,11
@@ -3051,7 +3073,7 @@ VIEW		ld	bc,(FILE1)
 		call	DEC16
 		ld	hl,14
 		ld	de,NUMBER
-		call	PRINT
+		call	print64
 
 		ld	e,1			;vypis znakov bude prebiehat do pamate, nie na obrazovku
 		ld	a,dos_sddx		;sluzba SDDX
@@ -3063,12 +3085,12 @@ VIEW		ld	bc,(FILE1)
 		call	DEC32
 		ld	hl,20
 		ld	de,NUMBER32
-		call	PRINT
+		call	print64
 		xor	a
 		ld	(FASTMEM+16),a
 		ld	hl,3
 		ld	de,FASTMEM+6
-		call	PRINT
+		call	print64
 		ld	a,(FASTMEM+5)
 		add	a,48
 		ld	(ZNK),a
@@ -3099,7 +3121,7 @@ VIEW1		ld	hl,BOOT
 		call	DEC16
 		ld	hl,256*23+1
 		ld	de,VTXT
-		call	PRINT
+		call	print64
 		call	VIEWP
 VIEW0		call	ESCAPE
 		jr	nc,OUTV
@@ -3119,7 +3141,7 @@ OUTV		ld	sp,(panely+1)
 VDO		ld	bc,(POCSEC)
 		ld	hl,(LENSEC)
 		dec	hl
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	z,VIEW0
 		inc	bc
 		jr	VVV
@@ -3139,7 +3161,7 @@ VSEC0		ld	bc,(POCSEC)
 VSECL		ld	bc,(POCSEC)
 		ld	hl,(LENSEC)
 		dec	hl
-		call	CPHLBC
+		call	cp_hl_bc
 		jr	z,VIEW0
 		ld	bc,(LENSEC)
 		dec	bc
@@ -3186,7 +3208,7 @@ NV		inc	hl
 		ld	(PVV),hl
 		ld	hl,(SVV)
 		ld	(SV),bc
-		call	CHAR
+		call	char64
 		ld	bc,(SV)
 		dec	bc
 		ld	a,b
@@ -3210,7 +3232,7 @@ VTXT1		db	"     "
 LENSEC		dw	0
 POCSEC		dw	0
 PRD		ld	de,ZNK
-		jp	PRINT
+		jp	print64
 ZNK		nop
 		nop
 
@@ -3229,7 +3251,7 @@ PROZENT		push	hl
 		ld	l,24
 		ld	h,13
 		ld	de,PROZ
-		call	PRINT
+		call	print64
 		pop	bc
 		pop	de
 		pop	hl
@@ -3250,7 +3272,7 @@ LENFILE		ld	hl,0
 		ld	l,24
 		ld	h,15
 		ld	de,PROZ
-		call	PRINT
+		call	print64
 		pop	bc
 		pop	de
 		pop	hl
@@ -3342,22 +3364,22 @@ REDISKY		ld	a,dos_getcst		;sluzba GETCST
 		exx
 		ld	hl,11*256+17
 		ld	de,RDTXT1
-		call	PRINT
+		call	print64
 		ld	hl,11*256+35
 		ld	de,NAME
-		call	PRINT
+		call	print64
 		ld	hl,12*256+17
 		ld	de,RDTXT2
-		call	PRINT
+		call	print64
 		exx
 		ld	a,120
 		call	MENU2
 		ld	hl,10*256+26
 		ld	de,RDTXT3
-		call	PRINT
+		call	print64
 		ld	hl,10*256+37
 		ld	a,205
-		call	CHAR
+		call	char64
 		ld	hl,12*256+35
 		ld	de,8315
 		ld	iyl,11
@@ -3403,13 +3425,13 @@ SETTIME		ld	hl,10*256+7
 		exx
 		ld	hl,11*256+15
 		ld	de,STTXT2
-		call	PRINT
+		call	print64
 		exx
 		ld	a,120
 		call	MENU2
 		ld	hl,10*256+28
 		ld	de,STTXT1
-		call	PRINT
+		call	print64
 		ld	hl,11*256+41
 		ld	de,12346
 		ld	iyl,7
@@ -3446,7 +3468,7 @@ ITIME		call	OUT
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 		
-		call	PAUSE
+		call	wait_5_ints
 		jp	c,SETTIME
 		jp	main
 
@@ -3490,10 +3512,11 @@ ESCAPE		ld	a,247
 		rra
 		ret
 
-PAUSE		ld	b,5
+;Pocka 5 preruseni
+wait_5_ints:	ld	b,5
 		ei
-PAUSE0		halt
-		djnz	PAUSE0
+w5i:		halt
+		djnz	w5i
 		ret
 
 ;Nahrada cp hl,de
@@ -3502,7 +3525,8 @@ cp_hl_de:	or	a
 		add	hl,de
 		ret
 
-CPHLBC		or	a
+;Nahrada cp hl,bc
+cp_hl_bc:	or	a
 		sbc	hl,bc
 		add	hl,bc
 		ret
@@ -3683,7 +3707,7 @@ INTXT00		ld	(hl),40
 		ld	ix,TEXT
 		pop	hl
 		ld	a,254
-		call	CHAR
+		call	char64
 INTXT1		call	ESCAPE
 		jp	nc,BRK
 		push	hl
@@ -3734,7 +3758,7 @@ ZNAK2		cp	123
 		ld	hl,(POS)
 		ld	de,TEXT
 		call	REMOV2
-		call	PRINT
+		call	print64
 		inc	ixl
 		pop	af
 		pop	bc
@@ -3743,8 +3767,8 @@ ZNAK2		cp	123
 
 		inc	l
 		ld	a,254
-		call	CHAR
-		call	PAUSE
+		call	char64
+		call	wait_5_ints
 		jr	INTXT1
 DEL		ld	a,xl
 		or	a
@@ -3769,15 +3793,15 @@ DEL		ld	a,xl
 		ld	hl,(POS)
 		ld	de,TEXT
 		call	REMOV2
-		call	PRINT
+		call	print64
 		pop	af
 		pop	bc
 		pop	de
 		pop	hl
 		dec	l
 		ld	a,254
-		call	CHAR
-		call	PAUSE
+		call	char64
+		call	wait_5_ints
 		jp	INTXT1
 ETR		scf
 		ret
@@ -3938,7 +3962,7 @@ attr_address:	ld	a,h
 LINE1		ld	b,a
 LINE0		ld	a,196
 		push	bc
-		call	CHAR
+		call	char64
 		pop	bc
 		inc	l
 		djnz	LINE0
@@ -3973,7 +3997,7 @@ LP2		ld	(hl),48
 		ld	a,218
 		push	de
 		push	de
-		call	CHAR
+		call	char64
 		pop	de
 		inc	l
 		ld	a,e
@@ -3981,7 +4005,7 @@ LP2		ld	(hl),48
 		sub	2
 		call	LINE1
 		ld	a,191
-		call	CHAR
+		call	char64
 		pop	de
 		pop	hl
 		inc	h
@@ -3996,18 +4020,18 @@ LP2		ld	(hl),48
 LPP1		ld	a,242
 		push	hl
 		push	bc
-		call	CHAR
+		call	char64
 		ld	a,l
 PRICTI		add	a,0
 		ld	l,a
 		ld	a,179
-		call	CHAR
+		call	char64
 		pop	bc
 		pop	hl
 		inc	h
 		djnz	LPP1
 		ld	a,192
-		call	CHAR
+		call	char64
 		inc	l
 		pop	de
 		ld	a,e
@@ -4015,7 +4039,7 @@ PRICTI		add	a,0
 		sub	2
 		call	LINE1
 		ld	a,217
-		call	CHAR
+		call	char64
 		pop	de
 		pop	hl
 		ret
@@ -4048,7 +4072,7 @@ LLP2		ld	(hl),0
 		ld	a,201
 		push	de
 		push	de
-		call	CHAR
+		call	char64
 		pop	de
 		inc	l
 		ld	a,e
@@ -4056,7 +4080,7 @@ LLP2		ld	(hl),0
 		sub	2
 		call	LINE2
 		ld	a,187
-		call	CHAR
+		call	char64
 		pop	de
 		pop	hl
 		inc	h
@@ -4071,18 +4095,18 @@ LLP2		ld	(hl),0
 LLPP1		ld	a,247
 		push	hl
 		push	bc
-		call	CHAR
+		call	char64
 		ld	a,l
 LPRICTI		add	a,0
 		ld	l,a
 		ld	a,186
-		call	CHAR
+		call	char64
 		pop	bc
 		pop	hl
 		inc	h
 		djnz	LLPP1
 		ld	a,200
-		call	CHAR
+		call	char64
 		inc	l
 		pop	de
 		ld	a,e
@@ -4090,12 +4114,12 @@ LPRICTI		add	a,0
 		sub	2
 		call	LINE2
 		ld	a,188
-		call	CHAR
+		call	char64
 		ret
 LINE2		ld	b,a
 LINE00		ld	a,205
 		push	bc
-		call	CHAR
+		call	char64
 		pop	bc
 		inc	l
 		djnz	LINE00
@@ -4104,33 +4128,34 @@ LINE00		ld	a,205
 ;Tlac textu, 64 znakov na riadok
 ;input:	hl=pozicia (h=riadok, l=stlpec)
 ;	de=adresa textu
-PRINT:		ld	a,(de)
+print64:	ld	a,(de)
 		or	a
 		ret	z
-		call	CHAR
+		call	char64
 		inc	de
 		inc	l
 		ld	a,l
 		cp	64
-		jr	c,PRINT
+		jr	c,print64
 		ld	l,0
 		inc	h
-		jr	PRINT
+		jr	print64
 
 ;Tlac znaku, 64 znakov na riadok
 ;input:	hl=pozicia (h=riadok, l=stlpec)
 ;	a=kod znaku
-CHAR:		push	bc
+char64:		push	bc
 		push	de
 		push	hl
 		push	af
 		call	pixel_address
 		or	a
-		jr	z,SECND2
+		jr	z,char64_2
 		ld	c,#F0
-		jr	SECND1
-SECND2:		ld	c,#0F
-SECND1:		pop	af
+		jr	char64_1
+
+char64_2:	ld	c,#0F
+char64_1:	pop	af
 		ex	de,hl
 		ld	l,a
 		ld	h,0
@@ -4138,7 +4163,7 @@ SECND1:		pop	af
 		add	hl,hl
 		add	hl,hl
 		push	bc
-		ld	bc,FONT-256
+		ld	bc,font64-256
 		add	hl,bc
 		pop	bc
 		ex	de,hl
@@ -4422,7 +4447,7 @@ msg_rd_err:	db	"Ready error"
 MSG		ld	(MSGSP1),sp
 		ld	sp,MSGSP2+80
 		call	TO
-		call	PAUSE
+		call	wait_5_ints
 		ld	hl,(MSGB)
 		ld	bc,28
 		xor	a
@@ -4433,10 +4458,10 @@ MSG		ld	(MSGSP1),sp
 		ld	l,a
 		ld	de,(MSGB)
 		ld	h,11
-		call	PRINT
+		call	print64
 		ld	de,MSGT1
 		ld	hl,12*256+24
-		call	PRINT
+		call	print64
 		ld	hl,(MSGB)
 		ld	de,67
 		add	hl,de
@@ -4453,10 +4478,10 @@ DALE		exx
 		ld	de,4*256+15
 		call	MENU2
 		exx
-		call	PRINT
+		call	print64
 		pop	hl
 		ld	a,205
-		call	CHAR
+		call	char64
 		ld	hl,12*256+23
 		call	YC
 		push	af
@@ -4579,14 +4604,14 @@ LR		ld	a,l
 LRP		ld	l,0
 		ld	a,8
 		call	INV
-		call	PAUSE
+		call	wait_5_ints
 		ret
 INC		ld	a,8
 		call	INV
 LRQ		ld	l,0
 		ld	a,8
 		call	INV
-		call	PAUSE
+		call	wait_5_ints
 		ret
 QD		ld	a,(LR+2)
 		cp	l
@@ -4629,11 +4654,11 @@ TDRV		ld	e,b
 
 		jp	nc,RETDOS
 		ld	a,e
-		ld	(ACTDRV1),a
-		ld	(ACTDRV2),a
+		ld	(active_drive_1),a
+		ld	(active_drive_2),a
 		ld	a,d
-		ld	(ACTDIR1),a
-		ld	(ACTDIR2),a
+		ld	(active_dir_1),a
+		ld	(active_dir_2),a
 		ld	bc,32765
 		ld	a,16
 		out	(c),a
@@ -4723,7 +4748,7 @@ clock:		ld	a,(OPT)
 		ld	(hl),a
 		ld	hl,0*256+54
 		ld	de,LTIME
-		jp	PRINT
+		jp	print64
 LTIME		db	0,0,58,0,0,58,0,0
 		nop
 SPACES		ld	hl,16667
@@ -4757,10 +4782,10 @@ FFF		ld	(hl),104
 		djnz	FFF
 		ld	de,WORKB1
 		ld	hl,0*256+0
-		call	PRINT
+		call	print64
 		ld	de,WORKB2
 		ld	hl,23*256+0
-		call	PRINT
+		call	print64
 		ld	hl,19*256+4
 		ld	de,WORKB3
 		ld	a,24
@@ -4847,8 +4872,8 @@ INPANEL1	dw	PANEL1
 OORT1		dw	PANEL1
 OORT2		dw	PANEL1+512
 LENDIR1		dw	0
-ACTDRV1		nop
-ACTDIR1		nop
+active_drive_1:	nop
+active_dir_1:	nop
 PANEL1		ds	1024
 JIST1		ds	1024
 FILE2		dw	0
@@ -4857,13 +4882,13 @@ INPANEL2	dw	PANEL1
 OORT3		dw	PANEL1
 OORT4		dw	PANEL1+512
 LENDIR2		dw	0
-ACTDRV2		nop
-ACTDIR2		nop
+active_drive_2:	nop
+active_dir_2:	nop
 PANEL2		ds	1024
 JIST2		ds	1024
 
 
-FONT		db	#00, #00, #00, #00, #00, #00, #00, #00
+font64:		db	#00, #00, #00, #00, #00, #00, #00, #00
 		db	#00, #44, #44, #44, #44, #00, #44, #00
 		db	#00, #AA, #AA, #00, #00, #00, #00, #00
 		db	#00, #00, #AA, #EE, #AA, #EE, #AA, #00
