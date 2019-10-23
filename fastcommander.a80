@@ -78,7 +78,7 @@ start:		di
 		call	OZNDEL2
 
 		ld	a,2			;slpec vypisu=2 (lavy panel)
-		ld	(PRINTD+1),a
+		ld	(draw_panel+1),a
 		ld	(panely+1),sp		;odlozime si SP
 		ld	(main+1),sp
 panely1:	call	WORKB			;zobrazi panely
@@ -88,10 +88,10 @@ panely:		ld	sp,0			;obnovenie zasobnika
 		ld	a,fdc_setoff		;sluzba SETOFF
 		rst	#18			;FDC BIOS
 
-		call	switch			;prehodi sa na neaktivny panel
+		call	switch_panels		;prehodi sa na neaktivny panel
 		call	swap_print		;vypis sa prepne na pravy panel
 		call	refresh_pane1		;nacita a zobrazi subory v neaktivnom paneli
-		call	switch			;prehodi sa na aktivny panel
+		call	switch_panels		;prehodi sa na aktivny panel
 		call	swap_print		;vypis sa prepne na lavy panel
 		call	refresh_pane1		;nacita a zobrazi subory v aktivnom paneli
 
@@ -106,8 +106,8 @@ main1:		call	show_cursor		;nakresli kurzor
 		ld	hl,(FILE1)		;vezme cislo suboru
 		ld	c,'0'			;nevyznamne nuly sa zobrazia
 		ld	iy,NUMBER		;do iy ide adresa bufferu
-		call	DEC16+2			;zavola zobrazenie cisla
-		ld	a,(PRINTD+1)		;v PRINTD+1 by malo byt 2, cize lavy panel
+		call	dec2char16_j+2		;ulozi cislo do pamate ako text
+		ld	a,(draw_panel+1)	;v draw_panel+1 by malo byt 2, cize lavy panel
 		add	a,20			;stlpec 2+22
 		ld	l,a			;l=cislo stlpca
 		ld	h,19			;h=cislo riadku
@@ -166,13 +166,13 @@ main0:		call	inkey			;zavola sa INKEY$ z ROM
 		jr	main0
 
 ;Prepnutie vypisu panelov zo stlpca 2 (lavy panel), na stlpec 34 (pravy panel), and vice versa
-swap_print:	ld	a,(PRINTD+1)		;nacitame nastavenie stlpca
+swap_print:	ld	a,(draw_panel+1)	;nacitame nastavenie stlpca
 		cp	2
 		jr	z,swpp			;ak sme vlavo tak nic
 		ld	a,2
 		jr	swps
 swpp:		ld	a,34			;inak sme vpravo
-swps:		ld	(PRINTD+1),a
+swps:		ld	(draw_panel+1),a
 		ret
 
 ;Zobrazenie kurzora, je len atributovy
@@ -180,9 +180,9 @@ show_cursor:	ld	hl,(POZICE1)		;nacitame poziciu kurzora
 		call	pixel_address		;zistime si pixelovu adresu
 		call	attr_address		;vypocitame adresu atributu pod pixelovou adresou
 		ld	b,14
-sc:		res	3,(hl)			;zobrazime kurzor
+sc_lp:		res	3,(hl)			;zobrazime kurzor
 		inc	l
-		djnz	sc
+		djnz	sc_lp
 		ret
 
 ;Zmazanie kurzora
@@ -190,19 +190,19 @@ hide_cursor:	ld	hl,(POZICE1)		;to iste ako v show_cursor,
 hide_cursor1:	call	pixel_address
 		call	attr_address
 		ld	b,14
-hc:		set	3,(hl)			;len kurzor sa maze
+hc_lp:		set	3,(hl)			;len kurzor sa maze
 		inc	l
-		djnz	hc
+		djnz	hc_lp
 		ret
 
 ;zmena cisla mechaniky v aktivnom paneli, vlavo
 chnge_drv_left:	call	hide_cursor		;skryje kurzor
-		ld	a,(PRINTD+1)		;zisti sa ci je aktivovany
+		ld	a,(draw_panel+1)	;zisti sa ci je aktivovany
 		cp	2			;lavy panel
 		jp	z,change_drive		;ak ano, rovno pokracuje na zmenu mechaniky
 		ld	a,2
-		ld	(PRINTD+1),a		;ak nie je aktivovany
-		call	switch			;tak ho aktivuje
+		ld	(draw_panel+1),a	;ak nie je aktivovany
+		call	switch_panels		;tak ho aktivuje
 		ld	hl,PANEL1		;prepne ukazatele na buffre
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
@@ -211,17 +211,17 @@ chnge_drv_left:	call	hide_cursor		;skryje kurzor
 
 ;zmena cisla mechaniky v aktivnom paneli, vpravo
 chnge_drv_rght:	call	hide_cursor		;skryje kurzor
-		ld	a,(PRINTD+1)		;zisti sa ci je aktivovany
+		ld	a,(draw_panel+1)	;zisti sa ci je aktivovany
 		cp	34			;pravy panel
 		jr	z,change_drive		;ak ano, rovno pokracuje na zmenu mechaniky
 		ld	a,34
-		ld	(PRINTD+1),a		;ak nie je aktivovany
-		call	switch			;tak ho aktivuje
+		ld	(draw_panel+1),a	;ak nie je aktivovany
+		call	switch_panels		;tak ho aktivuje
 		ld	hl,PANEL1		;opat prehodenie ukazatelov na buffre
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
 		ld	(OORT2),hl
-change_drive:	ld	a,(PRINTD+1)		;zmena mechaniky uz je spolocna pre oba smery
+change_drive:	ld	a,(draw_panel+1)	;zmena mechaniky uz je spolocna pre oba smery
 		srl	a			
 		ld	b,0
 		ld	c,a
@@ -230,7 +230,7 @@ change_drive:	ld	a,(PRINTD+1)		;zmena mechaniky uz je spolocna pre oba smery
 		ld	de,3*256+15
 		call	IN			;schova obsah obrazovky pod oknom dialogu
 		exx				;odlozi si registre kde mame poziciu ramceka
-		ld	a,(PRINTD+1)
+		ld	a,(draw_panel+1)
 		ld	b,0
 		ld	c,a
 		ld	hl,11*256+0		;vypocita sa pozicia pre zobrazenie otazky
@@ -240,7 +240,7 @@ change_drive:	ld	a,(PRINTD+1)		;zmena mechaniky uz je spolocna pre oba smery
 		exx				;obnovi sa pozicia ramceka
 		ld	a,120			;vykresli sa ramcek
 		call	MENU2
-		ld	a,(PRINTD+1)
+		ld	a,(draw_panel+1)
 		ld	b,0
 		ld	c,a
 		ld	hl,10*256+8		;vypocita sa poloha pre titulok dialogu
@@ -249,7 +249,7 @@ change_drive:	ld	a,(PRINTD+1)		;zmena mechaniky uz je spolocna pre oba smery
 		call	print64
 
 change_drv_in:	call	wait_5_ints		;pocka sa 5 preruseni
-		ld	a,(PRINTD+1)
+		ld	a,(draw_panel+1)
 		ld	b,0
 		ld	c,a
 		ld	hl,11*256+23		;vypocita sa pozicia pre input
@@ -297,19 +297,19 @@ hdd_no:		ld	iyl,2			;sirka vstupu je 1 znak a kurzor
 		jr	c,change_drv_in		;znova ak uzivatel zadal 0
 		ld	hl,DRV9
 		cp	9
-		jr	z,check1		;test ci je pritomna mechanika 9 (aktivny ramdisk)
+		jr	z,hd_no_drv_err		;test ci je pritomna mechanika 9 (aktivny ramdisk)
 		cp	5
 		jr	nc,err_msg_cdrv		;ak su zadane mechaniky 5-8 nasleduje chybova hlaska
 		or	a
 		jr	z,err_msg_cdrv
 		ld	hl,DRV4			;porovnanim s premennou obsahujucou pocet pripojenych mechanik
 		ld	b,4			;skusa ci zadana mechanika (z 1-4) je pripojena
-check0:		cp	b
-		jr	z,check1
+hd_no_lp:	cp	b
+		jr	z,hd_no_drv_err
 		dec	hl
 		dec	hl
-		djnz	check0
-check1:		ld	e,a
+		djnz	hd_no_lp
+hd_no_drv_err:	ld	e,a
 		xor	a
 		cp	(hl)
 		jr	z,err_msg_cdrv		;ak nie je, nasleduje chybova hlaska
@@ -404,8 +404,8 @@ wr_dir_num:	push	hl			;v l mame cislo aktualneho adresara
 		ld	e,l			;v l stale mame cislo aktivneho adresara
 		ld	c,'0'			;nevyznamne miesta nahradi nulami
 		ld	iy,NUMBE+1		;miesto v pamati pre vypis
-		call	DEC8+2			;ulozi cislo do pamate ako text
-		ld	a,(PRINTD+1)		;nasleduje nastavenie pozicie v paneli
+		call	dec2char8_j+2		;ulozi cislo do pamate ako text
+		ld	a,(draw_panel+1)	;nasleduje nastavenie pozicie v paneli
 		add	a,13
 		ld	l,a
 		ld	h,19
@@ -446,11 +446,11 @@ rp_lp:		ld	a,(active_drive_1)	;vezme cislo aktivnej mechaniky
 		ld	ix,PANEL1		;nastavi sa na buffer
 		call	read_directory		;precita sa adresarova polozka
 		ld	ix,PANEL1		;nastavi sa na buffer
-		call	PRINTD			;vykresli obsah aktivneho panelu
+		call	draw_panel		;vykresli obsah aktivneho panelu
 		ld	hl,PANEL1		;nasleduje pozicia kurzora v buffri
 		ld	(INPANEL1),hl
 		ld	hl,2*256
-		ld	a,(PRINTD+1)		;a vypocet jeho grafickej pozicie, kam sa bude kreslit
+		ld	a,(draw_panel+1)	;a vypocet jeho grafickej pozicie, kam sa bude kreslit
 		ld	e,a
 		ld	d,0
 		add	hl,de
@@ -482,9 +482,9 @@ rp_lp:		ld	a,(active_drive_1)	;vezme cislo aktivnej mechaniky
 		ld	l,c			;tak si tieto dva riadky usetri
 		ld	c,'0'			;nevyznamne cisla nahradi nulami
 		ld	iy,NUMBER		;miesto v pamati pre vypis
-		call	DEC16+2			;ulozi cislo do pamate ako text
+		call	dec2char16_j+2		;ulozi cislo do pamate ako text
 		ld	h,21			;nastavi si graficku poziciu do panelu
-		ld	a,(PRINTD+1)
+		ld	a,(draw_panel+1)
 		add	a,10
 		ld	l,a
 		ld	de,NUMBER
@@ -494,7 +494,7 @@ rp_lp:		ld	a,(active_drive_1)	;vezme cislo aktivnej mechaniky
 		ld	bc,10
 		ldir				;presunie si ho do buffra
 		ld	h,20			;a potom si nastavi graficku poziciu do panelu
-		ld	a,(PRINTD+1)
+		ld	a,(draw_panel+1)
 		add	a,13
 		ld	l,a
 		ld	de,NAME
@@ -503,8 +503,8 @@ rp_lp:		ld	a,(active_drive_1)	;vezme cislo aktivnej mechaniky
 		ld	e,a
 		ld	c,'0'			;nevyznamne cisla nahradi nulami
 		ld	iy,NUMBE+1		;miesto v pamati pre vypis
-		call	DEC8+2			;ulozi cislo do pamate ako text
-		ld	a,(PRINTD+1)		;nastavi graficku poziciu
+		call	dec2char8_j+2		;ulozi cislo do pamate ako text
+		ld	a,(draw_panel+1)	;nastavi graficku poziciu
 		add	a,7			
 		ld	l,a
 		ld	h,19
@@ -526,11 +526,11 @@ cp_count:	or	a			;vypocita sa nova poloha kurzora ak sa kurzor posunul
 		djnz	cp_count
 cp_not_count:	push	hl			;nastavi sa ukazatel v bufferi
 		pop	ix
-		call	PRINTD			;vytlaci sa panel
+		call	draw_panel		;vytlaci sa panel
 		jp	main			;a vrati do hlavneho programu
 
 ;Nastavi lavy panel ako aktualny
-panel_one:	ld	a,(PRINTD+1)		;kontrola ci uz nie sme v lavom paneli
+panel_one:	ld	a,(draw_panel+1)	;kontrola ci uz nie sme v lavom paneli
 		cp	2
 		jp	z,main			;ak ano navrat
 
@@ -550,9 +550,9 @@ panel_one:	ld	a,(PRINTD+1)		;kontrola ci uz nie sme v lavom paneli
 		jp	nc,main			;pri chybe navrat do hlavneho programu
 
 		ld	a,2			;nastavi vypis na lavy panel (stlpec 2)
-		ld	(PRINTD+1),a
-		call	switch			;prepne panely
-		ld	hl,PANEL1		;?diskoteka s bufframi?
+		ld	(draw_panel+1),a
+		call	switch_panels		;prepne panely
+		ld	hl,PANEL1		;diskoteka s bufframi
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
 		ld	(OORT2),hl
@@ -566,7 +566,7 @@ panel_one:	ld	a,(PRINTD+1)		;kontrola ci uz nie sme v lavom paneli
 ;Nastavi pravy panel ako aktualny.
 ;Je to skoro rovnaky podprogram ako panel_one.
 ;Asi sa to da zlucit do jedneho, len zavolat s rozdielnym cislom stlpca
-panel_two:	ld	a,(PRINTD+1)		;kontrola ci uz nie sme v pravom paneli
+panel_two:	ld	a,(draw_panel+1)	;kontrola ci uz nie sme v pravom paneli
 		cp	34
 		jp	z,main			;ak ano, tak navrat
 
@@ -586,9 +586,9 @@ panel_two:	ld	a,(PRINTD+1)		;kontrola ci uz nie sme v pravom paneli
 		jp	nc,main			;pri chybe navrat
 
 		ld	a,34			;nastavi vypis na pravy panel (stlpec 34)
-		ld	(PRINTD+1),a
-		call	switch			;prepne panely
-		ld	hl,PANEL1		;?diskoteka s bufframi?
+		ld	(draw_panel+1),a
+		call	switch_panels		;prepne panely
+		ld	hl,PANEL1		;diskoteka s bufframi
 		ld	(OORT1),hl
 		ld	hl,PANEL1+512
 		ld	(OORT2),hl
@@ -601,22 +601,22 @@ panel_two:	ld	a,(PRINTD+1)		;kontrola ci uz nie sme v pravom paneli
 		jp	main1			;a navrat
 
 ;Prepne panely aktivny za pasivny
-switch:		call	OZNCHAN			;prepne informaciu o oznacenych suboroch z aktivneho do pasivneho panelu
+switch_panels:	call	OZNCHAN			;prepne informaciu o oznacenych suboroch z aktivneho do pasivneho panelu
 		ld	hl,FILE2		;prepne buffery k panelom
 		ld	de,FILE1
 		ld	bc,2*1024+14		;a aj buffery k sektoru z panelu a boot sektoru
-sw:		ld	a,(hl)
-		ld	xh,a
-		ld	a,(de)
-		ld	(hl),a
-		ld	a,xh
-		ld	(de),a
+p_sw_lp:	ld	a,(hl)
+		ld	xh,a			;inak tieto sarady s bufframi su hrozne
+		ld	a,(de)			;je to tu uplne vsade
+		ld	(hl),a			;preco negeneruje dva hotove buffre pre kazdy panel zvlast
+		ld	a,xh			;a potom by stacilo prepinat pointery?
+		ld	(de),a			;kvoli setreniu miestom to asi nebolo
 		inc	hl
 		inc	de
 		dec	bc
 		ld	a,b
 		or	c
-		jr	nz,sw
+		jr	nz,p_sw_lp
 		ret
 
 ;Posun kurzora dohora
@@ -657,7 +657,7 @@ cur_move_up:	ld	bc,(FILE1)		;vezme ukazatel na subor
 		sbc	hl,de
 		push	hl
 		pop	ix
-		call	PRINTD			;a prekresli panel s posunutymi polozkami
+		call	draw_panel		;a prekresli panel s posunutymi polozkami
 		ld	hl,(INPANEL1)		;znova znizi polozku v paneli
 		ld	de,32			;ale asi zbytocne, lebo pred chvilou to ratal
 		or	a			;stacil dvakrat push hl a namiesto tohto pop hl	
@@ -680,11 +680,11 @@ cmu_read_prev:	call	CHANGE			;test ci nam uzivatel pod zadkom nevymenil disketu
 		ld	c,l
 		ld	ix,(OORT1)		;?nastavi sa na zaciatok buffrov?
 		ld	a,16
-		call	READ1			;nacita 16 predoslych poloziek
+		call	read_dir_1		;nacita 16 predoslych poloziek
 		ld	ix,(OORT1)		;prepocita polohu v buffri
 		ld	de,480
 		add	ix,de
-		call	PRINTD			;vykresli panel
+		call	draw_panel		;vykresli panel
 		ld	hl,(OORT1)		;este ten isty prepocet
 		ld	de,480			;pre panel
 		add	hl,de
@@ -731,7 +731,7 @@ cur_move_down:	ld	bc,(FILE1)		;vezme ukazatel na subor
 		sbc	hl,de
 		push	hl
 		pop	ix
-		call	PRINTD			;vykreslenie panelu
+		call	draw_panel		;vykreslenie panelu
 		ld	hl,(INPANEL1)		;prepocet ukazatela v paneli
 		ld	de,32
 		add	hl,de
@@ -747,11 +747,11 @@ cmd_read_next:	call	CHANGE			;test ci uzivatel nevymenil diskety
 		ld	bc,(FILE1)		;vezme povodny ukazatel na subory
 		ld	ix,(OORT2)
 		ld	a,16
-		call	READ1			;precita 16 nasledujucich poloziek
+		call	read_dir_1		;precita 16 nasledujucich poloziek
 		ld	ix,(OORT1)		;prepocita ukazatel v paneli
 		ld	de,32
 		add	ix,de
-		call	PRINTD			;zobrazi panel
+		call	draw_panel		;zobrazi panel
 		ld	hl,(OORT2)		;ukazatel v buffroch je rovnaky ako ukazatel v paneli
 		ld	(INPANEL1),hl		;ulozi posunuty ukazatel
 		jp	main1			;a navrat
@@ -769,30 +769,33 @@ do_main:	call	show_cursor		;zobrazi kurzor
 ;03-30: text (28)
 ;31: 0 
 ;
-;input: bc=cislo souboru od ktoreho bude vypis 
-;ix=ukazatel na buffer panel1/panel2
+;input:	bc=cislo souboru od ktoreho bude vypis 
+;	ix=ukazatel na buffer panel1/panel2
 ;
-; !!! Toto asi mal byt univerzalny podporogram, ale zda sa ze sa pouzije len raz
-; !!! na nacitanie nultej adresarovej polozky.
-; !!! S inou adresarovou polozkou to ale nebude fungovat dobre, vid nizsie
+; !!! Toto asi mal byt univerzalny podporogram, na nacitanie adresarovej polozky
+; !!! ale asi to nie je dobre. S inou adresarovou polozkou ako nultou to asi
+; !!! nebude fungovat dobre, vid nizsie
 ;
-read_directory:	push	bc			;odlozi vstupne premenne
-		push	ix
+read_directory:	push	bc			;odlozi vstupne premenne, v bc cislo suboru
+		push	ix			;v ix je aktualne PANEL1
 
 		ld	a,dos_kolkox		;sluzba KOLKOX, v DE vrati pocet adresarovych poloziek v aktualnom adresari 
 		rst	#20			;BSDOS
 
-		jp	nc,CHDRVP		;ak je chyba, skok na obsluhu chyby
+		jp	nc,chdrv_pause		;ak je chyba, preco navrat cez pauzu na change_drive?
 		ld	hl,0
 		call	cp_hl_de		;ak je pocet poloziek 0
-		call	z,de_to_32		;nastavi pocet adresarovych poloziek na 32
+		call	z,de_to_32		;nastavi pocet adresarovych poloziek na 32.
+						;wtf? nemoze byt: 	jr nz,blah
+						;			ld de,32
+						; 		blah:	ld (lendir1),de ???
 		ld	(LENDIR1),de		;pocet adresarovych poloziek ulozi do premennej
 		pop	ix			;vyzdvihne adresu buffra
 		pop	bc			;vyzdvihne cislo suboru
-		ld	a,32
-READ1		push	af			;odlozi 32
+		ld	a,32			;32 poloziek pre pripad prazdneho adresara
+read_dir_1:	push	af			;odlozi pocet poloziek
 		push	bc			;odlozi cislo suboru
-		push	bc			;odlozi cislo suboru
+		push	bc			;odlozi cislo suboru este raz pre next_item
 
 						;vstup je nas ix=buffer, bc=cislo suboru
 		ld	a,dos_getsub		;sluzba GETSUB, v buffri vrati 32 bajtovu adresarovu polozku suboru
@@ -800,173 +803,194 @@ READ1		push	af			;odlozi 32
 						;zaroven vracia nc=chyba a z=neplatna adresarova polozka
 
 		pop	bc			;vyzdvihne cislo suboru
-		jp	nc,CHDRVP		;ak dos_getsub dopadol zle, skok na obsluhu chyby
-		call	z,BAD			;ak je polozka neplatna, vytvori prazdnu polozku = adresar neexistuje
-		ld	(ix+1),c		;do polozky ulozi cislo suboru
+		jp	nc,chdrv_pause		;ak dos_getsub dopadol zle, preco navrat cez pauzu na change_drive?
+		call	z,bad_item		;ak je polozka neplatna, v buffri vytvori chybnu polozku
+						;wtf2? nemoze byt:	jr nz,blabla
+						;			xor a
+						;			ld (ix+0),a
+						;		blabla:	ld(ix+1),c ???
+		ld	(ix+1),c		;do buffra ulozi cislo suboru
 		ld	(ix+2),b
 		ld	a,(ix+0)		;tu skontroluje typ polozky
 		or	a
-		jp	z,EMPTY			;ak je prazdna, odskok na vytvorenie popisu prazdnej polozky
+		jp	z,empty_item		;ak je chybna, pokracuje na vytvorenie popisu prazdnej polozky
 		
+						;tuto sa asi ma vytvarat popis adresara
 		cp	#80			;!!! hmm, ak nie sme v nultej adresarovej polozke tak to nejak
-		jp	z,DIR			;!!! fungovat bude, ale je to zle !!!
+		jp	z,dir_item		;!!! fungovat bude, ale asi to nie je dobre !!!
 		
-		ld	a,(ix+#05)		;nastavi sa na meno
-		add	a,48
-		ld	(ITEM),a
+		ld	a,(ix+#05)		;prevod typu suboru na znaky?
+		add	a,48			;funguje ale len pre 0-9
+		ld	(wkspc_item),a
 		push	ix
-		pop	hl
-		ld	de,6
-		add	hl,de
-		ld	de,ITEM+2
-		ld	bc,10
-READ3		ld	a,(hl)
-		cp	32
-		call	c,NEUT
-		ld	(de),a
+		pop	hl			;do hl si da adresu buffra			
+		ld	de,6			
+		add	hl,de			;posunie sa o 6 bytes vyssie (meno suboru?)
+		ld	de,wkspc_item+2		;do de si da adresu, kde vo wkspc_item bude meno suboru
+		ld	bc,10			;do bc ide 10 znakov (meno suboru)
+rd_d_lp:	ld	a,(hl)			;v slucke po jednom cita znaky
+		cp	32			;medzeru naradi pomlckou
+		call	c,space2minus		;wtf3? opat by sa nedalo:	jr nc,houno
+						;				ld a,'-'
+						;			houno:	ld (de),a ???
+		ld	(de),a			;a vlozi ich do wkspc_item na miesto
 		inc	de
 		cpi
-		jp	pe,READ3
+		jp	pe,rd_d_lp
 
 		ld	e,1			;vypis znakov bude prebiehat do pamate, nie na obrazovku
 		ld	a,dos_sddx		;sluzba SDDX
 		rst	#20			;BSDOS
 
-		ld	l,(ix+#12)
+		ld	l,(ix+#12)		;z headru v buffri vycita hodnotu start
 		ld	h,(ix+#13)
-		ld	iy,ITEM+14
-		call	DEC16
-		ld	l,(ix+#18)
+		ld	iy,wkspc_item+14	;ukazatel nastavi do wkspc_item, kde je na to miesto
+		call	dec2char16_j		;a zapise ju tam ako znaky
+		ld	l,(ix+#18)		;dalej vycita dlzku suboru
 		ld	h,(ix+#19)
 		ld	e,(ix+#1A)
 		ld	d,(ix+#1B)
-		ld	iy,ITEM+21
-		call	DEC32
-		ld	hl,ITEM
-		jr	EMDI
+		ld	iy,wkspc_item+21	;ukazatel nastavi do wkspc_item, kde je na to miesto
+		call	dec2char32_j		;a zapise ju tam ako znaky
+		ld	hl,wkspc_item		;zoberie si adresu wkspc_item
+		jr	mv_item_to_buf		;a odskok na prenos polozky do bufferu
 
-NEXT		xor	a
-		ld	(de),a
+next_item:	xor	a			;ulozi nulu
+		ld	(de),a			;ako oznacenie konca polozky
 		ld	bc,32
-		add	ix,bc
-		pop	bc
+		add	ix,bc			;posunie sa na dalsiu polozku v bufferi
+		pop	bc			
 		inc	bc
 		pop	af
 		dec	a
-		jr	nz,READ1
+		jr	nz,read_dir_1		;a opakuje pre vsetky polozky, ktore su v adresari
 		ret
 
-BAD		xor	a
+;wtf2? v buffri vytvori chybnu polozku. nejde osetrit za jazdy?
+bad_item:	xor	a
 		ld	(ix+0),a
 		ret
 
+;do de da hodnotu 32, wtf? to nejde osetrit za jazdy?
 de_to_32:	ld	de,32
 		ret
 
-EMPTY		ld	hl,EMITEM
-		jr	EMDI
+;nastavi ukazatel na text prazdnej polozky
+empty_item:	ld	hl,wkspc_emptitem
+		jr	mv_item_to_buf		;pokracuje presunom
 
-DIR		push	ix
+dir_item:	push	ix			;do hl si da adresu buffra
 		pop	hl
 		ld	de,6
-		add	hl,de
-		ld	de,DIRITEM+2
-		ld	bc,10
-DIR0		ld	a,(hl)
-		cp	32
-		call	c,NEUT
-		ld	(de),a
+		add	hl,de			;posunie sa o 6 bytes vyssie (meno adresara?)
+		ld	de,wkspc_diritem+2	;do de si da adresu, kde vo wkspc_diritem bude meno adresara
+		ld	bc,10			;10 znakov mena
+dir_i_lp:	ld	a,(hl)			;a v slucke po jednom nacita znaky
+		cp	32			;medzeru nahradzuje pomlckou
+		call	c,space2minus
+		ld	(de),a			;a zapisuje ich na miesto vo wkspc_diritem
 		inc	de
 		cpi
-		jp	pe,DIR0
-		ld	hl,DIRITEM
-EMDI		push	ix
-		pop	de
+		jp	pe,dir_i_lp
+		ld	hl,wkspc_diritem	;pokracuje presunom polozky do buffra
+mv_item_to_buf: push	ix			;prehodi si do de
+		pop	de			;adresu buffra
+		inc	de			;posunie sa o tri pozicie vyssie
 		inc	de
-		inc	de
-		inc	de
-		ld	bc,28
-		ldir
-		jp	NEXT
+		inc	de			
+		ld	bc,28			;a presunie tam 28 znakov
+		ldir				;wkspc_item, alebo wkspc_diritem
+		jp	next_item		;pokracuje na next_item, ale vola sa len odtialto, tak by mohlo byt tu
 
-CHDRVP		call	wait_5_ints
+chdrv_pause:	call	wait_5_ints		;pocka 5 preruseni
 		ld	b,6
-CHDR0		inc	sp
-		djnz	CHDR0
-		jp	change_drive
+chdrv_p_lp:	inc	sp			;6 krat podvihne stack (len balast?)
+		djnz	chdrv_p_lp
+		jp	change_drive		;navrat cez zmenu mechaniky v aktivnom paneli?
 
-NEUT		ld	a,'-'
+;wtf3? opat asi treba osetrit za jazdy
+space2minus:	ld	a,'-'
 		ret
-ITEM		nop
-		db	" ----------  "
-		ds	5
+
+;pracovne miesto kde sa tvoria textove polozky pre vypis v paneli
+wkspc_item:	nop				;typ polozky
+		db	" ----------  "		;predloha pre subory
+		ds	5			;start adresa
 		db	"  "
-		ds	7
-DIRITEM		db	"- ----------  <"
+		ds	7			;dlzka suboru
+wkspc_diritem:	db	"- ----------  <"	;predloha pre adresare
 		db	"DIRECTORY>   "
-EMITEM		db	"- ----------   "
+wkspc_emptitem:	db	"- ----------   "	;predloha pre prazdnu polozku
 		db	"   0        0"
 
-;ix=zacatek
-PRINTD		ld	hl,2*256+2
-		ld	b,16
-PRINTD1		push	bc
+;Vykreslovanie panelov
+;input:	ix=polozka v bufferi odkial sa ma vykreslovat
+;	draw_panel+1=stlpec ktory chceme vykreslovat
+draw_panel:	ld	hl,2*256+2		;suradnice
+		ld	b,16			;pocet poloziek
+draw_panel_1:	push	bc			;odlozi si vsetko
 		push	ix
 		push	hl
-		ld	b,(ix+2)
+		ld	b,(ix+2)		;zoberie cislo suboru z polozky v bufferi
 		ld	c,(ix+1)
-		call	OZNTEST
+		call	OZNTEST			;skontroluje ci je oznaceny
 		or	a
-		jr	nz,WHITE
-		jr	CYAN
-WHITE		pop	hl
+		jr	nz,file_is_marked	;ak ano, nastavi mu prislusnu farbu
+		jr	file_not_markd		;ak nie, pokracuje normalne
+
+file_is_marked:	pop	hl			;obnovi suradnice a polozky 
 		pop	ix
 		pop	bc
-		push	bc
+		push	bc			;znova ich uschova
 		push	ix
 		push	hl
-		ld	a,(ix+0)
+		ld	a,(ix+0)		;zisti stav polozky (valid, deleted, empty)
 		rla
-		jr	nc,RED
-		ld	a,79
-		jr	COLOR
-RED		ld	a,74
-		jr	COLOR
-BLACK		ld	a,72
-		jr	COLOR
-CYAN		pop	hl
+		jr	nc,mrkd_del_empty	;oznaci cervenou ak je deleted, alebo empty
+		ld	a,79			;inak ofarbi bielou
+		jr	color_in
+
+;subor je zmazany, alebo prazdny a je oznaceny
+mrkd_del_empty:	ld	a,74			;aktualne cervena
+		jr	color_in
+
+;subor je zmazany, alebo prazdny a nie je oznaceny
+nmrkd_del_empt:	ld	a,72			;aktualne cierna
+		jr	color_in
+
+file_not_markd:	pop	hl			;obnovi suradnice a polozky
 		pop	ix
 		pop	bc
-		push	bc
+		push	bc			;znova ich uschova
 		push	ix
 		push	hl
-		ld	a,(ix+0)
+		ld	a,(ix+0)		;zisti stav polozky (valid, deleted, empty)
 		rla
-		jr	nc,BLACK
-		ld	a,77
-COLOR		push	hl
+		jr	nc,nmrkd_del_empt	;oznaci ciernou
+		ld	a,77			;inak je to bez oznacenia, aktualne svetlomodra
+color_in:	push	hl			;odlozi si suradnice
 		ex	af,af'
-		call	pixel_address
-		call	attr_address
+		call	pixel_address		;prepocita si zo suradnic vykreslovania polozku
+		call	attr_address		;polohu atributov
 		ex	af,af'
-		ld	b,14
-COL0		ld	(hl),a
+		ld	b,14			;a ofarbi 14 bajtov pod vykreslovanymi polozkami
+color_in_lp:	ld	(hl),a
 		inc	l
-		djnz	COL0
-		pop	hl
-		push	ix
+		djnz	color_in_lp
+		pop	hl			;vyzdvihne si suradnice
+		push	ix			;prehodi si buffer do de (pre potreby tlacovej rutiny)
 		pop	de
+		inc	de			;nastavi poziciu
 		inc	de
 		inc	de
-		inc	de
-		call	print64
-		pop	hl
+		call	print64			;vykresli
+		pop	hl			;obnovi si suradnice
 		inc	h
 		pop	ix
-		ld	bc,32
+		ld	bc,32			;posunie sa na dalsiu polozku
 		add	ix,bc
 		pop	bc
-		djnz	PRINTD1
+		djnz	draw_panel_1		;a opakuje podla poctu poloziek
 		ret
 
 UPPER		call	hide_cursor
@@ -1469,7 +1493,7 @@ OPTXT2		db	" ( ) Beep after"
 		db	"nable  "
 		nop
 
-EXIT:		ld	hl,quit_message		;adresa textu
+EXIT:		ld	hl,msg_exit_dos		;adresa textu
 		ld	a,dos_messx		;sluzba MESSX		
 		rst	#20			;BSDOS
 
@@ -1479,7 +1503,7 @@ EXIT:		ld	hl,quit_message		;adresa textu
 BACK		call	OUT
 		jp	main
 
-quit_message:	db	"Exit to Dos ?"
+msg_exit_dos:	db	"Exit to Dos ?"
 		db	#00,#C9
 
 CHANGE		ld	a,dos_getcst		;sluzba GETCST
@@ -1509,7 +1533,7 @@ OPICE		ld	a,(de)
 		jr	nz,OPICE
 		ret
 
-CHREP:		ld	hl,disk_changed		;adresa textu
+CHREP:		ld	hl,msg_disk_chgd	;adresa textu
 		ld	a,dos_messx		;sluzba MESSX
 		rst	#20			;BSDOS
 
@@ -1520,7 +1544,7 @@ CHREP:		ld	hl,disk_changed		;adresa textu
 CHABORT:	pop	hl
 		jp	main
 
-disk_changed:	db	"Disk changed !"
+msg_disk_chgd:	db	"Disk changed !"
 		db	#00,#C9
 
 SYSTEM		di
@@ -1591,7 +1615,7 @@ DONE		ld	hl,7*256+31
 		ld	b,9
 		call	NAS
 		push	hl
-		call	DEC16S
+		call	dec2char16
 		ld	hl,NUM
 		ld	de,SPEED
 		ldi
@@ -1607,7 +1631,7 @@ DONE		ld	hl,7*256+31
 		rl	e
 		ld	bc,47
 		add	hl,bc
-		call	DEC32S
+		call	dec2char32
 		ld	hl,NUM
 		ld	de,SPEED+8
 		ld	bc,5
@@ -1617,7 +1641,7 @@ DONE		ld	hl,7*256+31
 		call	NAS
 		ld	de,47
 		add	hl,de
-		call	DEC16S
+		call	dec2char16
 		ld	hl,NUM
 		ld	de,SPEED+14
 		ld	bc,5
@@ -1649,7 +1673,7 @@ SRAM1		ld	l,c
 		add	hl,hl
 		ld	a,97
 		out	(23),a
-		call	DEC16S
+		call	dec2char16
 		ld	hl,NUM
 		ld	de,SRAM+3
 		ld	bc,3
@@ -1709,7 +1733,7 @@ DRVS		push	bc
 NHD		push	de
 		ld	e,(ix+1)
 		push	ix
-		call	DEC8S
+		call	dec2char8
 		pop	ix
 		pop	de
 		ld	a,(NUM)
@@ -1726,7 +1750,7 @@ NP		call	print64
 		inc	ix
 		djnz	DRVS
 		ld	hl,(VER)
-		call	DEC16S
+		call	dec2char16
 		ld	hl,NUM
 		ld	de,VERS
 		ldi
@@ -1889,6 +1913,7 @@ OZNDEL2		ld	hl,57344
 		ld	(hl),0
 		ldir
 		ret
+
 OZNTEST		call	OZNFIND
 		or	a
 		jr	z,OZNTB0
@@ -1901,6 +1926,7 @@ OZNT1		ld	b,a
 		ld	a,(hl)
 		and	b
 		ret
+
 OZNSWAP		push	bc
 		call	OZNFIND
 		or	a
@@ -1917,6 +1943,7 @@ OZNS1		ld	b,a
 		and	b
 		pop	bc
 		ret
+
 OZNFIND		ld	d,b
 		ld	e,c
 		srl	d
@@ -2237,22 +2264,22 @@ II		call	CHANGE
 
 		ld	iy,SFIL
 		ld	hl,(STO)
-		call	DEC16
+		call	dec2char16_j
 		ld	iy,SSEC
 		ld	hl,(SLEN1)
 		ld	de,(SLEN2)
-		call	DEC32
+		call	dec2char32_j
 		ld	iy,TTOT
 		ld	hl,(TLEN1)
 		ld	de,(TLEN2)
-		call	DEC32
+		call	dec2char32_j
 		ld	iy,STOT
 		ld	hl,(TOT)
-		call	DEC16
+		call	dec2char16_j
 		ld	iy,STOI
 		ld	hl,(LENDIR1)
-		call	DEC16
-		ld	a,(PRINTD+1)
+		call	dec2char16_j
+		ld	a,(draw_panel+1)
 		sub	2
 		srl	a
 		ld	hl,10*256+0
@@ -2260,7 +2287,7 @@ II		call	CHANGE
 		ld	de,7*256+16
 		call	IN
 		exx
-		ld	a,(PRINTD+1)
+		ld	a,(draw_panel+1)
 		ld	hl,11*256+0
 		ld	l,a
 		ld	de,INFPAN
@@ -3067,10 +3094,10 @@ VIEW		ld	bc,(FILE1)
 
 		ld	hl,(LENSEC)
 		ld	iy,VTXT1
-		call	DEC16
+		call	dec2char16_j
 		ld	hl,(FASTMEM+#16)
 		ld	iy,NUMBER
-		call	DEC16
+		call	dec2char16_j
 		ld	hl,14
 		ld	de,NUMBER
 		call	print64
@@ -3082,7 +3109,7 @@ VIEW		ld	bc,(FILE1)
 		ld	de,(FASTMEM+#1A)
 		ld	hl,(FASTMEM+#18)
 		ld	iy,NUMBER32
-		call	DEC32
+		call	dec2char32_j
 		ld	hl,20
 		ld	de,NUMBER32
 		call	print64
@@ -3118,7 +3145,7 @@ VIEW1		ld	hl,BOOT
 		ld	hl,(POCSEC)
 		inc	hl
 		ld	iy,VTXT2
-		call	DEC16
+		call	dec2char16_j
 		ld	hl,256*23+1
 		ld	de,VTXT
 		call	print64
@@ -3567,7 +3594,7 @@ NAS0		add	hl,de
 		ret
 
 ;BSDOS #DEC8X, nezarovnane
-DEC8S:		ld	ix,NUM			;nastavenie pozicie vypisu
+dec2char8:	ld	ix,NUM			;nastavenie pozicie vypisu
 		ld	(XXX),ix		;cez systemovu premennu XXX
 		ld	c,0			;vypisovat budeme iba platne znaky
 		ld	a,dos_dec8x		;sluzba DEC8X
@@ -3578,7 +3605,7 @@ DEC8S:		ld	ix,NUM			;nastavenie pozicie vypisu
 		ret
 
 ;BSDOS #DEC16X, nezarovnane
-DEC16S:		ld	ix,NUM			;nastavenie pozicie vypisu
+dec2char16:	ld	ix,NUM			;nastavenie pozicie vypisu
 		ld	(XXX),ix		;cez systemovu premennu XXX
 		ld	c,0			;vypisovat budeme iba platne znaky
 		ld	a,dos_dec16x		;sluzba DEC16X
@@ -3589,7 +3616,7 @@ DEC16S:		ld	ix,NUM			;nastavenie pozicie vypisu
 		ret
 
 ;BSDOS #DEC32X, nezarovnane
-DEC32S:		ld	ix,NUM			;nastavenie pozicie vypisu
+dec2char32:	ld	ix,NUM			;nastavenie pozicie vypisu
 		ld	(XXX),ix		;cez systemovu premennu XXX
 		ld	c,0			;vypisovat budeme iba platne znaky
 		ld	b,5			;vypiseme maximalne 5 znakov
@@ -3602,7 +3629,7 @@ DEC32S:		ld	ix,NUM			;nastavenie pozicie vypisu
 
 ;BSDOS #DEC8X, zarovnane v pravo
 ;input: iy=pozicia textu
-DEC8:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
+dec2char8_j:	ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
 		ld	(XXX),iy		;pozicia textu do systemovej premennej XXX
 		ld	a,dos_dec8x		;sluzba DEC8X - Vypisuje osembitove desiatkove cislo
 		rst	#20			;BSDOS
@@ -3610,7 +3637,7 @@ DEC8:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
 
 ;BSDOS #DEC16X, zarovnane v pravo
 ;input: iy=pozicia textu
-DEC16:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul			
+dec2char16_j:	ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul			
 		ld	(XXX),iy		;pozicia textu do systemovej premennej XXX
 		ld	a,dos_dec16x		;sluzba DEC16X - vypisuje 16-bitove desiatkove cislo
 		rst	#20			;BSDOS
@@ -3618,7 +3645,7 @@ DEC16:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
 
 ;BSDOS #DEC32X, zarovnane v pravo
 ;input: iy=pozicia textu
-DEC32:		ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
+dec2char32_j:	ld	c,' '			;medzera namiesto nevyznamnych uvodnych nul
 		ld	(XXX),iy		;pozicia textu do systemovej premennej XXX
 		ld	b,7			;vypiseme maximalne 7 znakov
 		ld	a,dos_dec32x		;sluzba DEC32X - vypisuje 32-bitove desiatkove cislo
