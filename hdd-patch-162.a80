@@ -1,0 +1,1244 @@
+
+
+         org  32768
+         ent  $
+
+
+;------------------------------
+;hdd 2 mb02 v:1.62    dR0n_K3l
+;------------------------------
+
+;rozsirena verze
+;
+; mode 000 - cte 2x 1 sect
+; mode 001 - cte 2 sect
+; mode 010 - LBA mod cte 2 sect
+;
+;pouziva dma prenosy
+;kapacita diskimage - 2MB
+;diskimage format   - 128x8x2
+;slave/master, write protect
+;test 255 (tnt, hood)
+
+;------------------------------
+
+
+         jp   INSTALL
+
+;virtual (floppy)disk table
+VDT      defs 8+1024
+
+;porty hdd
+
+P_DAT    defb 195
+P_ERR    defb 199
+P_HSE    defb 203
+P_NSE    defb 207
+P_CYL    defb 211
+P_CYH    defb 215
+P_HEA    defb 219
+P_COM    defb 223
+
+
+;P_DAT    defb 163
+;P_ERR    defb 167
+;P_HSE    defb 171
+;P_NSE    defb 175
+;P_CYL    defb 179
+;P_CYH    defb 183
+;P_HEA    defb 187
+;P_COM    defb 191
+
+
+INSTALL  di
+
+
+         ld   hl,15616
+         ld   de,40000
+         ld   bc,768
+         ldir
+
+         ld   hl,VDT
+         ld   de,TAB
+         ld   bc,1024+8
+         ldir
+
+         ld   a,97
+         out  (23),a
+
+         ld   hl,ADR20
+         ld   de,20
+         ld   bc,12
+         ldir
+
+         ld   hl,ADR35
+         ld   de,35
+         ld   c,5
+         ldir
+
+         ld   hl,ADR62
+         ld   de,62
+         ld   c,11
+         ldir
+
+         ld   a,205
+         ld   (#13CA),a
+         ld   hl,62
+         ld   (#13CA+1),hl
+;set no_verify patch
+
+         ld   hl,SEM
+         ld   de,144
+         ld   bc,112
+         ldir
+
+         ld   a,98
+         out  (23),a
+
+         ld   hl,ADR0
+         ld   de,0
+         ld   bc,33+8
+         ldir
+
+         ld   hl,201*256+251
+         ld   (56),hl
+
+         ld   hl,SEM1
+         ld   de,144
+         ld   bc,LEN
+         ldir
+
+         ld   a,(P_DAT)
+         ld   (P1),a
+         ld   (P11),a
+         ld   a,(P_ERR)
+         ld   (P2+1),a
+         ld   a,(P_HSE)
+         ld   (P3+1),a
+         ld   (P31+1),a
+         ld   (P32+1),a
+         ld   (P33+1),a
+         ld   a,(P_NSE)
+         ld   (P4+1),a
+         ld   (P41+1),a
+         ld   (P42+1),a
+         ld   (P43+1),a
+         ld   a,(P_CYL)
+         ld   (P5+1),a
+         ld   (P51+1),a
+         ld   (P52+1),a
+         ld   (P53+1),a
+         ld   a,(P_CYH)
+         ld   (P6+1),a
+         ld   (P61+1),a
+         ld   (P62+1),a
+         ld   (P63+1),a
+         ld   a,(P_HEA)
+         ld   (P7+1),a
+         ld   (P71+1),a
+         ld   (P72+1),a
+         ld   (P73+1),a
+         ld   a,(P_COM)
+         ld   (P8+1),a
+         ld   (P81+1),a
+         ld   (P82+1),a
+         ld   (P83+1),a
+         ld   (P84+1),a
+         ld   (P85+1),a
+
+
+         ld   hl,40000
+         ld   de,15616
+         ld   bc,768
+         ldir
+;kopirovani fontu do hdd_bank
+
+         ld   a,%01000000
+         out  (23),a
+         ei
+         ret
+
+
+;------------------------------
+;------------------------------
+;adresa 62 v dos_bnk
+ADR62
+         ld   c,a
+         ld   a,(#03EF)
+         cp   5
+         ld   a,c
+         ret  nc
+         jp   #1463
+
+;------------------------------
+;------------------------------
+
+;adresa 20 v dos_bnk
+;hdd_bnk musi byt dos_bnk+1
+
+ADR20
+         ld   (hl),b
+         inc  a
+         out  (23),a
+         jp   144
+
+;adresa 27
+         ld   a,98
+         out  (23),a
+         ret
+
+;------------------------------
+;------------------------------
+
+;adresa 35 v dos_bnk
+
+ADR35
+         out  (c),b
+         inc  a
+         out  (23),a
+
+;------------------------------
+;------------------------------
+
+;adresa 0 v hdd_bnk
+
+DMA_STRT equ  33
+
+ADR0
+         di
+         xor  a
+         ld   de,65535
+         jp   5
+         defm "HddDrive"
+
+;tohle jsem obslehl z ramdrive
+;podle toho "HddDrive" by se
+;dala testovat pritomnost
+;HddPatche (kazda ramdiskova
+;stranka tam ma "RamDrive")
+
+
+         ld   a,97
+         out  (23),a
+         ld   (hl),b
+         inc  a
+         out  (23),a
+         ret
+         nop
+         nop
+;adr27 - route to hdd_bnk
+         ld   a,97
+         out  (23),a
+         defb 24,111
+;jr   144
+
+;adr33 - route to dma_strt
+;musi byt ld  a,97
+;a taky ld bc,port_dma
+         out  (23),a
+         out  (c),b
+         inc  a
+         out  (23),a
+         ret
+
+
+;------------------------------
+;------------------------------
+;adresa 144 v dos_bnk
+
+
+SEM
+         org  144
+         put  SEM
+
+
+ADR144D
+         push hl
+         ld   hl,255
+         ld   (hl),a
+         dec  hl
+         ex   (sp),hl
+
+         cp   12
+         jr   c,SKIP1
+         cp   15
+         jr   c,SLUZ1214
+SKIP1
+         cp   16
+         jr   z,SETMLT
+         or   a
+         ret  z
+         cp   15
+         ret  nc
+ACT      ret
+
+         inc  sp
+         inc  sp
+AAA
+         cp   4
+         jr   c,LOOP12
+         cp   6
+         jr   c,RDWRSEC
+LOOP12   cp   7
+         jr   z,RDWRSEC
+         xor  a
+         ret
+
+
+RDWRSEC  push hl
+         push de
+         ld   b,a
+         ld   (SP_ST+1),sp
+         ld   sp,128
+         call 27
+SP_ST    ld   sp,0
+         push bc
+RUT      call NIC
+         pop  af
+         pop  de
+         pop  hl
+NIC      ret
+
+
+SETMLT   ld   a,h
+         or   l
+         jr   nz,LOOP14
+         ld   hl,NIC
+LOOP14   ld   (RUT+1),hl
+         ret
+
+
+SLUZ1214
+         push de
+         push hl
+         ld   b,a
+         ld   (SP_ST+1),sp
+         ld   sp,128
+         call 27
+         ld   sp,(SP_ST+1)
+         ld   a,b
+         pop  hl
+         or   a
+         jr   nz,NO_NFO
+         inc  sp
+         inc  sp
+         push de
+NO_NFO
+         pop  de
+         cp   255
+         ret  z
+;nz=hned se vrat
+;z=predej dal
+PRYC
+         inc  sp
+         inc  sp
+         ret
+
+         nop
+         nop
+
+A1_254
+         ld   a,85
+;tady je uz adresa 256
+
+
+;------------------------------
+;------------------------------
+
+
+SEM1     equ  $-ADR144D+SEM
+         org  144
+         put  SEM1
+
+;adresa 144 v hdd_bnk
+
+
+KKK
+         jp   PRESKOC
+
+TAB      equ  $-KKK+SEM1
+
+;primary
+M_SEC1   defb 0
+M_HEA1   defb 0
+M_CYL1   defw 0
+
+;secondary
+M_SEC2   defb 0
+M_HEA2   defb 0
+M_CYL2   defw 0
+
+
+TAB_DRV
+         defs 1024
+
+PRESKOC
+         push hl
+         ld   hl,RET
+         ex   (sp),hl
+
+         ld   a,b
+
+         cp   12
+         jr   z,AKTIVE1
+         cp   13
+         jr   z,PASIVE1
+         cp   14
+         jr   z,INFO1
+
+         cp   4
+SET_RDM  jp   z,RD_SEC0
+         cp   5
+SET_WRM1 jp   z,WR_SEC0
+         cp   7
+         jp   z,WR_TRK
+         xor  a
+
+         ret
+
+
+RET
+         ld   b,a
+         jp   27
+
+
+;---------
+
+INFO1    ld   a,e
+         call TST_DRV
+         ld   a,255
+         ret  z
+         ld   de,128*256+3
+         xor  a
+         ret
+    
+;---------
+
+PASIVE1  ld   a,201
+         ld   hl,ACT
+         ld   b,a
+         rst  16
+         ld   a,255
+         ret
+
+;---------
+
+AKTIVE1  call PASIVE1
+         ld   a,e
+         call TST_DRV
+         ld   a,255
+         ret  z
+         xor  a
+         ld   hl,ACT
+         ld   b,a
+         rst  16
+         ld   a,2
+         ret
+
+
+;------------------------------
+
+WR_TRK
+
+         ld   a,e
+         and  128
+         ld   e,a
+         xor  a
+WTRK1
+         inc  e
+         push de
+         push hl
+         push af
+SET_WRM2 call WR_SEC0
+         pop  af
+         pop  hl
+         ld   de,1024
+         add  hl,de
+         pop  de
+         inc  a
+         cp   9
+;pocet sektoru -1
+         jr   nz,WTRK1
+
+         ret
+
+
+
+;------------------------------
+
+SECT_NUM
+
+;vypocita log.cislo sektoru
+;z udaju pro disketu
+;hl se nezmeni, udaj je vlozen
+;primo do rutiny prepoc
+
+         push hl
+         ld   l,d
+         ld   h,0
+         add  hl,hl
+         add  hl,hl
+         add  hl,hl
+         add  hl,hl
+;*16
+         ld   a,e
+         dec  a
+         and  %00000111
+         bit  7,e
+         jr   z,RDS1
+         or   %00001000
+RDS1
+         or   l
+         ld   l,a
+
+;hl = log. cislo sectoru
+;     pocita se od 0
+
+         add  hl,hl
+
+;jeste se vynasobi dvema
+;harddisk ma sektor 512 bajtu
+;musime precist dva sektory
+
+         ld   (PREPOC+1),hl
+         ld   a,h
+         pop  hl
+         and  %11110000
+         ret  z
+
+         ld   a,%00010000
+         or   a
+         ret
+
+;seek error (zapis za hranici)
+
+;------------------------------
+
+PREPOC
+;prepocita log.cislo sektoru
+;diskety na odpovidajici udaj
+;na harddisku (cyl,sec,hea)
+
+;v hl vstupuje l.cislo sectoru
+;od 0
+
+         ld   hl,0
+
+LOW24    ld   de,0
+         add  hl,de
+HIG24    ld   de,0
+         jr   nc,PREP1
+         inc  de
+PREP1
+M_SEC    ld   a,0
+         call DIV248
+         ld   e,d
+         ld   d,0
+         push de
+;de -> sec
+M_HEA    ld   a,0
+         ld   e,a
+         ld   d,0
+         call DIV
+         push de
+;de -> heads
+M_CYL    ld   de,0
+         call DIV
+;de -> cyl
+         pop  hl
+         ld   b,l
+         pop  hl
+         ld   c,l
+         inc  c
+         ret
+
+;----------
+
+PREP_LBA
+         ld   hl,(PREPOC+1)
+         ld   de,(LOW24+1)
+         add  hl,de
+         ld   de,(HIG24+1)
+         jr   nc,PREP2
+         inc  de
+PREP2
+
+;b - hlavicka 219
+;c - sektor 207
+;de - cyl  e - 211, d -215
+
+         ld   b,d
+         ld   d,e
+         ld   e,h
+         ld   c,l
+
+         ret
+
+
+;------------------------------
+;---------- GENERIC 000 -------
+;------------------------------
+
+RD_SEC0
+         call SECT_NUM
+         ret  nz
+
+         call RDD
+         ret  nz
+         ld   de,(PREPOC+1)
+         inc  de
+         ld   (PREPOC+1),de
+         call RDD
+         ret
+;jestli je vse ok,vraci zero fl
+
+;-------
+
+RDD
+         push hl
+         call PREPOC
+         pop  hl
+         call READ0
+         ret
+
+;------------------------------
+
+WR_SEC0
+
+WR_PROT  ld   a,0
+         or   a
+         ret  nz
+
+         call SECT_NUM
+         ret  nz
+
+         call WRR
+         ret  nz
+         ld   de,(PREPOC+1)
+         inc  de
+         ld   (PREPOC+1),de
+         call WRR
+         ret
+;jestli je vse ok,vraci zero fl
+
+;------
+
+WRR
+         push hl
+         call PREPOC
+         pop  hl
+         call WRITE0
+         ret
+
+;------------------------------
+
+READ0
+         call TST_BSY
+         jp   nz,ERROR
+
+         ld   a,b
+HEA_RD0  or   %10100000
+P7       out  (0),a
+;cislo hlavicky
+
+         ld   a,1
+P3       out  (0),a
+;pocet sektoru
+
+         ld   a,c
+P4       out  (0),a
+;cislo sektoru od 1
+
+         ld   a,e
+P5       out  (0),a
+         ld   a,d
+P6       out  (0),a
+;cislo cylindru
+
+         ld   a,#21
+P8       out  (0),a
+;read with retries
+
+         call TST_BSY
+         jp   nz,ERROR
+
+         call RD_512
+;funguje jako inir (hl+512)
+
+         call TST_ERR
+         jp   nz,ERROR
+
+         xor  a
+         ret
+
+;------------------------------
+
+WRITE0
+
+         call TST_BSY
+         jp   nz,ERROR
+
+         ld   a,b
+HEA_WR0  or   %10100000
+P71      out  (0),a
+;hlavicka
+
+         ld   a,1
+P31      out  (0),a
+;pocet sektoru
+         ld   a,c
+P41      out  (0),a
+;cislo sektoru od 1
+         ld   a,e
+P51      out  (0),a
+         ld   a,d
+P61      out  (0),a
+;cislo cylindru
+
+         ld   a,#31
+P81      out  (0),a
+;write with retries
+
+         call TST_BSY
+         jp   nz,ERROR
+
+         call WR_512
+
+         call TST_BSY
+         jp   nz,ERROR
+         call TST_ERR
+         jp   nz,ERROR
+
+         xor  a
+         ret
+
+;------------------------------
+;----- END OF GENERIC 000 -----
+;------------------------------
+
+
+
+;------------------------------
+;--------- GENERIC+ 001 -------
+;------------------------------
+
+RD_SEC1
+         call SECT_NUM
+         ret  nz
+         push hl
+         call PREPOC
+         pop  hl
+         call READ1
+         ret
+
+;------------------------------
+
+WR_SEC1
+         ld   a,(WR_PROT+1)
+         or   a
+         ret  nz
+
+         call SECT_NUM
+         ret  nz
+         push hl
+         call PREPOC
+         pop  hl
+         call WRITE1
+         ret
+
+;------------------------------
+
+READ1
+         call TST_BSY
+         jp   nz,ERROR
+
+         ld   a,b
+HEA_RD1  or   %10100000
+P72      out  (0),a
+;cislo hlavicky
+
+         ld   a,2
+P32      out  (0),a
+;pocet sektoru
+
+         ld   a,c
+P42      out  (0),a
+;cislo sektoru od 1
+
+         ld   a,e
+P52      out  (0),a
+         ld   a,d
+P62      out  (0),a
+;cislo cylindru
+
+         ld   a,#21
+P82      out  (0),a
+;read with retries
+
+         call TST_BSY
+         jr   nz,ERROR
+
+         call RD_512
+
+         call TST_ERR
+         jr   nz,ERROR
+
+         call TST_BSY
+         jr   nz,ERROR
+
+         call RD_512
+
+         call TST_ERR
+         jr   nz,ERROR
+
+         xor  a
+         ret
+
+;------------------------------
+
+WRITE1
+
+         call TST_BSY
+         jr   nz,ERROR
+
+         ld   a,b
+HEA_WR1  or   %10100000
+P73      out  (0),a
+;hlavicka
+
+         ld   a,2
+P33      out  (0),a
+;pocet sektoru
+         ld   a,c
+P43      out  (0),a
+;cislo sektoru od 1
+         ld   a,e
+P53      out  (0),a
+         ld   a,d
+P63      out  (0),a
+;cislo cylindru
+
+         ld   a,#31
+P83      out  (0),a
+;write with retries
+
+         call TST_BSY
+         jr   nz,ERROR
+
+         call WR_512
+
+         call TST_BSY
+         jr   nz,ERROR
+         call TST_ERR
+         jr   nz,ERROR
+
+         call WR_512
+
+         call TST_BSY
+         jr   nz,ERROR
+         call TST_ERR
+         jr   nz,ERROR
+      
+
+         xor  a
+         ret
+
+;------------------------------
+;----- END OF GENERIC+ 001 ----
+;------------------------------
+
+
+
+
+;------------------------------
+;-------- LBA MODE 010 --------
+;------------------------------
+
+RD_SEC2
+         call SECT_NUM
+         ret  nz
+
+         push hl
+         call PREP_LBA
+         pop  hl
+
+         call READ1
+
+         ret
+
+;------------------------------
+
+WR_SEC2
+         ld   a,(WR_PROT+1)
+         or   a
+         ret  nz
+
+         call SECT_NUM
+         ret  nz
+
+         push hl
+         call PREP_LBA
+         pop  hl
+
+         call WRITE1
+
+         ret
+
+
+;------------------------------
+;---- END OF LBA MODE 010 -----
+;------------------------------
+
+
+
+
+;------------------------------
+;-------- LBA MODE+ 011 -------
+;------------------------------
+
+; zatim nic :-)
+
+;------------------------------
+;---- END OF LBA MODE+ 011 ----
+;------------------------------
+
+
+
+ERROR
+         cp   255
+         jr   nz,ERR1
+         ld   a,1
+         ret
+ERR1
+         and  %01010011
+         jr   z,ERR2
+         ld   a,8
+         ret
+ERR2
+         ld   a,128
+         ret
+
+
+
+;------------------------------
+
+TST_BSY
+         push hl
+         push bc
+         ld   hl,0
+
+TST1
+         dec  hl
+         ld   a,l
+         or   h
+         jr   z,TOUT1
+P84      in   a,(0)
+         inc  a
+         jr   z,P84
+         dec  a
+         bit  7,a
+         jr   nz,TST1
+         pop  bc
+         pop  hl
+         ret
+TOUT1
+         ld   a,255
+         or   a
+         pop  bc
+         pop  hl
+         ret
+
+;------------------------------
+
+TST_ERR
+P85      in   a,(0)
+         inc  a
+         jr   z,P85
+         dec  a
+         and  1
+         ret  z
+P2       in   a,(0)
+         ret
+
+;------------------------------
+
+;------------------------------
+
+
+RD_512
+         ld   (DMA_ADR1),hl
+         push hl
+         ld   hl,DMA_IN
+         ld   bc,14*256+11
+         otir
+         ld   a,97
+         ld   b,#87
+         call DMA_STRT
+; start DMA transfer
+         pop  hl
+         ld   bc,512
+         add  hl,bc
+         ret
+
+DMA_IN   defb 195
+; reset
+         defb %01111101
+P1       defw 0
+         defw 511
+; transfer,PA->PB
+; start adr
+; block length
+         defb %00101100
+; PA is IO,fixed
+         defb %00010000
+; PB is memory,inc
+
+         defb %10101101
+DMA_ADR1 defw 0
+; continuous
+; starting address
+         defb %10010010
+; stop on end,/CE/WAIT,Ready lo
+         defb #CF
+; load
+         defb #B3
+; force ready
+
+;-------------
+
+WR_512
+         ld   (DMA_ADR2),hl
+         push hl
+         ld   hl,DMA_OUT
+         ld   bc,14*256+11
+         ld   a,97
+         otir
+         ld   a,97
+         ld   b,#87
+         call DMA_STRT
+         pop  hl
+         ld   bc,512
+         add  hl,bc
+         ret
+
+DMA_OUT  defb 195
+; reset
+
+         defb %01111101
+DMA_ADR2 defw 0
+         defw 511
+; transfer,PA->PB
+; start adr
+; block length
+         defb %00010100
+; PA is memory,inc
+         defb %00101000
+; PB is IO,fixed
+
+         defb %10101101
+P11      defw 0
+; continuous
+; starting address
+         defb %10010010
+; stop on end,/CE/WAIT,Ready lo
+         defb #CF
+; load
+         defb #B3
+; force ready
+
+;------------------------------
+
+
+TST_DRV
+         ld   l,a
+         ld   h,0
+         add  hl,hl
+         add  hl,hl
+         ld   de,TAB_DRV
+         add  hl,de
+
+         ld   e,(hl)
+         inc  hl
+         ld   d,(hl)
+         inc  hl
+         push de
+         ld   e,(hl)
+         inc  hl
+         ld   d,(hl)
+         pop  hl
+
+         ld   a,d
+         rrca
+         rrca
+         and  %01000000
+         ld   (WR_PROT+1),a
+
+         ld   a,d
+         rrca
+         and  %00000111
+         jr   z,MODE0
+         dec  a
+         jr   z,MODE1
+         dec  a
+         jr   z,MODE2
+         jr   MODE3
+
+
+
+MODE0
+         ld   a,d
+         or   %10100000
+         and  %10110000
+;LBA v zadnem pripade...
+         ld   (HEA_WR0+1),a
+         ld   (HEA_RD0+1),a
+
+         ld   bc,RD_SEC0
+         ld   (SET_RDM+1),bc
+         ld   bc,WR_SEC0
+         ld   (SET_WRM1+1),bc
+         ld   (SET_WRM2+1),bc
+
+         jr   MST_SLV
+;v hl,de jsou data!
+
+
+MODE1
+         ld   a,d
+         or   %10100000
+         and  %10110000
+;LBA v zadnem pripade...
+         ld   (HEA_WR1+1),a
+         ld   (HEA_RD1+1),a
+
+         ld   bc,RD_SEC1
+         ld   (SET_RDM+1),bc
+         ld   bc,WR_SEC1
+         ld   (SET_WRM1+1),bc
+         ld   (SET_WRM2+1),bc
+
+         jr   MST_SLV
+;v hl,de jsou data!
+
+
+MODE2
+         ld   a,d
+         or   %11100000
+;kdyz LBA, tak 100% LBA
+         and  %11110000
+         ld   (HEA_WR1+1),a
+         ld   (HEA_RD1+1),a
+
+         ld   bc,RD_SEC2
+         ld   (SET_RDM+1),bc
+         ld   bc,WR_SEC2
+         ld   (SET_WRM1+1),bc
+         ld   (SET_WRM2+1),bc
+
+         jr   LBA_MOD
+;v hl,de jsou data!
+
+MODE3
+
+
+MST_SLV
+         and  %00010000
+         jr   z,PRIM
+         ld   a,(M_SEC2)
+         ld   (M_SEC+1),a
+         ld   a,(M_HEA2)
+         ld   (M_HEA+1),a
+         ld   bc,(M_CYL2)
+         ld   (M_CYL+1),bc
+         jr   SLAVE
+PRIM
+         ld   a,(M_SEC1)
+         ld   (M_SEC+1),a
+         ld   a,(M_HEA1)
+         ld   (M_HEA+1),a
+         ld   bc,(M_CYL1)
+         ld   (M_CYL+1),bc
+SLAVE
+LBA_MOD
+         ld   d,0
+         ld   (LOW24+1),hl
+         ld   (HIG24+1),de
+
+         ld   a,e
+         or   h
+         or   l
+         ret
+
+
+;------------------------------
+
+DIV
+         ld   a,h
+         ld   c,l
+         ld   hl,0
+         ld   b,16
+DIV2     slia c
+         rla
+         adc  hl,hl
+         sbc  hl,de
+         jr   nc,DIV3
+         add  hl,de
+         dec  c
+DIV3     djnz DIV2
+         ex   de,hl
+         ld   h,a
+         ld   l,c
+         ret
+
+;------------------------------
+
+DIV248
+         push ix
+         ld   bc,0
+         ld   d,0
+         ld   lx,a
+         ld   hx,24
+DIV2481
+         slia l
+         rl   h
+         rl   e
+         rl   d
+         rl   c
+         rl   b
+;adc bcd,bcd
+
+         ld   a,d
+         sbc  a,lx
+         ld   d,a
+         jp   nc,DIVOK1
+         dec  c
+         jp   p,DIVOK1
+         dec  b
+DIVOK1
+;sbc bcd,lx
+         jp   p,DIVOK3
+
+         add  a,lx
+         ld   d,a
+         jp   nc,DIVOK2
+         inc  c
+         jp   nz,DIVOK2
+         inc  b
+DIVOK2
+         dec  l
+DIVOK3
+;add bcd,lx
+
+         dec  hx
+         jp   nz,DIV2481
+
+         pop  ix
+         ret
+
+
+LEN      equ  $-144
+
+END      equ  $-KKK+SEM1
+A1LEN    equ  END-32768
+
+BUFFER
