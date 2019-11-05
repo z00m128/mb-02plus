@@ -1,0 +1,5 @@
+*.tap binary
+*.bin binary
+*.zip binary
+
+

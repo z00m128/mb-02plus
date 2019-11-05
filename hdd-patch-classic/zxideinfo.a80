@@ -1,0 +1,1640 @@
+; ZX IDE Info - IDE devices detection and information tool for ZX Spectrum
+;
+; Copyright (C) 2000-2005  Lubomir Blaha <tritol(at)trilogic(dot)cz>
+;
+; This program is free software; you can redistribute it and/or modify
+; it under the terms of the GNU General Public License as published by
+; the Free Software Foundation; either version 2 of the License, or
+; (at your option) any later version.
+;
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, write to the Free Software
+; Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+;
+; http://www.gnu.org/licenses/gpl.html
+; Cesky neoficialni preklad http://www.gnu.cz/gpl-cz.html
+
+; for AS
+;		CPU	Z80UNDOC
+;		RELAXED	ON
+
+; for SjASMPlus
+		device	zxspectrum48
+
+;ATA ports MB03
+;RDATA		equ	195	;#c3
+;RPARAM		equ	167	;#a7
+;RSECPOC	equ	203	;#cb
+;RSEC		equ	175	;#af
+;RCYLL		equ	211	;#d3
+;RCYLH		equ	183	;#b7
+;RHEAD		equ	219	;#db
+;RCOM		equ	191	;#bf
+;RSTAT		equ	191	;#bf
+
+;ATA ports dron
+;RDATA		equ	195	;#c3
+;RPARAM		equ	199	;#c7
+;RSECPOC	equ	203	;#cb
+;RSEC		equ	207	;#cf
+;RCYLL		equ	211	;#d3
+;RCYLH:		equ	215	;#d7
+;RHEAD:		equ	219	;#db
+;RCOM:		equ	223	;#df
+;RSTAT:		equ	223	;#df
+
+;ATA ports pvl
+RDATA		equ	163	;#a3
+RPARAM		equ	167	;#a7
+RSECPOC	equ	171	;#ab
+RSEC		equ	175	;#af
+RCYLL		equ	179	;#b3
+RCYLH		equ	183	;#b7
+RHEAD		equ	187	;#bb
+RCOM		equ	191	;#bf
+RSTAT		equ	191	;#bf
+
+CRESET		equ	$10
+CRESETA		equ	$08
+CREAD		equ	$20
+CWRITE		equ	$30
+CDIAG		equ	$90
+CIDENT		equ	$EC
+CIDENTA		equ	$A1
+CATAPI		equ	$A0
+
+
+HKONST		equ	160
+PRINTBC		equ	$1A1B
+
+;------------------------------
+
+
+ZNSADA		equ	15616
+;------------------------------
+;==============================
+KAM		equ	32768
+DATAKAM		equ	23296
+
+;******************************
+;pouze docasne pro prevod cisla dec
+DATA		equ	23296	;10 B
+DATABIN		equ	DATA+10	;4 B
+
+
+
+		org	25000
+
+START
+		ei
+;cls
+		ld	hl,16384
+		ld	de,16385
+		ld	bc,6144
+		xor	a
+		ld	(hl),a
+		ldir
+		inc	a
+		ld	(23692),a
+		ld	a,(23693)
+		ld	(hl),a
+		ld	bc,767
+		ldir
+
+		ld	a,2
+		call	$1601
+		call	PRINTSP
+		defb	22,0,1,19,1
+		defb	" IDE info v1.62 2000 PVL&TNT "
+		defb	19,0,13,13+128
+		exx
+		push	hl
+
+		call	PRINTSP
+		defb	19,1
+		defb	"MASTER:"
+		defb	13+128
+		xor	a
+		call	DOIT
+
+		ld	a,2
+		jr	c,ERR_MAS
+		ld	a,4
+ERR_MAS
+		out	(254),a
+
+		call	PRINTSP
+		defb	13,13,19,1
+		defb	"SLAVE:"
+		defb	13+128
+		ld	a,16
+		call	DOIT
+
+		ld	a,2
+		jr	c,ERR_SLA
+		ld	a,4
+ERR_SLA
+		out	(254),a
+BASIC
+		pop	hl
+		exx
+		ei
+		ret
+
+;+++++++++++++++++++++++++++
+;+++++++++  ZX-IDE  ++++++++
+;+++++++++++++++++++++++++++
+
+
+TSTATAPI	xor	a
+		ld	(JEIDE+1),a
+		ld	a,62
+		ld	(FASTDRQ),a
+		ld	a,CIDENTA
+		out	(RCOM),a
+		ld	hl,KAM
+		ld	bc,RDATA
+		call	IDE_DTRD
+		jr	c,DETERR
+		inir
+		inir
+;test konce operace
+		call	IDE_DRRD
+		jr	c,DETERR
+		ld	a,(KAM)
+		and	%01100000
+		ld	b,62
+		jr	z,DOIT2
+		ld	b,201
+DOIT2		ld	a,b
+		ld	(FASTDRQ),a
+		jr	PRES
+
+DETERR		call	PRINTSP
+		defb	"not present or device erro",'r'+128
+		scf
+		ret
+
+DOIT
+		ld	(IDE_MOS),a
+		or	160
+		out	(RHEAD),a
+;active master/slave
+
+		ld	a,255
+		ld	(JEIDE+1),a
+
+		ld	a,CIDENT
+		out	(RCOM),a
+		ld	hl,KAM
+		ld	bc,RDATA
+		call	IDE_DTRD
+		jr	c,TSTATAPI
+		inir
+		inir
+;test konce operace
+		call	IDE_DRRD
+		jr	c,DETERR
+PRES
+		call	DEVNAME
+		call	PRINTSP
+		defb	"IDE type:",' '+128
+		ld	a,(KAM+1)
+		bit	7,a
+		ld	hl,ATA3
+		jr	z,DTYP2
+		ld	hl,ATAPI
+DTYP2		call	PRINT128
+		call	PRINTSP
+		defb	"  Removable:",' '+128
+		ld	a,(KAM)
+		bit	7,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	13
+		defb	"Type:",' '+128
+JEIDE		ld	a,0
+		ld	hl,HDDTXT
+		ld	de,HDDPARAM
+		or	a
+		jr	nz,DEVTYP
+;na ide prikaz reaguje jen hdd
+		ld	a,(KAM+1)
+		and	%00011111
+		ld	hl,CDRTXT
+		ld	de,CDRPARAM
+		cp	5
+		jr	z,DEVTYP
+		ld	hl,ZIPTXT
+		ld	de,ZIPPARAM
+		or	a
+		jr	z,DEVTYP
+;sem pridat test dalsich atapi zarizeni
+		ld	hl,UNKNTXT
+		ld	de,NAVRAT
+DEVTYP		push	de
+		jp	PRINT128
+
+ATA3		defb	"ATA"
+		defb	6+128
+ATAPI		defb	"ATAPI"
+		defb	6+128
+YES		defb	"ye",'s'+128
+NO		defb	'n','o'+128
+HDDTXT		defb	"Hard Dis",'k'+128
+CDRTXT		defb	"CD/DVD-ROM/R/R",'W'+128
+ZIPTXT		defb	"Direct Acces",'s'+128
+UNKNTXT		defb	"unknow",'n'+128
+
+
+DEVNAME
+;vypis jmena nalezeneho zariz.
+		ld	hl,KAM+54
+		ld	b,32
+;znaky od 33 do 40 nezobrazeny
+		call	PROHOD
+		call	PRINTB
+		ld	a,19
+		rst	16
+		xor	a
+		rst	16
+		ret
+
+;vypis parametru pro ZIPdrive
+ZIPPARAM	call	GETDRQ
+		call	PRINTSP
+		defb	13
+		defb	"Firmware revision:",' '+128
+		ld	hl,KAM+46
+		ld	b,8
+		call	PROHOD
+		call	PRINTB
+
+		call	READSIZE
+		ret	c
+		ret	nz
+		ld	(ZSIZ+1),hl
+
+		ld	hl,MSZIP
+		call	READSENS
+		ret	c
+
+		ld	a,(ix+0)
+		cp	5
+;page code
+		jp	nz,CDRERROR
+		call	PRINTSP
+		defb	13
+		defb	"C/H/S:",' '+128
+		ld	b,(ix+8)
+		ld	c,(ix+9)
+		call	PRINTBC
+		ld	a,'/'
+		rst	16
+		ld	c,(ix+4)
+		ld	b,0
+		call	PRINTBC
+		ld	a,'/'
+		rst	16
+		ld	c,(ix+5)
+		ld	b,0
+		call	PRINTBC
+		ld	a,32
+		rst	16
+		ld	a,'('
+		rst	16
+		ld	h,(ix+8)
+		ld	l,(ix+9)
+		ld	d,(ix+4)
+		ld	e,(ix+5)
+		ld	a,(ix+6)
+		call	CHS2MB
+		call	PRINTBC
+		call	PRINTSP
+		defb	" MB)"
+		defb	13
+		defb	"Transfer rate:",' '+128
+		ld	b,(ix+2)
+		ld	a,(ix+3)
+		srl	b
+		rra
+		srl	b
+		rra
+		srl	b
+		rra
+		ld	c,a
+;prevod z kbits na kbytes
+		call	PRINTBC
+		call	PRINTSP
+		defb	" kB/s"
+		defb	13
+		defb	"Data bytes/sector:",' '+128
+		ld	b,(ix+6)
+		ld	c,(ix+7)
+		call	PRINTBC
+		call	PRINTSP
+		defb	13
+		defb	"Motor off:",' '+128
+		ld	c,(ix+20)
+		inc	c
+		jr	nz,ZIPNEV
+		call	PRINTSP
+		defb	"neve",'r'+128
+		jr	ZIPP3
+
+ZIPNEV		dec	c
+		ld	b,0
+		call	PRINTBC
+		call	PRINTSP
+		defb	"x0.1 se",'c'+128
+ZIPP3		call	PRINTSP
+		defb	13
+		defb	"Medium",' '+128
+ZSIZ		ld	hl,0
+		ld	a,l
+		or	h
+		jr	z,ZSIZ2
+		jp	PRINT128
+ZSIZ2		call	PRINTSP
+		defb	13
+		defb	" changed:",' '+128
+CHANGE2		ld	a,0
+		or	a
+		call	ROZHOD
+		call	PRINTSP
+		defb	13
+		defb	" rotation rate:"
+		defb	160
+		ld	b,(ix+28)
+		ld	c,(ix+29)
+		call	PRINTBC
+		call	PRINTSP
+		defb	" rp",'m'+128
+		call	PRINTSIZ
+		call	PRINTSP
+		defb	" MB"
+		defb	13
+		defb	" write protected:",' '+128
+		bit	7,(ix-5)
+		call	ROZHOD
+		or	a
+		ret
+
+;parametry pro CD-ROM
+CDRPARAM	call	GETDRQ
+		call	PRINTSP
+		defb	13
+		defb	"Firmware revision:",' '+128
+		ld	hl,KAM+46
+		ld	b,8
+		call	PROHOD
+		call	PRINTB
+
+		call	READSIZE
+		ret	c
+		ret	nz
+		ld	(CDSIZ+1),hl
+
+		ld	hl,MSCDR
+		call	READSENS
+		ret	c
+
+		ld	a,(ix+0)
+		cp	$2A
+;page code
+		jp	nz,CDRERROR
+		call	PRINTSP
+		defb	13
+		defb	"Buffer:",' '+128
+		ld	b,(ix+12)
+		ld	c,(ix+13)
+		call	PRINTBC
+		call	PRINTSP
+		defb	" kB"
+		defb	13
+		defb	"CD-R wr:",' '+128
+		ld	a,(ix+3)
+		push	af
+		bit	0,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"CD-RW wr:",' '+128
+		pop	af
+		push	af
+		bit	1,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Test wr:",' '+128
+		pop	af
+		push	af
+		bit	2,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"DVD-R wr:",' '+128
+		pop	af
+		push	af
+		bit	4,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"DVDRAM wr:",' '+128
+		pop	af
+		bit	5,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	13
+		defb	"CD-R rd:",' '+128
+		ld	a,(ix+2)
+		push	af
+		bit	0,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"CD-RW rd:",' '+128
+		pop	af
+		push	af
+		bit	1,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Packet rd:",' '+128
+		pop	af
+		push	af
+		bit	2,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"DVDROM rd:",' '+128
+		pop	af
+		push	af
+		bit	3,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"DVD-R rd:",' '+128
+		pop	af
+		push	af
+		bit	4,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"DVDRAM rd:",' '+128
+		pop	af
+		bit	5,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"AudioPlay:",' '+128
+		ld	a,(ix+4)
+		push	af
+		bit	0,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Composite:",' '+128
+		pop	af
+		push	af
+		bit	1,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"DigitalP1:",' '+128
+		pop	af
+		push	af
+		bit	2,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"DigitalP2:",' '+128
+		pop	af
+		push	af
+		bit	3,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Md2 Frm1:",' '+128
+		pop	af
+		push	af
+		bit	4,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Md2 Frm2:",' '+128
+		pop	af
+		push	af
+		bit	5,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Multises:",' '+128
+		pop	af
+		bit	6,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Read CDDA:",' '+128
+		ld	a,(ix+5)
+		push	af
+		bit	0,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Adv. CDDA:",' '+128
+		pop	af
+		push	af
+		bit	1,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"R-W supp:",' '+128
+		pop	af
+		push	af
+		bit	2,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"R-W corr:",' '+128
+		pop	af
+		push	af
+		bit	3,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"C2P supp:",' '+128
+		pop	af
+		push	af
+		bit	4,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"ISRC:",' '+128
+		pop	af
+		push	af
+		bit	5,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"UPC:",' '+128
+		pop	af
+		push	af
+		bit	6,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Bar Code:",' '+128
+		pop	af
+		bit	7,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Lock supp:",' '+128
+		ld	a,(ix+6)
+		xor	%00000100
+;jumper ma opacnou logiku
+		push	af
+		bit	0,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Locked:",' '+128
+		pop	af
+		push	af
+		bit	1,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"PreventJ:",' '+128
+		pop	af
+		push	af
+		bit	2,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Eject:",' '+128
+		pop	af
+		push	af
+		bit	3,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"SDP supp:",' '+128
+		ld	a,(ix+7)
+		push	af
+		bit	2,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"SCC supp:",' '+128
+		pop	af
+		push	af
+		bit	4,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"CD-Text:",' '+128
+		pop	af
+		push	af
+		bit	5,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Sep Vol:",' '+128
+		pop	af
+		push	af
+		bit	0,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Sep Mute:",' '+128
+		pop	af
+		bit	1,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	13
+		defb	"Volume levels:",' '+128
+		ld	b,(ix+10)
+		ld	c,(ix+11)
+		call	PRINTBC
+		call	PRINTSP
+		defb	13
+		defb	"Maximum speed:",' '+128
+		ld	b,(ix+8)
+		ld	c,(ix+9)
+		push	bc
+		call	PRINTBC
+		call	PRINTSP
+		defb	" kB/s ",'('+128
+		pop	hl
+		ld	d,176
+		call	DELENI21
+		ld	b,0
+		call	PRINTBC
+		call	PRINTSP
+		defb	"x)"
+		defb	13
+		defb	"Current speed:",' '+128
+		ld	b,(ix+14)
+		ld	c,(ix+15)
+		push	bc
+		call	PRINTBC
+		call	PRINTSP
+		defb	" kB/s ",'('+128
+		pop	hl
+		ld	d,176
+		call	DELENI21
+		ld	b,0
+		call	PRINTBC
+		call	PRINTSP
+		defb	"x)"
+		defb	13
+		defb	"Loading mechanism:",' '+128
+		pop	af
+		rrca
+		rrca
+		and	%00111000
+;x8
+		ld	hl,LOADTYPS
+		call	ADDHLA
+		call	PRINT128
+
+		call	PRINTSP
+		defb	13
+		defb	"Medium",' '+128
+CDSIZ		ld	hl,0
+		ld	a,l
+		or	h
+		jr	z,CDSIZ2
+		jp	PRINT128
+CDSIZ2		call	PRINTSP
+		defb	13
+		defb	" changed:",' '+128
+
+CHANGE		ld	a,0
+		or	a
+		call	ROZHOD
+		call	PRINTSP
+		defb	13
+		defb	" type:",' '+128
+		ld	a,(ix-6)
+		ld	hl,TABMED2
+		sub	112
+		jr	nc,MEDTYP2
+		ld	hl,TABMED1
+		add	a,112
+		and	%00001111
+;slouceni s CD-R a CD-E
+MEDTYP2		add	a,a
+		call	ADDHLA
+		ld	a,(hl)
+		inc	hl
+		ld	h,(hl)
+		ld	l,a
+		call	PRINT128
+		call	PRINTSIZ
+		call	PRINTSP
+		defb	" MB ",'('+128
+		ld	ix,MEDSIZE
+		ld	l,(ix+3)
+		ld	h,(ix+2)
+		exx
+		ld	l,(ix+1)
+		ld	h,(ix+0)
+		ld	bc,75
+		call	DELENI42
+		ex	de,hl
+		inc	hl
+		inc	hl
+		ld	d,60
+		call	DELENI21
+		push	hl
+		ld	b,0
+		call	PRINTBC
+		ld	a,':'
+		rst	16
+		pop	bc
+		ld	b,0
+		ld	a,9
+		sub	c
+		jr	c,DESSEC
+		ld	a,'0'
+		rst	16
+DESSEC
+		call	PRINTBC
+		ld	a,')'
+		rst	16
+		or	a
+		ret
+
+TABMED1		defw	TYP0,TYP1,TYP2
+		defw	TYP3,TYP4,TYP5
+		defw	TYP6,TYP7,TYP8
+TABMED2		defw	TYP9,TYP10,TYP11
+
+TYP0		defb	"unknown typ",'e'+128
+TYP1		defb	"120mm dat",'a'+128
+TYP2		defb	"120mm audi",'o'+128
+TYP3		defb	"120mm data & audi",'o'+128
+TYP4		defb	"120mm hybri",'d'+128
+TYP5		defb	"80mm dat",'a'+128
+TYP6		defb	"80mm audi",'o'+128
+TYP7		defb	"80mm data & audi",'o'+128
+TYP8		defb	"80mm hybri",'d'+128
+TYP9		defb	"no disc presen",'t'+128
+TYP10		defb	"door ope",'n'+128
+TYP11		defb	"format erro",'r'+128
+
+LOADTYPS	defb	"Caddy  ",' '+128
+		defb	"Tray   ",' '+128
+		defb	"Pop-up ",' '+128
+		defb	"Unknown",' '+128
+		defb	"Changer",' '+128
+		defb	"Changer",' '+128
+		defb	"Unknown",' '+128
+		defb	"Unknown",' '+128
+
+CDRERROR	scf
+		ret
+
+GETDRQ		call	PRINTSP
+		defb	13
+		defb	"CMD DRQ:",' '+128
+		ld	hl,DRQPROC
+		ld	a,(KAM)
+		and	%01100000
+		or	a
+		jr	z,GETDRQ1
+		ld	hl,DRQINT
+		cp	32
+		jr	z,GETDRQ1
+		ld	hl,DRQACC
+		cp	64
+		jr	z,GETDRQ1
+		ld	hl,TYP0
+GETDRQ1		jp	PRINT128
+
+DRQPROC		defb	"Microprocessor (3 ms",')'+128
+DRQINT		defb	"Interrupt (10 ms",')'+128
+DRQACC		defb	"Accelerated (0.05 ms",')'+128
+
+PRINTSIZ
+;tisk kapacity media
+		call	PRINTSP
+		defb	13
+		defb	" size:",' '+128
+		ld	ix,MEDSIZE
+		ld	bc,1
+		ld	l,(ix+3)
+		ld	h,(ix+2)
+		ld	e,(ix+1)
+		ld	d,(ix+0)
+		add	hl,bc
+		ex	de,hl
+		push	de
+		dec	bc
+		adc	hl,bc
+;pricteni 1 (lba je od 0)
+		exx
+		pop	hl
+		exx
+		ld	bc,1024*4
+		call	DELENI42
+		ld	l,(ix+6)
+		ld	h,0
+		call	NASOB
+		ld	b,h
+		ld	c,l
+		jp	PRINTBC
+
+READSENS
+;nacte specif. sense page
+;vstup HL adresa atapi prikazu
+;vystup IX adresa stranky
+		call	ATAPICOM
+		ret	c
+		ld	hl,KAM
+		call	READCD
+		ld	ix,KAM+8
+		ret
+;carry if error
+
+READSIZE
+;precte velikost media atapi zarizeni
+		xor	a
+ZIPPRM
+		ld	(CHANGE2+1),a
+		ld	(CHANGE+1),a
+		ld	hl,READCAP
+		call	ATAPICOM
+;test chyby by "zabral" i pokud neni medium, coz nechceme...
+		ld	hl,MEDSIZE
+		call	READCD
+		ld	hl,0
+		ret	nc
+		ld	a,c
+		rrca
+		rrca
+		rrca
+		rrca
+		and	%00001111
+		cp	2
+		ld	hl,NOTPRS
+		ret	z
+		cp	3
+		ld	hl,CANTRD
+		ret	z
+		cp	6
+		scf
+		ret	nz
+		ld	a,255
+		jr	ZIPPRM
+
+MEDSIZE		defb	0,0,0,0,0,0,0,0
+
+NOTPRS		defb	"not presen",'t'+128
+CANTRD		defb	"cannot rea",'d'+128
+
+
+HDDPARAM
+;vypis parametru pro HDD
+		call	PRINTSP
+		defb	13
+		defb	"C/H/S:",' '+128
+		ld	bc,(KAM+2)
+		call	PRINTBC
+		ld	a,'/'
+		rst	16
+		ld	bc,(KAM+6)
+		push	bc
+		call	PRINTBC
+		ld	a,'/'
+		rst	16
+		ld	bc,(KAM+12)
+		push	bc
+		call	PRINTBC
+		ld	a,32
+		rst	16
+		ld	a,'('
+		rst	16
+		ld	hl,(KAM+2)
+		ld	a,(KAM+6)
+		ld	d,a
+		ld	a,(KAM+12)
+		ld	e,a
+		ld	a,2
+		call	CHS2MB
+		call	PRINTBC
+		pop	de
+		ld	a,e
+		pop	bc
+		ld	b,c
+		ld	hl,0
+NASOB1		add	hl,de
+		djnz	NASOB1
+		ld	(IDE_PHS+1),hl
+		ld	(IDE_PS+1),a
+		call	PRINTSP
+		defb	" MB)"
+		defb	13
+		defb	"Firmware revision:",' '+128
+		ld	hl,KAM+46
+		ld	b,8
+		call	PROHOD
+		call	PRINTB
+		call	PRINTSP
+		defb	13
+		defb	"LBA supp:",' '+128
+		ld	a,(KAM+99)
+		bit	1,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Buffer:",' '+128
+		ld	a,(KAM+42)
+		srl	a
+		ld	b,0
+		ld	c,a
+		call	PRINTBC
+
+		ld	hl,(KAM+164)
+		ld	a,l
+		cp	h
+		jr	nz,PMYES
+		ld	hl,0
+PMYES
+		ld	a,l
+		push	af
+		call	PRINTSP
+		defb	" kB"
+		defb	13
+		defb	"PowerMan:",' '+128
+		pop	af
+		push	af
+		bit	3,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"RemFeat:",' '+128
+		pop	af
+		push	af
+		bit	2,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"Security:",' '+128
+		pop	af
+		push	af
+		bit	1,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	6
+		defb	"SMART:",' '+128
+		pop	af
+		bit	0,a
+		call	ROZHOD
+		call	PRINTSP
+		defb	13
+		defb	"Partitions",':'+128
+		ld	a,CREAD
+		ex	af,af'
+		ld	de,0
+		ld	bc,1
+		ld	a,1
+		call	IDEOUT
+		ret	c
+		ld	hl,KAM
+		ld	bc,RDATA
+		call	IDE_DTRD
+		ret	c
+		inir
+		inir
+		ld	hl,(KAM+$1FE)
+		ld	bc,$AA55
+		or	a
+		sbc	hl,bc
+		jr	z,PARTVAL
+		call	PRINTSP
+		defb	" not vali",'d'+128
+		or	a
+		ret
+PARTVAL
+		ld	hl,5
+		ld	(EXTPART),hl
+		ld	ix,KAM+$1BE
+		ld	bc,1
+PARTVAL2	ld	a,(ix+4)
+		or	a
+		jp	z,NOPART
+		ld	a,' '
+		rst	16
+		ld	a,'h'
+		rst	16
+		ld	a,'d'
+		rst	16
+		ld	l,'a'
+		ld	a,(IDE_MOS)
+		or	a
+		jr	z,PARTVAL3
+		ld	l,'b'
+PARTVAL3	ld	a,l
+		rst	16
+		push	bc
+		call	PRINTBC
+		ld	a,(ix+4)
+		cp	5
+		jr	z,EXTDP
+		cp	$F
+		jr	z,EXTDP
+		cp	$85
+		jr	z,EXTDP
+NOPART2		pop	bc
+NOPART		inc	c
+		ld	de,16
+		add	ix,de
+		ld	a,5
+		cp	c
+		jp	nz,PARTVAL2
+
+NAVRAT		or	a
+		ret
+
+RETPOP2		pop	hl
+		pop	hl
+		ret
+
+EXTSTART	defw	0,0
+
+EXTDP		ld	a,'<'
+		rst	16
+		ld	l,(ix+8)
+		ld	h,(ix+9)
+		ld	(EXTSTART),hl
+		ld	l,(ix+10)
+		ld	h,(ix+11)
+		ld	(EXTSTART+2),hl
+		push	ix
+		ld	de,0
+		exx
+		ld	de,0
+EXTDPART	ld	l,(ix+8)
+		ld	h,(ix+9)
+		add	hl,de
+		exx
+		ld	l,(ix+10)
+		ld	h,(ix+11)
+		adc	hl,de
+		call	IDE_L2F
+		ld	a,CREAD
+		ex	af,af'
+		ld	a,1
+		call	IDEOUT
+		jr	c,RETPOP2
+		ld	hl,KAM+512
+		ld	bc,RDATA
+		call	IDE_DTRD
+		jr	c,RETPOP2
+		inir
+		inir
+		ld	hl,(KAM+512+$1FE)
+		ld	bc,$AA55
+		or	a
+		sbc	hl,bc
+		jr	z,EXTDVLD
+		call	PRINTSP
+		defb	"perr",'>'+128
+		pop	ix
+		jr	NOPART2
+
+EXTDVLD		ld	ix,KAM+512+$1BE
+		ld	bc,(EXTPART)
+EXTPART2	ld	a,(ix+4)
+		or	a
+		jr	z,ENDEXT
+		ld	a,'h'
+		rst	16
+		ld	a,'d'
+		rst	16
+		ld	l,'a'
+		ld	a,(IDE_MOS)
+		or	a
+		jr	z,EXTPART3
+		ld	l,'b'
+EXTPART3	ld	a,l
+		rst	16
+		push	bc
+		call	PRINTBC
+		pop	bc
+		inc	bc
+		ld	(EXTPART),bc
+		ld	a,' '
+		rst	16
+		ld	de,16
+		add	ix,de
+		ld	de,(EXTSTART+2)
+		exx
+		ld	de,(EXTSTART)
+		ld	a,(ix+4)
+		or	a
+		jp	nz,EXTDPART
+
+ENDEXT
+		ld	a,8
+		rst	16
+		ld	a,'>'
+		rst	16
+		pop	ix
+		jp	NOPART2
+
+EXTPART		defw	5
+
+
+ROZHOD		ld	hl,YES
+		jr	nz,NOJP
+		ld	hl,NO
+NOJP		jp	PRINT128
+
+
+;open drive atapi command
+OPEN		defb	$1B,0,0,0,2,0
+		defw	0,0,0
+
+;read capacity atapi comm.
+READCAP		defw	$25,0,0,0,0,0
+
+;mode sense atapi command
+;pro CD-ROM
+MSCDR		defb	$5A,0,$2A
+;current values & capabilities
+		defw	0,0
+		defb	1,0,0,0,0
+;MSB first (=max. 256 bytes)
+
+;pro ZIP/JAZ
+MSZIP		defb	$5A,0,5
+;current values & flexible disk
+		defw	0,0
+		defb	1,0,0,0,0
+
+PROHOD
+;HL adresa
+;B kolik bytu
+;MENI: A
+		push	hl
+		push	bc
+		rrc	b
+PROHOD1
+		ld	a,(hl)
+		inc	hl
+		ld	c,(hl)
+		dec	hl
+		ld	(hl),c
+		inc	hl
+		ld	(hl),a
+		inc	hl
+		djnz	PROHOD1
+		pop	bc
+		pop	hl
+		ret
+
+
+;==============================
+;nejnizsi rutiny pro ATA/ATAPI
+;==============================
+
+ATAPICOM
+;v hl adresa 12 bajtu prikazu
+		ld	a,CATAPI
+		ld	b,0
+		ex	af,af'
+;fixni max. delka prenosu
+		ld	de,2048
+		call	IDEOUT2
+		ret	c
+		ld	bc,256*12+RDATA
+		call	IDE_DTRD
+		ret	c
+		otir
+;test konce operace
+		call	IDE_DRRD
+		ret	c
+		in	a,(RSTAT)
+		rra
+		jp	c,IDEDTRD1
+;fakt nevim proc, ale bez tohohle to na nekterych pomalych mrchanikach nefunguje :(
+		jp	FASTDRQ
+
+;nacte vsechny predane bajty
+READCD		call	CMD_DTRD
+		ret	c
+		in	a,(RCYLH)
+		or	a
+		jr	z,READCD2
+		ld	bc,RDATA
+READCD1
+		ex	af,af'
+		call	IDE_DTRD
+		ret	c
+		inir
+		ex	af,af'
+		dec	a
+		jr	nz,READCD1
+READCD2
+;tady mozna problem, pokud cdrom zmeni delku behem prenosu
+		in	a,(RCYLL)
+		or	a
+		jr	z,RDCDEND
+		ld	b,a
+		ld	c,RDATA
+		call	IDE_DTRD
+		ret	c
+		inir
+;test konce operace
+RDCDEND		call	IDE_DRRD
+		ret	c
+;na konec jeste pockame (potreba pro nektere zvlaste pomale mrchaniky s mp drq)
+		jp	FASTDRQ
+
+IDEOUT
+;DE cyl
+;B hlava
+;C sektor
+;A pocet sektoru
+;A' prikaz
+;MENI: vola drvrdy (DE), AA'F..
+
+		out	(RSECPOC),a
+		ld	a,c
+		out	(RSEC),a
+
+IDEOUT2
+;pro atapi
+		ld	a,d
+		out	(RCYLH),a
+		ld	a,e
+		out	(RCYLL),a
+
+		ld	a,(IDE_MOS)
+		or	b
+		or	HKONST
+		out	(RHEAD),a
+
+		call	IDE_DRRD
+		ret	c
+
+		ex	af,af'
+		out	(RCOM),a
+
+		or	a
+		ret
+
+IDE_DRRD
+;ceka na pripravenost drivu
+; not busy & drive ready
+		ld	de,0
+IDEDRRD1
+		in	a,(RSTAT)
+		and	192
+		cp	64
+		ret	z
+		dec	de
+		ex	(sp),hl
+		ex	(sp),hl
+;trocha casu...
+		ld	a,d
+		or	e
+		jr	nz,IDEDRRD1
+;timeout
+		ld	bc,16*7+512
+		scf
+		ret
+
+CMD_DTRD
+;ready to transfer pro ATAPI (upravujem pro ruzne typy DRQ)
+;s timeoutem a testem busy
+;>
+; c = error
+; nc TrReady
+		ld	de,0
+CMDDTRD2
+		in	a,(RSTAT)
+		bit	7,a
+		jr	nz,DTROUTC
+		rrca
+		jr	c,IDEDTRD1
+		bit	2,a
+;4. bit, je to posunuto
+		jr	z,DTROUTC
+;pauza 3 ms (jen pro micPr DRQ)
+FASTDRQ		ld	a,148
+ATAWAIT		ex	(sp),hl
+		ex	(sp),hl
+		ex	(sp),hl
+		ex	(sp),hl
+		dec	a
+		jr	nz,ATAWAIT
+		ret
+DTROUTC
+		dec	de
+		ex	(sp),hl
+		ex	(sp),hl
+;pro wakeup stanby
+		ld	a,d
+		or	e
+		jr	nz,CMDDTRD2
+;timeout
+		ld	bc,16*7+512
+		scf
+		ret
+
+IDE_DTRD
+;ready to transfer
+;s timeoutem a testem busy
+;>
+; c = error
+; nc TrReady
+		ld	de,0
+IDEDTRD2
+		in	a,(RSTAT)
+		bit	7,a
+		jr	nz,DTROUT
+		rrca
+		jr	c,IDEDTRD1
+		bit	2,a
+;4. bit, je to posunuto
+		ret	nz
+DTROUT
+		dec	de
+		ex	(sp),hl
+		ex	(sp),hl
+;pro wakeup stanby disku
+		ld	a,d
+		or	e
+		jr	nz,IDEDTRD2
+;timeout
+		ld	bc,16*7+512
+		scf
+		ret
+
+IDEDTRD1
+		in	a,(RPARAM)
+		ld	c,a
+		ld	b,1
+		ret
+
+
+;------------------------------
+;data pro HDD
+;------------------------------
+
+IDE_MOS		defb	0
+
+;------------------------------
+
+
+;------------------------------
+ADDHLA
+		add	a,l
+		ld	l,a
+		ret	nc
+		inc	h
+		ret
+;------------------------------
+
+CHS2MB
+;prevede chs na velikost v MB
+;HL-cyl, D-head, E-sec
+;A-velikost sec v bytes (jen H)
+;navrat v BC velikost v MB
+		push	ix
+		push	af
+		push	hl
+		ld	l,d
+		ld	h,0
+		ld	d,0
+		call	NASOB
+		pop	de
+		call	NASOB
+		exx
+		push	ix
+		pop	hl
+		ld	bc,1024*4
+;1024=1MB a 4 pro velikost sec
+		call	DELENI42
+		pop	af
+		ld	h,0
+		ld	l,a
+		call	NASOB
+		ld	b,h
+		ld	c,l
+		pop	ix
+		ret
+
+;nasobeni
+;vstup HL*DE
+;vystup IXHL
+NASOB		ld	b,16
+		ld	a,h
+		ld	c,l
+		ld	ix,0
+		ld	hl,0
+NASOB2		add	ix,ix
+		add	hl,hl
+		jr	nc,NASOB4
+		inc	ix
+NASOB4		rl	c
+		rla
+		jr	nc,NASOB3
+		add	hl,de
+		jr	nc,NASOB3
+		inc	ix
+NASOB3		djnz	NASOB2
+		ret
+
+IDE_L2F
+;HLH'L'
+IDE_PHS		ld	bc,0
+		call	DELENI42
+		push	de
+		exx
+IDE_PS		ld	d,0
+		call	DELENI21
+		ld	b,c
+		ld	c,l
+		inc	c
+		pop	de
+		ret
+
+DELENI42
+;HLH'L' / BC
+;>DE vysledek
+; H'L' zbytek
+		ld	de,$0001
+		exx
+		ld	bc,0
+		exx
+DELENI1
+;         or   a
+;         rr   b
+;proc je todle vynechany?
+		srl	b
+		rr	c
+		exx
+		rr	b
+		rr	c
+		sbc	hl,bc
+		exx
+		sbc	hl,bc
+		jr	nc,DELENI2
+		exx
+		add	hl,bc
+		exx
+		adc	hl,bc
+DELENI2
+		ccf
+		rl	e
+		rl	d
+		jr	nc,DELENI1
+		ret
+
+DELENI21
+;> HL:D=C, zbytek L
+		ld	c,1
+		ld	e,0
+DELENI3
+		srl	d
+		rr	e
+		sbc	hl,de
+		jr	nc,DELENI4
+		add	hl,de
+DELENI4
+		ccf
+		rl	c
+		jr	nc,DELENI3
+		ret
+
+;==============================
+
+
+;------------------------------
+PRINTB
+;HL adr
+;B pocet
+		ld	a,(hl)
+		push	hl
+		push	bc
+		rst	16
+		pop	bc
+		pop	hl
+		inc	hl
+		djnz	PRINTB
+		ret
+PRINT0
+		ld	a,(hl)
+		or	a
+		ret	z
+		push	hl
+		rst	16
+		pop	hl
+		inc	hl
+		jr	PRINT0
+PRINT128
+		ld	a,(hl)
+		bit	7,a
+		push	af
+		and	127
+		push	hl
+		rst	16
+		pop	hl
+		inc	hl
+		pop	af
+		jr	z,PRINT128
+		ret
+PRINTSP
+; call printsp
+; defb "tex",'t'+128
+; ...
+		pop	hl
+		call	PRINT128
+		push	hl
+		ret
+BINDEC
+;prevede bin. cislo do cislic
+;!!! prepsat pro zarovnana DATA
+; Dx256
+;uz prepsano??
+
+;<HL uka na cislo
+;>HL uka na cislice
+
+
+		ld	de,DATA
+		ld	bc,4
+		ldir
+
+;vynulujem vysledek
+		ex	de,hl
+		ld	bc,9*256+32
+BINDEC1		ld	(hl),c
+		inc	l
+		djnz	BINDEC1
+		ld	(hl),b
+
+		ld	de,$0A01
+;D soustava,E pocet cislic
+;C=32
+BINDEC2
+
+		ld	hl,(DATA)
+		add	hl,hl
+		ld	(DATA),hl
+		ld	hl,(DATA+2)
+		adc	hl,hl
+		ld	(DATA+2),hl
+
+		ld	hl,DATA+4+9
+		ld	b,e
+BINDEC3
+		ld	a,(hl)
+		adc	a,a
+		cp	d
+		jr	c,BINDEC4
+		sub	d
+BINDEC4
+		ld	(hl),a
+		dec	l
+		ccf
+		djnz	BINDEC3
+		jr	nc,BINDEC6
+		ld	(hl),1
+		dec	l
+		inc	e
+BINDEC6
+		dec	c
+		jr	nz,BINDEC2
+
+		ld	b,e
+BINDEC5
+		inc	l
+		ld	a,(hl)
+		or	48
+		ld	(hl),a
+		djnz	BINDEC5
+		ld	hl,DATA+4
+		ret
+
+;------------------------------
+
+LENGTH		equ	$-START
+
+; for SjASMPlus
+		savebin "zxideinfo.bin",START,LENGTH
+
+; nastaveni pro VI (tabulatory 5 znaku a filetype)
+; vim:set ts=8 ft=z8asl:

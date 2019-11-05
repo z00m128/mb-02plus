@@ -1,0 +1,1188 @@
+;HDD patch classic v1.63
+;--------------------------------------
+;based on HDD 2 MB02 v1.62 by  dr0n_K3L
+;forked and sjasmized by  z00m^SinDiKAT
+;--------------------------------------
+
+; mode 000 - reads 2x one sector
+; mode 001 - reads 2 sectors
+; mode 010 - LBA mode reads 2 sectors
+;
+;DMA transfers
+;Zilog DMA compatible
+;diskimage capacity - 2MB
+;diskimage format   - 128x8x2
+;supports master & slave devices
+
+;--------------------------------------
+;changelog
+;--------------------------------------
+;v1.63 - fixed DMA sequence, sjasmized,
+;        works with MB-03+ Ultimate now
+
+;--------------------------------------
+
+		device	zxspectrum48
+		
+		org	32768
+
+begin:		jp	install
+
+;virtual disk table
+vdt:		ds	8+1024
+
+;ATA ports DRON
+;p_dat:		equ	195	;#c3
+;p_err:		equ	199	;#c7
+;p_hse:		equ	203	;#cb
+;p_nse:		equ	207	;#cf
+;p_cyl:		equ	211	;#d3
+;p_cyh:		equ	215	;#d7
+;p_hea:		equ	219	;#db
+;p_com:		equ	223	;#df
+
+;ATA ports PVL
+p_dat:		equ	163	;#a3
+p_err:		equ	167	;#a7
+p_hse:		equ	171	;#ab
+p_nse:		equ	175	;#af
+p_cyl:		equ	179	;#b3
+p_cyh:		equ	183	;#b7
+p_hea:		equ	187	;#bb
+p_com:		equ	191	;#bf
+
+;ATA ports MB03
+;p_dat:		equ	195	;#c3
+;p_err:		equ	167	;#a7
+;p_hse:		equ	203	;#cb
+;p_nse:		equ	175	;#af
+;p_cyl:		equ	211	;#d3
+;p_cyh:		equ	183	;#b7
+;p_hea:		equ	219	;#db
+;p_com:		equ	191	;#bf
+
+install:	di
+
+		ld	hl,15616
+		ld	de,40000
+		ld	bc,768
+		ldir			;font copied to memory
+
+		ld	hl,vdt
+		ld	de,tab
+		ld	bc,1024+8
+		ldir
+
+		ld	a,97
+		out	(23),a
+
+		ld	hl,adr20
+		ld	de,20
+		ld	bc,12
+		ldir
+
+		ld	hl,adr35
+		ld	de,35
+		ld	c,5
+		ldir
+
+		ld	hl,adr62
+		ld	de,62
+		ld	c,11
+		ldir
+
+		ld	a,205
+		ld	(#13ca),a
+		ld	hl,62
+		ld	(#13ca+1),hl	;set no_verify patch
+
+		ld	hl,sem
+		ld	de,144
+		ld	bc,112
+		ldir
+
+		ld	a,98
+		out	(23),a
+
+		ld	hl,adr0
+		ld	de,0
+		ld	bc,33+8
+		ldir
+
+		ld	hl,201*256+251
+		ld	(56),hl
+
+		ld	hl,sem1
+		ld	de,144
+		ld	bc,len
+		ldir
+
+		ld	a,(p_dat)
+		ld	(p1),a
+		ld	(p11),a
+		ld	a,(p_err)
+		ld	(p2+1),a
+		ld	a,(p_hse)
+		ld	(p3+1),a
+		ld	(p31+1),a
+		ld	(p32+1),a
+		ld	(p33+1),a
+		ld	a,(p_nse)
+		ld	(p4+1),a
+		ld	(p41+1),a
+		ld	(p42+1),a
+		ld	(p43+1),a
+		ld	a,(p_cyl)
+		ld	(p5+1),a
+		ld	(p51+1),a
+		ld	(p52+1),a
+		ld	(p53+1),a
+		ld	a,(p_cyh)
+		ld	(p6+1),a
+		ld	(p61+1),a
+		ld	(p62+1),a
+		ld	(p63+1),a
+		ld	a,(p_hea)
+		ld	(p7+1),a
+		ld	(p71+1),a
+		ld	(p72+1),a
+		ld	(p73+1),a
+		ld	a,(p_com)
+		ld	(p8+1),a
+		ld	(p81+1),a
+		ld	(p82+1),a
+		ld	(p83+1),a
+		ld	(p84+1),a
+		ld	(p85+1),a
+
+
+		ld	hl,40000
+		ld	de,15616
+		ld	bc,768
+		ldir			;font copied to hdd_bank
+
+		ld	a,%01000000
+		out	(23),a
+		ei
+		ret
+
+
+;------------------------------
+;------------------------------
+;address 62 in dos_bank
+adr62:
+		ld	c,a
+		ld	a,(#03ef)
+		cp	5
+		ld	a,c
+		ret	nc
+		jp	#1463
+
+;------------------------------
+;------------------------------
+
+;address 20 in dos_bnk
+;hdd_bank must be dos_bank+1
+
+adr20:
+		ld	(hl),b
+		inc	a
+		out	(23),a
+		jp	144
+
+;address 27
+		ld	a,98
+		out	(23),a
+		ret
+
+;------------------------------
+;------------------------------
+
+;address 35 in dos_bank
+
+adr35:
+		out	(c),b
+		inc	a
+		out	(23),a
+
+;------------------------------
+;------------------------------
+
+;address 0 in hdd_bank
+
+dma_strt:	equ	33
+
+adr0:
+		di
+		xor	a
+		ld	de,65535
+		jp	5
+		db	"HddDrive"
+
+		ld	a,97
+		out	(23),a
+		ld	(hl),b
+		inc	a
+		out	(23),a
+		ret
+		nop
+		nop			;adr27 - route to hdd_bnk
+		ld	a,97
+		out	(23),a
+		db	24, 111		;jr 144
+
+;adr33 - route to dma_strt
+;must be ld a,97
+;and ld bc,port_dma
+		out	(23),a
+		out	(c),b
+		inc	a
+		out	(23),a
+		ret
+
+
+;------------------------------
+;------------------------------
+;address 144 in dos_bank
+
+
+sem:
+		disp	144
+
+adr144d:
+		push	hl
+		ld	hl,255
+		ld	(hl),a
+		dec	hl
+		ex	(sp),hl
+
+		cp	12
+		jr	c,skip1
+		cp	15
+		jr	c,sluz1214
+skip1:
+		cp	16
+		jr	z,setmlt
+		or	a
+		ret	z
+		cp	15
+		ret	nc
+act:		ret
+
+		inc	sp
+		inc	sp
+aaa:
+		cp	4
+		jr	c,loop12
+		cp	6
+		jr	c,rdwrsec
+loop12:		cp	7
+		jr	z,rdwrsec
+		xor	a
+		ret
+
+
+rdwrsec:	push	hl
+		push	de
+		ld	b,a
+		ld	(sp_st+1),sp
+		ld	sp,128
+		call	27
+sp_st:		ld	sp,0
+		push	bc
+rut:		call	nic
+		pop	af
+		pop	de
+		pop	hl
+nic:		ret
+
+
+setmlt:		ld	a,h
+		or	l
+		jr	nz,loop14
+		ld	hl,nic
+loop14:		ld	(rut+1),hl
+		ret
+
+
+sluz1214:
+		push	de
+		push	hl
+		ld	b,a
+		ld	(sp_st+1),sp
+		ld	sp,128
+		call	27
+		ld	sp,(sp_st+1)
+		ld	a,b
+		pop	hl
+		or	a
+		jr	nz,no_nfo
+		inc	sp
+		inc	sp
+		push	de
+no_nfo:
+		pop	de
+		cp	255
+		ret	z
+;nz=ret immediately
+;z=pass
+pryc:
+		inc	sp
+		inc	sp
+		ret
+
+		nop
+		nop
+
+a1_254:
+		ld	a,85
+;address 256 should be here
+
+		ent
+;------------------------------
+;------------------------------
+
+
+sem1:
+		disp	144
+
+;address 144 v hdd_bank
+
+		jp	preskoc
+		ent
+
+tab:
+		disp	144+3
+;primary
+m_sec1:		db	0
+m_hea1:		db	0
+m_cyl1:		dw	0
+
+;secondary
+m_sec2:		db	0
+m_hea2:		db	0
+m_cyl2:		dw	0
+
+
+tab_drv:
+		ds	1024
+
+preskoc:
+		push	hl
+		ld	hl,rett
+		ex	(sp),hl
+
+		ld	a,b
+
+		cp	12
+		jr	z,aktive1
+		cp	13
+		jr	z,pasive1
+		cp	14
+		jr	z,info1
+
+		cp	4
+set_rdm:	jp	z,rd_sec0
+		cp	5
+set_wrm1:	jp	z,wr_sec0
+		cp	7
+		jp	z,wr_trk
+		xor	a
+
+		ret
+
+
+rett:
+		ld	b,a
+		jp	27
+
+
+;---------
+
+info1:		ld	a,e
+		call	tst_drv
+		ld	a,255
+		ret	z
+		ld	de,128*256+3
+		xor	a
+		ret
+
+;---------
+
+pasive1:	ld	a,201
+		ld	hl,act
+		ld	b,a
+		rst	16
+		ld	a,255
+		ret
+
+;---------
+
+aktive1:	call	pasive1
+		ld	a,e
+		call	tst_drv
+		ld	a,255
+		ret	z
+		xor	a
+		ld	hl,act
+		ld	b,a
+		rst	16
+		ld	a,2
+		ret
+
+
+;------------------------------
+
+wr_trk:
+
+		ld	a,e
+		and	128
+		ld	e,a
+		xor	a
+wtrk1:
+		inc	e
+		push	de
+		push	hl
+		push	af
+set_wrm2:	call	wr_sec0
+		pop	af
+		pop	hl
+		ld	de,1024
+		add	hl,de
+		pop	de
+		inc	a
+		cp	9		;num of sectors -1
+		jr	nz,wtrk1
+
+		ret
+
+
+
+;------------------------------
+
+sect_num:
+
+;counts logical number of sector
+;hl is preserved
+;result is passed directly to prepoc
+
+		push	hl
+		ld	l,d
+		ld	h,0
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;*16
+		ld	a,e
+		dec	a
+		and	%00000111
+		bit	7,e
+		jr	z,rds1
+		or	%00001000
+rds1:
+		or	l
+		ld	l,a
+
+;hl = log. number of sector
+;counts from 0
+
+		add	hl,hl
+
+;*2
+;sector is 512 bytes long
+;we need two sectors
+
+		ld	(prepoc+1),hl
+		ld	a,h
+		pop	hl
+		and	%11110000
+		ret	z
+
+		ld	a,%00010000
+		or	a
+		ret
+
+;seek error
+
+;------------------------------
+
+prepoc:
+;counts logical number of sector
+;of disk image to corresponding
+;physical cyl,sec,hea on HDD/CF
+
+;hl = logical number of sector
+
+		ld	hl,0
+
+low24:		ld	de,0
+		add	hl,de
+hig24:		ld	de,0
+		jr	nc,prep1
+		inc	de
+prep1:
+m_sec:		ld	a,0
+		call	div248
+		ld	e,d
+		ld	d,0
+		push	de		;de -> sec
+m_hea:		ld	a,0
+		ld	e,a
+		ld	d,0
+		call	div
+		push	de		;de -> heads
+m_cyl:		ld	de,0
+		call div		;de -> cyl
+		pop	hl
+		ld	b,l
+		pop	hl
+		ld	c,l
+		inc	c
+		ret
+
+;----------
+
+prep_lba:
+		ld	hl,(prepoc+1)
+		ld	de,(low24+1)
+		add	hl,de
+		ld	de,(hig24+1)
+		jr	nc,prep2
+		inc	de
+prep2:
+
+;ATA ports Dron
+;p_dat:		db	195
+;p_err:		db	199
+;p_hse:		db	203
+;p_nse:		db	207
+;p_cyl:		db	211
+;p_cyh:		db	215
+;p_hea:		db	219
+;p_com:		db	223
+
+;b - head (p_hea)
+;c - sector (p_nse)
+;de - cylinder	(e - p_cyl, d - p_cyh)
+
+		ld	b,d
+		ld	d,e
+		ld	e,h
+		ld	c,l
+
+		ret
+
+
+;------------------------------
+;---------- generic 000 -------
+;------------------------------
+
+rd_sec0:
+		call	sect_num
+		ret	nz
+
+		call	rdd
+		ret	nz
+		ld	de,(prepoc+1)
+		inc	de
+		ld	(prepoc+1),de
+		call	rdd
+		ret			;if ok, zero flag is returned
+
+;-------
+
+rdd:
+		push	hl
+		call	prepoc
+		pop	hl
+		call	read0
+		ret
+
+;------------------------------
+
+wr_sec0:
+
+wr_prot:	ld	a,0
+		or	a
+		ret	nz
+
+		call	sect_num
+		ret	nz
+
+		call	wrr
+		ret	nz
+		ld	de,(prepoc+1)
+		inc	de
+		ld	(prepoc+1),de
+		call	wrr
+		ret			;if ok, zero flag is returned
+
+;------
+
+wrr:
+		push	hl
+		call	prepoc
+		pop	hl
+		call	write0
+		ret
+
+;------------------------------
+
+read0:
+		call	tst_bsy
+		jp	nz,error
+
+		ld	a,b
+hea_rd0:	or	%10100000
+p7:		out	(0),a		;number of head
+
+		ld	a,1
+p3:		out	(0),a		;number of sectors
+
+		ld	a,c
+p4:		out	(0),a		;number of sector (starts from 1)
+
+		ld	a,e
+p5:		out	(0),a
+		ld	a,d
+p6:		out	(0),a		;number of cylinder
+
+		ld	a,#21
+p8:		out	(0),a		;read with retries
+
+		call	tst_bsy
+		jp	nz,error
+
+		call	rd_512		;work as inir (hl+512)
+
+		call	tst_err
+		jp	nz,error
+
+		xor	a
+		ret
+
+;------------------------------
+
+write0:
+
+		call	tst_bsy
+		jp	nz,error
+
+		ld	a,b
+hea_wr0:	or	%10100000
+p71:		out	(0),a		;number of head
+
+		ld	a,1
+p31:		out	(0),a		;number of sectors
+		ld	a,c
+p41:		out	(0),a		;number of sector (starts from 1)
+		ld	a,e
+p51:		out	(0),a
+		ld	a,d
+p61:		out	(0),a		;number of cylinder
+
+		ld	a,#31
+p81:		out	(0),a		;write with retries
+
+		call	tst_bsy
+		jp	nz,error
+
+		call	wr_512
+
+		call	tst_bsy
+		jp	nz,error
+		call	tst_err
+		jp	nz,error
+
+		xor	a
+		ret
+
+;------------------------------
+;----- end of generic 000 -----
+;------------------------------
+
+
+
+;------------------------------
+;--------- generic+ 001 -------
+;------------------------------
+
+rd_sec1:
+		call	sect_num
+		ret	nz
+		push	hl
+		call	prepoc
+		pop	hl
+		call	read1
+		ret
+
+;------------------------------
+
+wr_sec1:
+		ld	a,(wr_prot+1)
+		or	a
+		ret	nz
+
+		call	sect_num
+		ret	nz
+		push	hl
+		call	prepoc
+		pop	hl
+		call	write1
+		ret
+
+;------------------------------
+
+read1:
+		call	tst_bsy
+		jp	nz,error
+
+		ld	a,b
+hea_rd1:	or	%10100000
+p72:		out	(0),a		;number of head
+
+		ld	a,2
+p32:		out	(0),a		;number of sectors
+
+		ld	a,c
+p42:		out	(0),a		;number of sector (starts from 1)
+
+		ld	a,e
+p52:		out	(0),a
+		ld	a,d
+p62:		out	(0),a		;number of cylinder
+
+		ld	a,#21
+p82:		out	(0),a		;read with retries
+
+		call	tst_bsy
+		jr	nz,error
+
+		call	rd_512
+
+		call	tst_err
+		jr	nz,error
+
+		call	tst_bsy
+		jr	nz,error
+
+		call	rd_512
+
+		call	tst_err
+		jr	nz,error
+
+		xor	a
+		ret
+
+;------------------------------
+
+write1:
+
+		call	tst_bsy
+		jr	nz,error
+
+		ld	a,b
+hea_wr1:	or	%10100000
+p73:		out	(0),a		;number of head
+
+		ld	a,2
+p33:		out	(0),a		;number of sectors
+		ld	a,c
+p43:		out	(0),a		;number of sector (starts from 1)
+		ld	a,e
+p53:		out	(0),a
+		ld	a,d
+p63:		out	(0),a		;number of cylinder
+
+		ld	a,#31
+p83:		out	(0),a		;write with retries
+
+		call	tst_bsy
+		jr	nz,error
+
+		call	wr_512
+
+		call	tst_bsy
+		jr	nz,error
+		call	tst_err
+		jr	nz,error
+
+		call	wr_512
+
+		call	tst_bsy
+		jr	nz,error
+		call	tst_err
+		jr	nz,error
+
+
+		xor	a
+		ret
+
+;------------------------------
+;----- end of generic+ 001 ----
+;------------------------------
+
+
+
+
+;------------------------------
+;-------- lba mode 010 --------
+;------------------------------
+
+rd_sec2:
+		call	sect_num
+		ret	nz
+
+		push	hl
+		call	prep_lba
+		pop	hl
+
+		call	read1
+
+		ret
+
+;------------------------------
+
+wr_sec2:
+		ld	a,(wr_prot+1)
+		or	a
+		ret	nz
+
+		call	sect_num
+		ret	nz
+
+		push	hl
+		call	prep_lba
+		pop	hl
+
+		call	write1
+
+		ret
+
+
+;------------------------------
+;---- end of lba mode 010 -----
+;------------------------------
+
+
+
+
+;------------------------------
+;-------- lba mode+ 011 -------
+;------------------------------
+
+
+
+;------------------------------
+;---- end of lba mode+ 011 ----
+;------------------------------
+
+
+
+error:
+		cp	255
+		jr	nz,err1
+		ld	a,1
+		ret
+err1:
+		and	%01010011
+		jr	z,err2
+		ld	a,8
+		ret
+err2:
+		ld	a,128
+		ret
+
+
+
+;------------------------------
+
+tst_bsy:
+		push	hl
+		push	bc
+		ld	hl,0
+
+tst1:
+		dec	hl
+		ld	a,l
+		or	h
+		jr	z,tout1
+p84:		in	a,(0)
+		inc	a
+		jr	z,p84
+		dec	a
+		bit	7,a
+		jr	nz,tst1
+		pop	bc
+		pop	hl
+		ret
+tout1:
+		ld	a,255
+		or	a
+		pop	bc
+		pop	hl
+		ret
+
+;------------------------------
+
+tst_err:
+p85:		in	a,(0)
+		inc	a
+		jr	z,p85
+		dec	a
+		and	1
+		ret	z
+p2:		 in	a,(0)
+		ret
+
+;------------------------------
+
+;------------------------------
+
+
+rd_512:
+		ld	(dma_adr1),hl
+		push	hl
+		ld	hl,dma_in
+		ld	bc,14*256+11
+		otir
+		ld	a,97
+		ld	b,#87
+		call	dma_strt	; start dma transfer
+		pop	hl
+		ld	bc,512
+		add	hl,bc
+		ret
+
+dma_in:		db	#c3
+		db	%01111101
+p1:		dw	0
+		dw	511
+		db	%00101100
+		db	%00010000
+		db	%10101101
+dma_adr1:	dw	0
+		db	%10010010
+		db	#cf
+		db	#b3
+
+;-------------
+
+wr_512:
+		ld	(dma_adr2),hl
+		push	hl
+		ld	hl,dma_out
+		ld	bc,((dma_outend-dma_out)*256)+11
+		ld	a,97
+		otir
+		ld	a,97
+		ld	b,#87
+		call	dma_strt
+		pop	hl
+		ld	bc,512
+		add	hl,bc
+		ret
+
+dma_out:	db	#c3		;WR6-reset
+		db	%00000001	;WR0-Temporarily declare Port B as source in WR0 (bit 2 = 0)
+        	db	%00010100	;WR1-PA memory,increment
+        	db	%00101000	;WR2-PB io, fixed
+        	db	%10000000	;WR3
+        	db	%10101101	;WR4-Write Port B (fixed destination) address to WR4.
+p11:		dw	0
+        	db	#cf		;WR6-load
+        	db	%01111101	;WR0-transfer,portA,block length
+dma_adr2:	dw	0
+        	dw	511
+        	db	%10010010	;WR5-stop on end,/CE/WAIT,Ready low
+        	db	#cf		;WR6-load
+        	db	#b3		;WR6-force ready
+dma_outend:
+
+;------------------------------
+
+
+tst_drv:
+		ld	l,a
+		ld	h,0
+		add	hl,hl
+		add	hl,hl
+		ld	de,tab_drv
+		add	hl,de
+
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		inc	hl
+		push	de
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		pop	hl
+
+		ld	a,d
+		rrca
+		rrca
+		and	%01000000
+		ld	(wr_prot+1),a
+
+		ld	a,d
+		rrca
+		and	%00000111
+		jr	z,mode0
+		dec	a
+		jr	z,mode1
+		dec	a
+		jr	z,mode2
+		jr	mode3
+
+
+
+mode0:
+		ld	a,d
+		or	%10100000
+		and	%10110000	;LBA no way
+		ld	(hea_wr0+1),a
+		ld	(hea_rd0+1),a
+
+		ld	bc,rd_sec0
+		ld	(set_rdm+1),bc
+		ld	bc,wr_sec0
+		ld	(set_wrm1+1),bc
+		ld	(set_wrm2+1),bc
+
+		jr	mst_slv		;hl & de contains data!
+
+
+mode1:
+		ld	a,d
+		or	%10100000
+		and	%10110000	;LBA no way
+		ld	(hea_wr1+1),a
+		ld	(hea_rd1+1),a
+
+		ld	bc,rd_sec1
+		ld	(set_rdm+1),bc
+		ld	bc,wr_sec1
+		ld	(set_wrm1+1),bc
+		ld	(set_wrm2+1),bc
+
+		jr	mst_slv		;hl & de contains data!
+
+
+mode2:
+		ld	a,d
+		or	%11100000	;100% LBA
+		and	%11110000
+		ld	(hea_wr1+1),a
+		ld	(hea_rd1+1),a
+
+		ld	bc,rd_sec2
+		ld	(set_rdm+1),bc
+		ld	bc,wr_sec2
+		ld	(set_wrm1+1),bc
+		ld	(set_wrm2+1),bc
+
+		jr	lba_mod		;hl & de contains data!
+
+mode3:
+
+
+mst_slv:
+		and	%00010000
+		jr	z,prim
+		ld	a,(m_sec2)
+		ld	(m_sec+1),a
+		ld	a,(m_hea2)
+		ld	(m_hea+1),a
+		ld	bc,(m_cyl2)
+		ld	(m_cyl+1),bc
+		jr	slave
+prim:
+		ld	a,(m_sec1)
+		ld	(m_sec+1),a
+		ld	a,(m_hea1)
+		ld	(m_hea+1),a
+		ld	bc,(m_cyl1)
+		ld	(m_cyl+1),bc
+slave:
+lba_mod:
+		ld	d,0
+		ld	(low24+1),hl
+		ld	(hig24+1),de
+
+		ld	a,e
+		or	h
+		or	l
+		ret
+
+
+;------------------------------
+
+div:
+		ld	a,h
+		ld	c,l
+		ld	hl,0
+		ld	b,16
+div2:		sll	c
+		rla
+		adc	hl,hl
+		sbc	hl,de
+		jr	nc,div3
+		add	hl,de
+		dec	c
+div3:		djnz	div2
+		ex	de,hl
+		ld	h,a
+		ld	l,c
+		ret
+
+;------------------------------
+
+div248:
+		push	ix
+		ld	bc,0
+		ld	d,0
+		ld	lx,a
+		ld	hx,24
+div2481:
+		sll	l
+		rl	h
+		rl	e
+		rl	d
+		rl	c
+		rl	b
+
+		ld	a,d		;adc bcd,bcd
+		sbc	a,lx
+		ld	d,a
+		jp	nc,divok1
+		dec	c
+		jp	p,divok1
+		dec	b
+divok1:					;sbc bcd,lx
+		jp	p,divok3
+
+		add	a,lx
+		ld	d,a
+		jp	nc,divok2
+		inc	c
+		jp	nz,divok2
+		inc	b
+divok2:
+		dec	l
+divok3:					;add bcd,lx
+		dec	hx
+		jp	nz,div2481
+
+		pop	ix
+		ret
+
+
+len:		equ	$-144
+
+		ent
+
+		savebin "hdp163.bin",begin,$-begin
+		

@@ -1,0 +1,108 @@
+;m/c supplement for VDTmaker
+
+	device	zxspectrum48
+
+	org	#8000
+
+;ATA ports DRON
+;p_dat:		equ	195	;#c3
+;p_err:		equ	199	;#c7
+;p_hse:		equ	203	;#cb
+;p_nse:		equ	207	;#cf
+;p_cyl:		equ	211	;#d3
+;p_cyh:		equ	215	;#d7
+;p_hea:		equ	219	;#db
+;p_com:		equ	223	;#df
+
+;ATA ports PVL
+p_dat:		equ	163	;#a3
+p_err:		equ	167	;#a7
+p_hse:		equ	171	;#ab
+p_nse:		equ	175	;#af
+p_cyl:		equ	179	;#b3
+p_cyh:		equ	183	;#b7
+p_hea:		equ	187	;#bb
+p_com:		equ	191	;#bf
+
+;ATA ports MB03
+;p_dat:		equ	195	;#c3
+;p_err:		equ	167	;#a7
+;p_hse:		equ	203	;#cb
+;p_nse:		equ	175	;#af
+;p_cyl:		equ	211	;#d3
+;p_cyh:		equ	183	;#b7
+;p_hea:		equ	219	;#db
+;p_com:		equ	191	;#bf
+
+
+begin:	ld	hl,#7530
+	ld	c,#01
+	ld	de,#0000
+	ld	b,#00
+	ld	a,b
+	or	%10100000	;#a0
+	out	(p_hea),a
+	ld	a,#01
+	out	(p_hse),a
+	ld	a,c
+	out	(p_nse),a
+	ld	a,e
+	out	(p_cyl),a
+	ld	a,d
+	out	(p_cyh),a
+	ld	a,#21
+	out	(p_com),a
+	call	l_8044
+	jr	nz,l_8033
+	ld	b,#00
+	ld	c,p_dat
+	inir
+	inir
+	call	l_805f
+	jr	nz,l_8033
+	xor	a
+	ret
+
+l_8033	cp	#ff
+	jr	nz,l_803a
+	ld	a,#01
+	ret
+
+l_803a	and	%01010011	;#53
+	jr	z,l_8041
+	ld	a,#08
+	ret
+
+l_8041	ld	a,#80
+	ret
+
+l_8044	push	hl
+	push	bc
+	ld	hl,#0000
+l_8049	dec	hl
+	ld	a,l
+	or	h
+	jr	z,l_8059
+	in	a,(p_com)
+	ld	b,a
+	and	%10000000	;#80
+	jr	nz,l_8049
+	ld	a,b
+	pop	bc
+	pop	hl
+	ret
+
+l_8059	ld	a,#ff
+	or	a
+	pop	bc
+	pop	hl
+	ret
+
+l_805f	in	a,(p_com)
+	and	%00000001
+	ret	z
+	in	a,(p_err)
+	ret
+	
+	savebin "vdtmakercd.bin",begin,$-begin
+	

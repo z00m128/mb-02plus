@@ -1,0 +1,4310 @@
+; ZX FDISK - ZX Spectrum clone of Linux FDISK
+;
+; Copyright (C) 2000-2005  Lubomir Blaha <tritol(at)trilogic(dot)cz>
+;
+; This program is free software; you can redistribute it and/or modify
+; it under the terms of the GNU General Public License as published by
+; the Free Software Foundation; either version 2 of the License, or
+; (at your option) any later version.
+;
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, write to the Free Software
+; Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+;
+; http://www.gnu.org/licenses/gpl.html
+; Cesky neoficialni preklad http://www.gnu.cz/gpl-cz.html
+
+; for AS
+;		CPU	Z80UNDOC
+;		RELAXED	ON
+
+; for SjASMPlus
+		device	zxspectrum48
+
+
+; Definice konstant pro HADR
+
+;ATA ports MB03
+;RDATA		equ	195	;#c3
+;RPARAM		equ	167	;#a7
+;RSECPOC	equ	203	;#cb
+;RSEC		equ	175	;#af
+;RCYLL		equ	211	;#d3
+;RCYLH		equ	183	;#b7
+;RHEAD		equ	219	;#db
+;RCOM		equ	191	;#bf
+;RSTAT		equ	191	;#bf
+
+;ATA ports DRON
+;RDATA		equ	195	;#c3
+;RPARAM		equ	199	;#c7
+;RSECPOC	equ	203	;#cb
+;RSEC		equ	207	;#cf
+;RCYLL		equ	211	;#d3
+;RCYLH:		equ	215	;#d7
+;RHEAD:		equ	219	;#db
+;RCOM:		equ	223	;#df
+;RSTAT:		equ	223	;#df
+
+;ATA ports PVL
+RDATA		equ	163	;#a3
+RPARAM		equ	167	;#a7
+RSECPOC		equ	171	;#ab
+RSEC		equ	175	;#af
+RCYLL		equ	179	;#b3
+RCYLH		equ	183	;#b7
+RHEAD		equ	187	;#bb
+RCOM		equ	191	;#bf
+RSTAT		equ	191	;#bf
+
+CRESET		equ	$10
+CREAD		equ	$20
+CWRITE		equ	$30
+CDIAG		equ	$90
+CIDENT		equ	$EC
+
+HKONST		equ	160
+
+;------------------------------
+
+
+
+		org	32768
+
+START
+		di
+		exx
+		push	hl
+		call	CLS
+
+		call	SETGEOM
+		push	iy
+		call	PARTDEK
+		pop	iy
+		ei
+
+		call	RETNORM2
+NAVRAT2
+		xor	a
+		call	$1601
+;zde se prepisuje prompt menu
+PROTXT		ld	hl,PROMPTM
+		call	PRINT128
+HLSM4
+;zde se prepisuje index na menu
+MENUTAB		ld	ix,MAINMENU
+HLSMYC		halt
+HLSM3		ld	a,(23556)
+		cp	255
+		jr	z,HLSMYC
+		cp	(ix+0)
+		jr	nz,HLSM2
+		ld	hl,NAVRAT
+		push	hl
+		ld	l,(ix+1)
+		ld	h,(ix+2)
+		jp	(hl)
+HLSM2		ld	a,(ix+0)
+		or	a
+		jr	z,HLSM4
+		inc	ix
+		inc	ix
+		inc	ix
+		jr	HLSM3
+NAVRAT
+		ld	b,10
+		call	WAIT
+		jr	NAVRAT2
+
+PROMPTM		defb	22,1,0
+		defb	"Command (m for help):        ",' '+128
+
+PROMPTE		defb	22,1,0
+		defb	"Expert command (m for help): ",' '+128
+
+;klavesa a vykony program
+;hlavni nabidka
+MAINMENU	defb	'Q'
+		defw	BASIC
+		defb	'M'
+		defw	HELP
+		defb	'L'
+		defw	LIST
+		defb	'P'
+		defw	PARTPR
+		defb	'O'
+		defw	CRNEW
+		defb	'D'
+		defw	DELPT
+		defb	'T'
+		defw	CSYSID
+		defb	'U'
+		defw	CHUNITS
+		defb	'X'
+		defw	TOEXP
+		defb	'A'
+		defw	TOGBOOT
+		defb	'C'
+		defw	CHANLEV
+		defb	'N'
+		defw	NEWPART
+		defb	'W'
+		defw	WRITEIT
+		defb	0
+
+;nabidka pro experty
+EXPMENU		defb	'Q'
+		defw	BASIC
+		defb	'M'
+		defw	HELPEX
+		defb	'R'
+		defw	RETNORM
+		defb	'C'
+		defw	CHCYLS
+		defb	'H'
+		defw	CHHDS
+		defb	'S'
+		defw	CHSECS
+		defb	0
+
+;prepne na expert mod
+TOEXP		call	CLSWIND
+		ld	hl,PROMPTE
+		ld	(PROTXT+1),hl
+		ld	hl,EXPMENU
+		ld	(MENUTAB+2),hl
+		ret
+
+;prepne na normal mod
+RETNORM		call	CLSWIND
+RETNORM2	ld	hl,PROMPTM
+		ld	(PROTXT+1),hl
+		ld	hl,MAINMENU
+		ld	(MENUTAB+2),hl
+		ret
+
+
+;zapise vse na disk a exitne se
+WRITEIT		ld	hl,PARTIC
+;prenes primarni pt.
+		ld	de,MBR+$1BE
+		ld	bc,16
+		ld	a,4
+WRIT2		push	bc
+		ldir
+		pop	bc
+		add	hl,bc
+		dec	a
+		jr	nz,WRIT2
+
+;fixme-matrix!
+;tady by mel byt zapsan mbr
+;(logicky sektor 0)
+
+
+		ld	hl,0
+		ld	de,0
+;hl=LBA (00-15)
+;de=LBA (16-27)
+
+		call	LBAWR
+		ld	hl,MBR
+;hl=adresa dat
+		call	HDWR
+
+;fixme!
+;debug, smazat
+;		ld	hl,49152+8192
+;		ld	(DEBUG2+1),hl
+;		ld	a,2
+;		call	$1601
+;		call	PRINTSP
+;		defb	22,0,128
+;/debug
+
+
+;projed vsechny logicke
+		ld	a,(POCPART)
+		sub	4
+		jp	z,BASIC
+		ex	af,af'
+		call	HLEDEXT
+;vsechy ext. budou stejne
+		ld	a,(ix+4)
+		ld	(WRITTYP+3),a
+;uloz zacatek ext. pt.
+		ld	l,(ix+8)
+		ld	h,(ix+9)
+		ld	(WRITL+1),hl
+		ld	l,(ix+10)
+		ld	h,(ix+11)
+		ld	(WRITH+1),hl
+		ld	ix,4*32+PARTIC
+		ex	af,af'
+WRIT3		push	af
+;vytvor misto (nutne, aby nebyla chyba v poslednim zaznamu)
+		ld	hl,SEKTMP
+		ld	de,SEKTMP+1
+		ld	bc,510
+		ld	(hl),0
+		ldir
+		ld	(hl),$55
+		inc	hl
+		ld	(hl),$AA
+;odecti skutecny start od zdanliveho startu (zrelativni)
+		ld	l,(ix+8)
+		ld	h,(ix+9)
+		ld	e,(ix+16)
+		ld	d,(ix+17)
+		or	a
+		sbc	hl,de
+		ld	(ix+8),l
+		ld	(ix+9),h
+		ld	l,(ix+10)
+		ld	h,(ix+11)
+		ld	e,(ix+18)
+		ld	d,(ix+19)
+		sbc	hl,de
+		ld	(ix+10),l
+		ld	(ix+11),h
+		push	ix
+		pop	hl
+		ld	de,SEKTMP+$1BE
+		ld	bc,16
+		ldir
+;vytvoreni "ukazatele" na dalsi logickou pt.
+		ld	a,(ix+4+32)
+		or	a
+;byl to posledni zaznam?
+		jp	z,WRIT4
+;zjisti konec dalsi pt.
+		ld	l,(ix+8+32)
+		ld	h,(ix+9+32)
+		ld	c,(ix+12+32)
+		ld	b,(ix+13+32)
+		add	hl,bc
+		ld	e,(ix+10+32)
+		ld	d,(ix+11+32)
+		ld	c,(ix+14+32)
+		ld	b,(ix+15+32)
+		ex	de,hl
+		adc	hl,bc
+		ex	de,hl
+		ld	(WRLASTL+1),hl
+		ld	(WRLASTH+1),de
+;zjisti skutecny start dalsi pt
+		ld	l,(ix+16+32)
+		ld	h,(ix+17+32)
+		ld	e,(ix+18+32)
+		ld	d,(ix+19+32)
+		push	ix
+		ld	ix,SEKTMP+$1CE
+		push	de
+		push	hl
+		call	TOCHS
+		ld	(ix+1),c
+		ld	(ix+2),d
+		ld	(ix+3),e
+;znacka "extended"
+WRITTYP		ld	(ix+4),$05
+;spocitej rel. sektor
+		pop	hl
+WRITL		ld	de,0
+		or	a
+		sbc	hl,de
+		ld	(ix+8),l
+		ld	(ix+9),h
+		add	hl,de
+		exx
+		pop	hl
+WRITH		ld	de,0
+		sbc	hl,de
+		ld	(ix+10),l
+		ld	(ix+11),h
+		add	hl,de
+		exx
+		ex	de,hl
+WRLASTL		ld	hl,0
+		or	a
+		sbc	hl,de
+		ld	(ix+12),l
+		ld	(ix+13),h
+		add	hl,de
+		push	hl
+		exx
+		ex	de,hl
+WRLASTH		ld	hl,0
+		sbc	hl,de
+		ld	(ix+14),l
+		ld	(ix+15),h
+		add	hl,de
+		ex	de,hl
+		pop	hl
+;v DEHL posl. sektor+1
+		call	DECDEHL
+		call	TOCHS
+		ld	(ix+5),c
+		ld	(ix+6),d
+		ld	(ix+7),e
+		pop	ix
+WRIT4
+
+;fixme!
+;debug, smazat
+;		ld	bc,32765
+;		ld	a,23
+;		out	(c),a
+;		ld	hl,SEKTMP
+;DEBUG2	ld	de,49152+8192
+;		ld	bc,512
+;		ldir
+;		ld	(DEBUG2+1),de
+;		ld	bc,32765
+;		ld	a,16
+;		out	(c),a
+;/debug
+
+
+;zjisti si jaky sektor ukladat (fyz. zacatek aktualni pt.)
+		ld	l,(ix+16)
+		ld	h,(ix+17)
+		ld	e,(ix+18)
+		ld	d,(ix+19)
+
+;fixme!
+;ladici vypis, smazat
+;		push	de
+;		push	hl
+;		ld	bc,9*256+"0"
+;		call	DEC32X
+;		ld	a,13
+;		rst	16
+;		pop	hl
+;		pop	de
+
+;fixme-matrix!
+;ulozit sektor z SEKTMP
+;musi zachovat ix
+
+		call	LBAWR
+		ld	hl,SEKTMP
+		call	HDWR
+
+		ld	bc,32
+		add	ix,bc
+		pop	af
+		dec	a
+		jp	nz,WRIT3
+		jp	BASIC
+
+
+;vytvori novou particii
+NEWPART		call	CLSWIND
+		ld	b,4
+		ld	hl,PARTIC+4
+		ld	de,32
+;je nejaka prim. part. prazdna?
+NEWP2		ld	a,(hl)
+		or	a
+		jr	z,NEWP3
+		add	hl,de
+		djnz	NEWP2
+;ani jedna primarni particie neni prazdna, je nejaka ext.?
+		ld	a,(EXTPART)
+		or	a
+		jp	nz,NEWLOGIC
+;smula, neni kam vytvorit
+		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"You must delete some partition"
+		defb	13
+		defb	"and add an extended partition"
+		defb	13
+		defb	"first",'.'+128
+		ret
+
+NETXT		defb	22,0,0
+		defb	"e  Extende",'d'+128
+
+NLTXT		defb	22,0,0
+		defb	"l  Logical (5 or over",')'+128
+
+;alespon jedna je prazdna
+NEWP3		ld	a,(EXTPART)
+		or	a
+		ld	de,'E'
+		ld	hl,NETXT
+		jr	z,NEWP4
+		ld	de,'L'*256
+		ld	hl,NLTXT
+NEWP4		ld	a,e
+		ld	(NEWTEXT+1),a
+		ld	a,d
+		ld	(NEWTLOG+1),a
+		push	hl
+		xor	a
+		call	$1601
+		pop	hl
+		call	PRINT128
+		call	PRINTSP
+		defb	13
+		defb	"p  Primary (1-4",')'+128
+NEWSM1		halt
+		ld	a,(23556)
+		cp	255
+		jr	z,NEWSM1
+		cp	'P'
+;vytvor typ 48 (ZX SFS)
+		ld	b,$48
+		jp	z,NEWPRIMA
+NEWTEXT		cp	'E'
+;vytvor typ 05 (Extended)
+		ld	b,$05
+		jp	z,NEWPRIMA
+NEWTLOG		cp	'L'
+		jr	nz,NEWSM1
+;vytvori logickou particii
+NEWLOGIC	ld	a,255
+		ld	(LOGIC),a
+;vytvor typ 48 (ZX SFS)
+		ld	a,$48
+		ld	(NEWTYP+1),a
+		ld	a,(POCPART)
+		cp	63
+		jr	c,NEWLOG2
+		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"Max 63 partitions are supported",'.'+128
+		ret
+
+NEWLOG2		ld	l,a
+		ld	h,0
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;HLx32
+		ld	bc,PARTIC
+		add	hl,bc
+		ld	(NEWMEM+2),hl
+		call	HLEDEXT
+		ld	l,(ix+8)
+		ld	h,(ix+9)
+		ld	e,(ix+10)
+		ld	d,(ix+11)
+		ld	(FDSBEGL+1),hl
+		ld	(FDSBEGH+1),de
+		ld	c,(ix+12)
+		ld	b,(ix+13)
+		add	hl,bc
+		ld	c,(ix+14)
+		ld	b,(ix+15)
+		ex	de,hl
+		adc	hl,bc
+;vynechano ex de,hl
+		ld	(FDHOL3L+1),de
+		ld	(FDHOL3H+1),hl
+;pokracuj spolecnou casti
+		jp	NEWPRIM2
+
+
+;najde extd particii, pokud neni, vypise chybu a nevrati se
+;>IX ukazatel na zacatek ext.pt
+HLEDEXT		ld	e,4
+		ld	ix,PARTIC
+LOGHLED		ld	a,(ix+4)
+		cp	$05
+		ret	z
+		cp	$0F
+		ret	z
+		cp	$85
+		ret	z
+		ld	bc,32
+		add	ix,bc
+		dec	e
+		jr	nz,LOGHLED
+;sem by to nemelo nikdy dojit
+		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"Internal error, sorry",'.'+128
+;zrus navratovou adresu
+		pop	af
+		ret
+
+
+;vytvori primarni particii
+;v B cislo typu
+NEWPRIMA	ld	a,b
+		ld	(NEWTYP+1),a
+		xor	a
+		ld	(LOGIC),a
+		call	$1601
+		call	PRINTSP
+		defb	22,0,0
+		defb	"Partition number (1-4)",':'+128
+		call	INPART2
+		call	CLSWIND
+		ld	a,l
+		or	h
+;0 je mimo rozsah
+		jp	z,INVNUMB
+;schovej si cislo pt do budoucn
+		ld	e,l
+		dec	hl
+		ld	bc,4
+		or	a
+		sbc	hl,bc
+		add	hl,bc
+;vic nez 4 je mimo rozsah
+		jp	nc,INVNUMB
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;HLx32
+		ld	bc,PARTIC
+		add	hl,bc
+		ld	(NEWMEM+2),hl
+		push	hl
+		pop	ix
+		ld	a,(ix+4)
+		or	a
+;je particie prazdna?
+		jr	z,NEWPRIM2
+;ne, chyba
+		call	PRINTSP
+		defb	13,13
+		defb	"Partition",' '+128
+		ld	l,e
+		ld	h,0
+		ld	e,h
+		ld	d,h
+		ld	bc,2*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" is already defined."
+		defb	13
+		defb	"Delete it before re-adding it",'.'+128
+		ret
+
+NEWPRIM2	call	CLSWIND
+		call	FDSTART
+		jr	nz,NEWPRIM3
+;smula, neni volne misto
+		call	PRINTSP
+		defb	13,13
+		defb	"No free sectors available",'.'+128
+		ret
+
+NEWPRIM3	ld	a,(UNITS)
+		or	a
+		call	z,TOCYL
+		ld	(ASKBSTAL+1),hl
+		ld	(ASKBSTAH+1),de
+		call	FDMAX
+		ld	a,(UNITS)
+		or	a
+		push	af
+		call	z,TOCYL
+		pop	af
+		call	nz,DECDEHL
+		ld	(ASKBENDL+1),hl
+		ld	(ASKBENDH+1),de
+		ld	hl,NEWTXT1
+		ld	a,(UNITS)
+		or	a
+		jr	z,NEWPRIM4
+		ld	hl,NEWTXT2
+NEWPRIM4	call	PRINT128
+		xor	a
+		call	$1601
+		call	PRINTSP
+		defb	22,0,0
+		defb	'('+128
+ASKBSTAL	ld	hl,0
+ASKBSTAH	ld	de,0
+		ld	bc,9*256
+		call	DEC32X
+		call	PRINTSP
+		defb	"[default]",'-'+128
+ASKBENDL	ld	hl,0
+ASKBENDH	ld	de,0
+		ld	bc,9*256
+		call	DEC32X
+		ld	a,')'
+		rst	16
+		ld	a,':'
+		rst	16
+ASKBEG2		ld	hl,INPBUF
+		push	hl
+		ld	de,20704
+		ld	bc,256
+		ld	a,32
+		call	INPUT
+		pop	hl
+		call	DECBINL
+		jr	c,ASKBEG2
+		push	hl
+		push	de
+		ld	hl,INPBUF+1
+		push	ix
+		pop	de
+		or	a
+		sbc	hl,de
+		pop	de
+		pop	hl
+;je radek prazdny?
+		jr	nz,ASKBEG3
+;ano, vezmi default
+		ld	hl,(ASKBSTAL+1)
+		ld	de,(ASKBSTAH+1)
+		jr	ASKBEG6
+
+;hodnota v povolenem rozsahu?
+ASKBEG3		ld	bc,(ASKBSTAH+1)
+		ex	de,hl
+		or	a
+		sbc	hl,bc
+		add	hl,bc
+		ex	de,hl
+		jp	c,INVNUMB
+		jr	nz,ASKBEG4
+;plati NC
+		ld	bc,(ASKBSTAL+1)
+		sbc	hl,bc
+		add	hl,bc
+		jp	c,INVNUMB
+;dolni mez ok
+;plati NC v obou pripadech
+ASKBEG4		ex	de,hl
+		ld	b,h
+		ld	c,l
+		ld	hl,(ASKBENDH+1)
+		sbc	hl,bc
+		ld	h,b
+		ld	l,c
+		ex	de,hl
+		jp	c,INVNUMB
+		jr	nz,ASKBEG6
+;plati NC
+		ld	b,h
+		ld	c,l
+		ld	hl,(ASKBENDL+1)
+		sbc	hl,bc
+		ld	h,b
+		ld	l,c
+		jp	c,INVNUMB
+;horni mez ok
+ASKBEG6
+		call	CLSWIND
+		ld	a,(UNITS)
+		or	a
+		push	af
+		call	z,TOSECB
+		pop	af
+		jr	z,ASKBEG7
+;zkonroluj hranice valce
+		ld	a,(COMPATL)
+		cp	3
+		jr	c,ASKBEG7
+		call	ROUND
+		call	nz,TOSECB
+;zjisti, neni-li sektor prirazen nejake particii
+ASKBEG7		call	AVAIABLE
+		push	hl
+		push	de
+		ld	(NEWSTL+1),hl
+		ld	(NEWSTH+1),de
+;particie nemuze zacinat a koncit na stejnem sektoru ale valci klidne
+		ld	a,(UNITS)
+		or	a
+		ld	a,1
+		call	nz,ADDDEHLA
+;hodnoty pro testovani mezi' 1
+		ld	(ASKENDTH+1),de
+		ld	(ASKENDTL+1),hl
+		ld	a,(UNITS)
+		or	a
+		call	z,TOCYL
+		ld	(ASKESTAH+1),de
+		ld	(ASKESTAL+1),hl
+		pop	de
+		pop	hl
+		call	FDEND
+		ld	(ASKEND2L+1),hl
+		ld	(ASKEND2H+1),de
+		ld	a,(UNITS)
+		or	a
+		call	z,TOCYL
+		ld	(ASKEENDL+1),hl
+		ld	(ASKEENDH+1),de
+		ld	hl,NEWTXT3
+		ld	a,(UNITS)
+		or	a
+		jr	z,NEWPRIM5
+		ld	hl,NEWTXT4
+NEWPRIM5	call	PRINT128
+		xor	a
+		call	$1601
+		call	PRINTSP
+		defb	22,0,0
+		defb	'('+128
+ASKESTAL	ld	hl,0
+ASKESTAH	ld	de,0
+		ld	bc,9*256
+		call	DEC32X
+		ld	a,'-'
+		rst	16
+ASKEENDL	ld	hl,0
+ASKEENDH	ld	de,0
+		ld	bc,9*256
+		call	DEC32X
+		call	PRINTSP
+		defb	"[default])",':'+128
+ASKEND2		ld	hl,INPBUF
+		push	hl
+		ld	de,20704
+		ld	bc,256
+		ld	a,32
+		call	INPUT
+		pop	hl
+		ld	a,(hl)
+		cp	'+'
+		jr	nz,ASKEND3
+		inc	hl
+ASKEND3		call	DECBINL
+		jr	nc,ASKENUMS
+		ld	a,(INPBUF)
+		cp	'+'
+		jr	nz,ASKEND2
+		ld	a,(ix-1)
+		cp	'k'
+		jr	z,DBL3
+		cp	'K'
+		jr	z,DBL3
+		cp	'm'
+		jr	z,DBL4
+		cp	'M'
+		jr	nz,ASKEND2
+;byla zadana kapacita, neber ohled na (UNITS) a neposouvej se na konec valce
+DBL4		ld	d,e
+		ld	e,h
+		ld	h,l
+		ld	l,0
+		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		ex	de,hl
+		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		ex	de,hl
+DBL3		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		ex	de,hl
+		ld	bc,(NEWSTL+1)
+		add	hl,bc
+		ex	de,hl
+		ld	bc,(NEWSTH+1)
+		adc	hl,bc
+		ex	de,hl
+		call	DECDEHL
+		jr	ASKENDTH
+
+ASKENUMS	push	hl
+		push	de
+		ld	hl,INPBUF+1
+		push	ix
+		pop	de
+		or	a
+		sbc	hl,de
+		pop	de
+		pop	hl
+;je radek prazdny?
+		jr	nz,ASKNOEMP
+;ano, vezmi default
+		ld	hl,(ASKEENDL+1)
+		ld	de,(ASKEENDH+1)
+		jr	ASKNOE2
+
+ASKNOEMP	ld	a,(INPBUF)
+		cp	'+'
+		jr	nz,ASKNOE2
+		ld	a,(UNITS)
+		or	a
+;preved jen pocet
+		call	z,TOSEC2
+		ld	bc,(NEWSTL+1)
+		add	hl,bc
+		ex	de,hl
+		ld	bc,(NEWSTH+1)
+		adc	hl,bc
+		ex	de,hl
+		jr	ASKENDT
+
+ASKNOE2		ld	a,(UNITS)
+		or	a
+		call	z,TOSEC3
+ASKENDT		ld	a,(UNITS)
+		or	a
+		jr	nz,ASKENDTH
+;pokud je zadan koncovy valec, je treba posunout se na jeho konec
+		push	de
+		push	hl
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		dec	hl
+		pop	de
+		add	hl,de
+		pop	de
+		jr	nc,ASKENDTH
+		inc	de
+;hodnota v povolenem rozsahu?
+ASKENDTH	ld	bc,0
+		ex	de,hl
+		or	a
+		sbc	hl,bc
+		add	hl,bc
+		ex	de,hl
+		jp	c,INVNUMB
+		jr	nz,ASKEND4
+;plati NC
+ASKENDTL	ld	bc,0
+		sbc	hl,bc
+		add	hl,bc
+		jp	c,INVNUMB
+;dolni mez ok
+;plati NC v obou pripadech
+ASKEND4		ex	de,hl
+		ld	b,h
+		ld	c,l
+ASKEND2H	ld	hl,0
+		sbc	hl,bc
+		ld	h,b
+		ld	l,c
+		ex	de,hl
+		jp	c,INVNUMB
+		jr	nz,ASKEND6
+;plati NC
+		ld	b,h
+		ld	c,l
+ASKEND2L	ld	hl,0
+		sbc	hl,bc
+		ld	h,b
+		ld	l,c
+		jp	c,INVNUMB
+;horni mez ok
+ASKEND6
+		call	CLSWIND
+
+		ld	a,(COMPATL)
+		cp	3
+		jr	c,ASKEND8
+		ld	a,1
+		call	ADDDEHLA
+		call	ROUND
+		jr	z,ASKEND7
+;pokud se zaokrouhlovalo, je potreba posunout se na konec valce
+		inc	hl
+		call	TOSEC
+ASKEND7		call	DECDEHL
+
+;zjisti, neni-li sektor prirazen nejake particii
+ASKEND8		call	AVAIABLE
+;v DEHL posledni sektor pro novou particii
+		push	hl
+		push	de
+;prepsano z vrchu
+;adresa v pameti, kde je part.
+NEWMEM		ld	ix,0
+		ld	(ix+0),0
+;prepsano z vrchu
+;typ particie
+NEWTYP		ld	a,0
+		ld	(ix+4),a
+		cp	$05
+		jr	nz,NEWTYP2
+		ld	a,255
+		ld	(EXTPART),a
+NEWTYP2		ld	a,1
+		call	ADDDEHLA
+		ld	bc,(NEWSTL+1)
+		or	a
+		sbc	hl,bc
+		ld	bc,(NEWSTH+1)
+		ex	de,hl
+		sbc	hl,bc
+		ex	de,hl
+		ld	(ix+12),l
+		ld	(ix+13),h
+		ld	(ix+14),e
+		ld	(ix+15),d
+;posledni sektor
+		pop	de
+		pop	hl
+		call	TOCHS
+		ld	(ix+5),c
+		ld	(ix+6),d
+		ld	(ix+7),e
+;prepsano z vrchu
+;prvni sektor
+NEWSTL		ld	hl,0
+NEWSTH		ld	de,0
+		push	hl
+		push	de
+		ld	(ix+8),l
+		ld	(ix+9),h
+		ld	(ix+10),e
+		ld	(ix+11),d
+		call	TOCHS
+		ld	(ix+1),c
+		ld	(ix+2),d
+		ld	(ix+3),e
+		pop	de
+		pop	hl
+		ld	a,(LOGIC)
+		or	a
+		jr	z,MKBEG2
+		ld	a,(POCPART)
+		inc	a
+		ld	(POCPART),a
+		ld	a,(COMPATL)
+		cp	3
+		ld	bc,1
+		jr	c,MKBEG
+		ld	bc,(BIOSS)
+MKBEG		call	SUBDHBC
+MKBEG2		ld	(ix+16),l
+		ld	(ix+17),h
+		ld	(ix+18),e
+		ld	(ix+19),d
+		ret
+
+
+;prevede LBA sektor na CHS pro particii
+;<DEHL sektor
+;>DE sektor+valec
+; C hlava
+TOCHS		push	de
+		exx
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		ld	b,h
+		ld	c,l
+		pop	hl
+		call	DELENI42
+		push	de
+		exx
+		ld	a,(BIOSS)
+		ld	d,a
+		call	DELENI21
+		pop	de
+		ld	a,d
+		and	3
+		rrca
+		rrca
+		inc	l
+		or	l
+		ld	d,a
+		ret
+
+NEWTXT1		defb	22,21,0
+		defb	"First cylinde",'r'+128
+NEWTXT2		defb	22,21,0
+		defb	"First secto",'r'+128
+NEWTXT3		defb	22,21,0
+		defb	"Last cylinder or +size[k,m",']'+128
+NEWTXT4		defb	22,21,0
+		defb	"Last sector or +size[k,m",']'+128
+
+
+;prevede LBA cislo sektoru na cislo cylyndru
+;<DEHL cislo sektoru
+;>HL cylyndr
+TOCYL
+		push	de
+		push	hl
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		ld	b,h
+		ld	c,l
+		exx
+		pop	hl
+		exx
+		pop	hl
+		call	DELENI42
+		ex	de,hl
+;HL cylyndr
+;DE zbytek (sektory?)
+		ld	de,0
+;cislujem cylindry od 1
+		inc	hl
+		ret
+
+
+;zjisti, je-li zadany sektor volny
+;<DEHL sektor
+;navrat ok, jinak skok do menu
+AVAIABLE	push	de
+		push	hl
+		ld	b,4
+		ld	ix,PARTIC
+		ld	a,(LOGIC)
+		or	a
+		ld	a,b
+		jr	z,AVA0
+;pokud neni zadna logicka, neni potreba prohledavat
+		ld	a,(POCPART)
+;odecti pocet primarnich
+		sub	b
+		jp	z,AVA6
+		ld	ix,4*32+PARTIC
+AVA0		ex	de,hl
+		push	de
+		exx
+		pop	hl
+;v HL'HL je sektor
+AVA1		push	af
+		ld	a,(ix+4)
+		or	a
+		jp	z,AVA2
+;prohledavej skutecny zacatek
+		ld	e,(ix+16)
+		ld	d,(ix+17)
+		exx
+		ld	e,(ix+18)
+		ld	d,(ix+19)
+		or	a
+		sbc	hl,de
+		add	hl,de
+		exx
+		jr	c,AVA2
+		jr	nz,AVA3
+		sbc	hl,de
+		add	hl,de
+		jr	c,AVA2
+;konec pocitej ze zdanliveho st
+AVA3
+		ld	e,(ix+8)
+		ld	d,(ix+9)
+		ld	c,(ix+12)
+		ld	b,(ix+13)
+		ex	de,hl
+		add	hl,bc
+		ex	de,hl
+		exx
+		ld	e,(ix+10)
+		ld	d,(ix+11)
+		ld	c,(ix+14)
+		ld	b,(ix+15)
+		ex	de,hl
+		adc	hl,bc
+		or	a
+		sbc	hl,de
+		ex	de,hl
+		exx
+		jr	c,AVA2
+		jr	nz,AVA4
+		ex	de,hl
+		sbc	hl,de
+		ex	de,hl
+		jr	c,AVA2
+;protoze konec je o 1 vetsi rovnaji-li se, je to jeste ok
+		jr	z,AVA2
+;sektor je jiz alokovan
+AVA4		ld	hl,AVATXT1
+		ld	a,(UNITS)
+		or	a
+		jr	z,AVA5
+		ld	hl,AVATXT2
+AVA5		call	PRINT128
+		pop	af
+		pop	hl
+		pop	de
+		ld	a,(UNITS)
+		or	a
+		call	z,TOCYL
+		ld	bc,9*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" is already"
+		defb	13
+		defb	"allocated",'.'+128
+;navratova adresa, ret skoci do menu
+		pop	af
+		ret
+
+AVA2		ld	bc,32
+		add	ix,bc
+		pop	af
+		dec	a
+		jp	nz,AVA1
+AVA6
+		pop	hl
+		pop	de
+		ret
+
+AVATXT1		defb	13,13
+		defb	"Cylinder",' '+128
+AVATXT2		defb	13,13
+		defb	"Sector",' '+128
+
+
+;zaokrouhli zadany LBA sektor na hranici valce
+;vraci nz byla-li provedena korekce
+ROUND		push	de
+		push	hl
+		push	de
+		push	hl
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		ld	b,h
+		ld	c,l
+		exx
+		pop	hl
+		exx
+		pop	hl
+ROUND0		call	DELENI42
+		ex	de,hl
+;valce cislujem od 1
+		inc	hl
+		ld	(CORR1+1),hl
+;je potreba zjistit, jestli zacatek je na hlave 1, sec 0
+		exx
+		ld	a,(BIOSS)
+		ld	d,a
+		call	DELENI21
+;vysledek musi byt jen 0 nebo 1
+		ld	a,c
+		or	a
+		jr	z,NOROUND
+		dec	a
+		jr	nz,ROUNDIT
+;pokud L<>0 particie nezacina na hranici valce nebo hlavy (pro 1. particii)
+NOROUND		ld	a,l
+		or	a
+ROUNDIT		pop	hl
+		pop	de
+;v pripade skoku zustalo NZ
+		ret	z
+		call	PRINTSP
+		defb	13,13
+		defb	"Value you specified was rounded",13
+		defb	"to cylinder boundary.",13
+		defb	"If you don't want do that, set",13
+		defb	"the compatibility level 1 or 2"
+		defb	'.'+128
+CORR1		ld	hl,0
+;set NZ
+		ld	a,1
+		or	a
+		ret
+
+
+;prevede cislo cylindru na cislo LBA sektoru
+;<HL cislo cylyndru
+;>DEHL sektor
+TOSEC		dec	hl
+		ld	a,l
+		or	h
+		jr	nz,TOSEC2
+;cylyndr 1 zacina na 1. stope nebo 1. sektoru
+TOSECST		ld	de,0
+		ld	a,(COMPATL)
+		cp	3
+		ld	hl,1
+		ret	c
+		ld	hl,(BIOSS)
+		ret
+
+;pro vypocty konce
+TOSEC3		dec	hl
+TOSEC2		push	hl
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		pop	de
+		call	NASOB
+		push	ix
+		pop	de
+		ret
+
+;pro prevod valce zacatku
+TOSECB		ld	a,(LOGIC)
+		or	a
+;pro primarni je to normalne
+		jr	z,TOSEC
+;pro logicke se vzdy pricita posun pro mbr
+		call	TOSEC
+		ld	a,(COMPATL)
+		cp	3
+		ld	a,1
+		jr	c,TOSECB2
+		ld	a,(BIOSS)
+TOSECB2		jp	ADDDEHLA
+
+
+;najde prvni volny sektor pro zacatek particie
+;>DEHL cislo sektoru
+;z neni volne misto
+FDSTART		ld	de,-1
+;maximum do DE'DE
+		exx
+		ld	de,-1
+		ld	b,4
+		ld	ix,PARTIC
+		ld	a,(LOGIC)
+		or	a
+		ld	a,b
+		jr	z,FDSTART2
+;pokud neni zadna logicka, neni potreba prohledavat
+		ld	a,(POCPART)
+;odecti pocet primarnich
+		sub	b
+		jp	z,FDST44
+		ld	ix,4*32+PARTIC
+FDSTART2
+		push	af
+		ld	a,(ix+4)
+		or	a
+		jr	z,FDSTART4
+		ld	l,(ix+16)
+		ld	h,(ix+17)
+		exx
+		ld	l,(ix+18)
+		ld	h,(ix+19)
+		or	a
+;je aktualni start mensi?
+		sbc	hl,de
+		add	hl,de
+		exx
+		jr	nz,FDSTART3
+;plati NC
+		sbc	hl,de
+		add	hl,de
+FDSTART3	jr	nc,FDSTART4
+;ano, je z nej aktualni zacatek
+		ex	de,hl
+		exx
+		ex	de,hl
+		exx
+		ld	(FDSMIN+2),ix
+FDSTART4	ld	bc,32
+		add	ix,bc
+		pop	af
+		dec	a
+		jr	nz,FDSTART2
+FDST44
+;DE'DE by melo obsahovat zac. prvni particie (polohou)
+;kdyz -1 tak je disk prazdny
+		inc	de
+		ld	a,d
+		or	e
+		dec	de
+		exx
+		jr	nz,FDSNOEMP
+		inc	de
+		ld	a,d
+		or	e
+		dec	de
+		jr	nz,FDSNOEMP
+;disk je prazdny, vezmi zacatek podle compatibility
+FDSBEGIN	ld	de,0
+		ld	a,(COMPATL)
+		cp	3
+		ld	hl,1
+		jr	c,FDSBEG2
+		ld	hl,(BIOSS)
+FDSBEG2		ld	a,(LOGIC)
+		inc	a
+		ret	nz
+;0-nevytari se logicka
+;255-vytvari se logicka
+FDSBEGL		ld	bc,0
+		add	hl,bc
+		ex	de,hl
+FDSBEGH		ld	bc,0
+		adc	hl,bc
+		ex	de,hl
+		dec	a
+;set NZ (v A byla 0)
+		ret
+
+;nalezeny zacatek ale nemusi byt zacatek disku
+;pokud neni, pouzij zacatek d.
+FDSNOEMP
+;korekce pro logicke particie
+		ld	a,(LOGIC)
+		or	a
+		jr	z,FDSNOE2
+		exx
+		ld	hl,(FDSBEGL+1)
+		ex	de,hl
+		or	a
+		sbc	hl,de
+		ex	de,hl
+		exx
+		ld	hl,(FDSBEGH+1)
+		ex	de,hl
+		sbc	hl,de
+		ex	de,hl
+FDSNOE2
+;v DE vyssi, v DE' nizsi
+		ld	a,d
+		or	e
+;nezacina na zacatku disku
+		jr	nz,FDSBEGIN
+		exx
+		push	hl
+		ld	hl,(BIOSS)
+;melo by byt NC
+		sbc	hl,de
+		pop	hl
+;je dale nez na prvni stope
+		jr	c,FDSBEGIN
+;vrat zpet spravne hodnoty
+		ld	a,(LOGIC)
+		or	a
+		jr	z,FDSMIN
+;chybi ex de,hl, u scitani neva
+		add	hl,de
+		ex	de,hl
+		exx
+		adc	hl,de
+		ex	de,hl
+		exx
+;od zacatku je nejaka particie hledej volne misto
+FDSMIN		ld	ix,0
+;DE nizsi, DE' vyssi
+;pricti delku particie ale ke zdanlivemu startu
+FDSHOLE3	ld	l,(ix+12)
+		ld	h,(ix+13)
+		ld	e,(ix+8)
+		ld	d,(ix+9)
+		add	hl,de
+		exx
+		ld	l,(ix+14)
+		ld	h,(ix+15)
+		ld	e,(ix+10)
+		ld	d,(ix+11)
+		adc	hl,de
+		exx
+;zacina tady nejaka particie?
+		ld	b,4
+		ld	ix,PARTIC
+		ld	a,(LOGIC)
+		or	a
+		ld	a,b
+		jr	z,FDSHOLE1
+;pokud neni zadna logicka, neni potreba prohledavat
+		ld	a,(POCPART)
+;odecti pocet primarnich
+		sub	b
+		jp	z,FDSHOL22
+		ld	ix,4*32+PARTIC
+FDSHOLE1	ld	e,(ix+16)
+		ld	d,(ix+17)
+		or	a
+		sbc	hl,de
+		add	hl,de
+		jr	nz,FDSHOLE2
+;plati NC
+		exx
+		ld	e,(ix+18)
+		ld	d,(ix+19)
+		sbc	hl,de
+		add	hl,de
+		exx
+		jr	nz,FDSHOLE2
+;v DE'DE je zacatek dalsi part.
+;hledej dal
+		jr	FDSHOLE3
+
+FDSHOLE2	ld	bc,32
+		add	ix,bc
+		dec	a
+		jr	nz,FDSHOLE1
+FDSHOL22
+;v HL'HL je zac. volneho mista zjisti, jestli to neni konec disku nebo extd. part.
+		push	hl
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		ld	de,(BIOSC)
+		call	NASOB
+		push	ix
+		exx
+		pop	de
+		ld	a,(LOGIC)
+		or	a
+		jr	z,FDHOL33
+;je tohle dobre?
+		exx
+FDHOL3L		ld	hl,0
+		exx
+FDHOL3H		ld	de,0
+FDHOL33		or	a
+		sbc	hl,de
+		add	hl,de
+		exx
+		ex	de,hl
+		pop	hl
+		jr	nz,FDSTART5
+;plati NC
+		sbc	hl,de
+		add	hl,de
+;je to konec, smula
+		ret	z
+FDSTART5	exx
+		push	hl
+		exx
+		pop	de
+;kazda log. part. musi byt posunuta
+		ld	a,(LOGIC)
+		inc	a
+		ret	nz
+;0-nevytari se logicka
+;255-vytvari se logicka
+		ld	a,(COMPATL)
+		cp	3
+		ld	a,1
+		jr	c,FDSTART6
+		ld	a,(BIOSS)
+FDSTART6	call	ADDDEHLA
+;v A je 1, set NZ
+		or	a
+		ret
+
+
+;najde maximalni sektor pro zacatek particie
+;>DEHL cislo sektoru
+;(vzdy by melo neco vratit, protoze plny disk odhali uz FDSTART)
+FDMAX
+;zjisti konec disku
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		ld	de,(BIOSC)
+		call	NASOB
+		ex	de,hl
+		push	ix
+		exx
+		pop	de
+		exx
+		ld	a,(LOGIC)
+		or	a
+		jr	z,FDMAX2
+		exx
+		ld	de,(FDHOL3H+1)
+		exx
+		ld	de,(FDHOL3L+1)
+;DE'DE maximum
+FDMAX2		ld	b,4
+		ld	ix,PARTIC
+		ld	a,(LOGIC)
+		or	a
+		ld	a,b
+		jr	z,FDMAX3
+;pokud neni zadna logicka, neni potreba prohledavat
+		ld	a,(POCPART)
+;odecti pocet primarnich
+		sub	b
+		jp	z,FDMAX5
+		ld	ix,4*32+PARTIC
+;pro vypocet pouzij zdanlivy start
+FDMAX3		ld	l,(ix+8)
+		ld	h,(ix+9)
+		ld	c,(ix+12)
+		ld	b,(ix+13)
+		add	hl,bc
+		exx
+		ld	l,(ix+10)
+		ld	h,(ix+11)
+		ld	c,(ix+14)
+		ld	b,(ix+15)
+		adc	hl,bc
+		or	a
+		sbc	hl,de
+		add	hl,de
+		exx
+		jr	nz,FDMAX4
+;plati NC
+		sbc	hl,de
+		add	hl,de
+		jr	nz,FDMAX4
+;vezmi skutecny start teto particie jako maximum
+		ld	e,(ix+16)
+		ld	d,(ix+17)
+		exx
+		ld	e,(ix+18)
+		ld	d,(ix+19)
+		exx
+;hledej dal
+		jr	FDMAX2
+
+FDMAX4		ld	bc,32
+		add	ix,bc
+		dec	a
+		jr	nz,FDMAX3
+FDMAX5
+;v DE'DE je pouzitelny max. sec
+		ex	de,hl
+		exx
+		push	de
+		exx
+		pop	de
+;odecti od DEHL jednicku a navrat
+		jp	DECDEHL
+
+
+;najde maximum pro dany pocatecni sektor
+;>DEHL cislo sektoru
+FDEND
+;uloz minimum
+		ld	(FDENDL+1),hl
+		ld	(FDENDH+1),de
+;zjisti konec disku
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		ld	de,(BIOSC)
+		call	NASOB
+		push	ix
+		exx
+		pop	hl
+		exx
+		ld	b,4
+		ld	ix,PARTIC
+		ld	a,(LOGIC)
+		or	a
+		ld	a,b
+		jr	z,FDEND3
+;pokud neni zadna logicka, neni potreba prohledavat
+		ld	a,(POCPART)
+;odecti pocet primarnich
+		sub	b
+		jp	z,FDEND5
+		ld	ix,4*32+PARTIC
+		exx
+		ld	hl,(FDHOL3H+1)
+		exx
+		ld	hl,(FDHOL3L+1)
+;HL'HL maximum
+FDEND3
+		ld	e,(ix+16)
+		ld	d,(ix+17)
+		exx
+		ld	e,(ix+18)
+		ld	d,(ix+19)
+		or	a
+		sbc	hl,de
+		add	hl,de
+		exx
+		jr	c,FDEND4
+		jr	nz,FDEND7
+		sbc	hl,de
+		add	hl,de
+		jr	c,FDEND4
+FDEND7
+;nalezene je mensi nez maximum
+;je i vetsi nez minimum?
+		exx
+		push	hl
+FDENDH		ld	hl,0
+		ex	de,hl
+		sbc	hl,de
+		add	hl,de
+		ex	de,hl
+		pop	hl
+		exx
+		jr	c,FDEND4
+		jr	nz,FDEND6
+		push	hl
+FDENDL		ld	hl,0
+		ex	de,hl
+		sbc	hl,de
+		add	hl,de
+		ex	de,hl
+		pop	hl
+		jr	c,FDEND4
+FDEND6
+;je ok, prohlas ho za maximum
+		ex	de,hl
+		exx
+		ex	de,hl
+		exx
+FDEND4		ld	bc,32
+		add	ix,bc
+		dec	a
+		jr	nz,FDEND3
+FDEND5
+;v HL'HL je pouzitelny max. sec
+		exx
+		push	hl
+		exx
+		pop	de
+;odecti od DEHL jednicku a navrat
+		jp	DECDEHL
+
+
+;umozni zmenit pocet hlav disku
+CHHDS		ld	hl,HEADTXT
+		ld	de,255
+		ld	bc,(BIOSH)
+		call	ASKCH
+		jp	nc,INVNUMB
+		ld	(BIOSH),hl
+		push	hl
+		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"The number of heads for this"
+		defb	13
+		defb	"disk is set to",' '+128
+		pop	hl
+		ld	de,0
+		ld	bc,3*256
+		call	DEC32X
+		ld	a,'.'
+		rst	16
+		ret
+
+;umozni zmenit pocet sektoru na stopu disku
+CHSECS		ld	hl,SECTXT
+		ld	de,63
+		ld	bc,(BIOSS)
+		call	ASKCH
+		jp	nc,INVNUMB
+		ld	(BIOSS),hl
+		push	hl
+		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"The number of sectors per track for this diskis set to",' '+128
+		pop	hl
+		ld	de,0
+		ld	bc,2*256
+		call	DEC32X
+		ld	a,'.'
+		rst	16
+		ret
+
+;umozni zmenit pocet cylindru
+CHCYLS		ld	hl,CYLTXT
+		ld	de,65535
+		ld	bc,(BIOSC)
+		call	ASKCH
+		jp	nc,INVNUMB
+		ld	(BIOSC),hl
+		push	hl
+		push	hl
+		call	CLSWIND
+LOTSCYL		call	PRINTSP
+		defb	13,13
+		defb	"The number of cylinders for thisdisk is set to",' '+128
+		pop	hl
+		ld	de,0
+		ld	bc,5*256
+		call	DEC32X
+		ld	a,'.'
+		rst	16
+		pop	hl
+		ld	bc,1024
+		or	a
+		sbc	hl,bc
+		ret	c
+		call	PRINTSP
+		defb	13,13
+		defb	"There is nothing wrong with thatbut this is larger than 1023,"
+		defb	13
+		defb	"and could in certain PC setups"
+		defb	13
+		defb	"cause problems with:"
+		defb	13
+		defb	"1) software that runs at boot"
+		defb	13,32,32,32
+		defb	"time (e.g. LILO)",13
+		defb	"2) booting and partitioning"
+		defb	13,32,32,32
+		defb	"software from other OSs (e.g."
+		defb	13,32,32,32
+		defb	"DOS FDISK, OS/2 FDISK)",'.'+128
+		ret
+
+;umozni zmenit uroven kompat.
+CHANLEV		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"Select a compatibility level:"
+		defb	13,13
+		defb	" 1 - Sectors in NORMAL mode"
+		defb	13
+		defb	" 2 - Sectors in LBA mode"
+		defb	13
+		defb	" 3 - Cylinders in NORMAL mode"
+		defb	13
+		defb	" 4 - Cylinders in LBA mod",'e'+128
+;nasleduje celkem hruznost, ale prece to nebudu psat znova...
+		ld	hl,CHANLEV2
+		push	hl
+		ld	de,4
+		ld	bc,(COMPATL)
+		push	bc
+		push	de
+		push	bc
+		push	de
+		jp	ASKCHX
+CHANLEV2	jp	nc,INVNUMB
+		ld	(COMPATL),hl
+		push	hl
+		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"The compatibility level is set"
+		defb	13
+		defb	"to",' '+128
+		pop	hl
+		ld	de,0
+		ld	bc,2*256
+		call	DEC32X
+		ld	a,'.'
+		rst	16
+		jp	SETGEOM2
+
+;zepta se na parametr disku
+;<HL,adresa textu (cyl,sec,hed)
+;<DE,maximum
+;<BC,default hodnota
+;>HL,hodnota
+;>nc=mimo rozsah
+ASKCH		push	bc
+		push	de
+		push	bc
+		push	de
+		push	hl
+		call	CLSWIND
+		call	PRINTSP
+		defb	22,21,0
+		defb	"Number of",' '+128
+		pop	hl
+		call	PRINT128
+ASKCHX		xor	a
+		call	$1601
+		call	PRINTSP
+		defb	22,0,0
+		defb	"(1",'-'+128
+		pop	hl
+		ld	de,0
+		ld	bc,5*256
+		call	DEC32X
+		call	PRINTSP
+		defb	", default",' '+128
+		pop	hl
+		ld	de,0
+		ld	bc,5*256
+		call	DEC32X
+		ld	a,')'
+		rst	16
+		ld	a,':'
+		rst	16
+ASKCH2		ld	hl,INPBUF
+		push	hl
+		ld	de,20704
+		ld	bc,256
+		ld	a,32
+		call	INPUT
+		pop	hl
+		call	DECBIN
+		jr	c,ASKCH2
+		push	hl
+		ld	hl,INPBUF+1
+		or	a
+		sbc	hl,de
+		pop	hl
+		pop	de
+;je radek prazdny?
+		jr	z,ASKCH3
+		pop	bc
+		ld	a,h
+		or	l
+;navrat s nc
+		ret	z
+		scf
+;de+1
+		sbc	hl,de
+		add	hl,de
+;nastav spravne nc
+		inc	hl
+		ret
+
+;vezmi default
+ASKCH3		pop	hl
+;je ok
+		scf
+		ret
+
+;zepta se na cislo particie
+INPART		xor	a
+		call	$1601
+		call	PRINTSP
+		defb	22,0,0
+		defb	"Partition number (1",'-'+128
+		ld	a,(POCPART)
+		ld	l,a
+		ld	h,0
+		ld	d,h
+		ld	e,h
+		ld	bc,2*256
+		call	DEC32X
+		ld	a,')'
+		rst	16
+		ld	a,':'
+		rst	16
+INPART2		ld	hl,INPBUF
+		push	hl
+		ld	de,20704
+		ld	bc,256
+		ld	a,32
+		call	INPUT
+		pop	hl
+		call	DECBIN
+		jr	c,INPART2
+		ret
+
+;zmeni bootable flag particie
+TOGBOOT		call	INPART
+		call	CLSWIND
+;zeptej se na particii
+		ld	a,l
+		or	h
+;0 je mimo rozsah
+		jp	z,INVNUMB
+		ld	e,l
+;schovej si cislo pt do budoucn
+		dec	hl
+		ld	a,(POCPART)
+		ld	c,a
+		ld	b,0
+		or	a
+		sbc	hl,bc
+		add	hl,bc
+;vetsi nez max je mimo rozsah
+		jp	nc,INVNUMB
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;HLx32
+		ld	bc,PARTIC
+		add	hl,bc
+		push	hl
+		pop	ix
+		ld	a,(ix+4)
+		or	a
+;je particie prazdna?
+		jp	z,EMPTYPA
+		cp	$05
+		jr	z,BOOTEXT
+		cp	$0F
+		jr	z,BOOTEXT
+		cp	$85
+		jr	nz,BNEXT
+BOOTEXT		call	PRINTSP
+		defb	13,13
+		defb	"Warning: partition",' '+128
+		ld	l,e
+		ld	h,0
+		ld	e,h
+		ld	d,h
+		ld	bc,2*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" is an ex-"
+		defb	13
+		defb	"tended partition",'!'+128
+BNEXT		ld	a,(ix+0)
+		xor	$80
+		ld	(ix+0),a
+		ret
+
+;zmeni sys id particie
+CSYSID		call	INPART
+;zeptej se na particii
+		ld	a,l
+		or	h
+;0 je mimo rozsah
+		jp	z,INVNUMB
+		ld	e,l
+;schovej si cislo pt do budoucna
+		ld	a,l
+		ld	(PNUM+1),a
+		dec	hl
+		ld	a,(POCPART)
+		ld	c,a
+		ld	b,0
+		or	a
+		sbc	hl,bc
+		add	hl,bc
+;vetsi nez max je mimo rozsah
+		jp	nc,INVNUMB
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;HLx32
+		ld	bc,PARTIC
+		add	hl,bc
+		push	hl
+		pop	ix
+		ld	a,(ix+4)
+		or	a
+;je particie prazdna?
+		jp	z,EMPTYPA
+		push	ix
+;zeptej se na typ
+CSYSID4		call	PRINTSP
+		defb	22,0,0
+		defb	"Hex code ('L' to list codes)",':'+128
+		ld	hl,INPBUF
+		push	hl
+		ld	de,20704
+		ld	bc,256
+		ld	a,32
+		call	INPUT
+		pop	hl
+		ld	a,(hl)
+;udelej mala pismena
+		or	32
+		cp	'l'
+		jr	nz,CSYSID3
+;kdyz to byl list, vypys ho
+		call	LIST
+		xor	a
+		call	$1601
+		jr	CSYSID4
+CSYSID3		call	HEXBIN
+		jr	c,CSYSID4
+		pop	ix
+		ld	a,h
+		or	a
+;vetsi nez 255 je mimo rozsah
+		jp	nz,INVNUMB
+		ld	a,l
+		or	a
+;0 je mimo rozsah
+		jp	z,INVNUMB
+;neni mozne zmenit ext na norm a obracene
+		ld	a,(ix+4)
+		cp	$05
+		jr	z,WASEXTD
+		cp	$0F
+		jr	z,WASEXTD
+		cp	$85
+		jr	z,WASEXTD
+;nebyla ext. nesmi byt ani ted
+		ld	a,l
+		cp	$05
+		jr	z,BADEXTD
+		cp	$0F
+		jr	z,BADEXTD
+		cp	$85
+		jr	z,BADEXTD
+;proved
+EXTDOK		ld	(ix+4),a
+;zaverecny vypis
+		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"Changed system type of partition"
+		defb	13+128
+PNUM		ld	hl,0
+		ld	d,h
+		ld	e,h
+		ld	bc,2*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" to",' '+128
+		ld	l,(ix+4)
+		ld	h,0
+		call	HEX8
+		ld	a,32
+		rst	16
+		ld	a,'('
+		rst	16
+		ld	l,(ix+4)
+		ld	h,0
+		add	hl,hl
+		ld	de,TYPETBL
+		add	hl,de
+		ld	a,(hl)
+		inc	hl
+		ld	h,(hl)
+		ld	l,a
+		call	PRINT128
+		ld	a,')'
+		rst	16
+		ld	a,'.'
+		rst	16
+		ret
+
+;byla exteneded, je i ted?
+WASEXTD		ld	a,l
+		cp	$05
+		jr	z,EXTDOK
+		cp	$0F
+		jr	z,EXTDOK
+		cp	$85
+		jr	z,EXTDOK
+;spatna zprava
+BADEXTD		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"You cannot change a partition"
+		defb	13
+		defb	"into an extended one or vice"
+		defb	13
+		defb	"versa. Delete it first",'.'+128
+		ret
+
+;a dalsi spatna zprava :)
+EMPTYPA		push	de
+;v e cislo partition
+		call	CLSWIND
+		pop	de
+		call	PRINTSP
+		defb	13,13
+		defb	"Partition",' '+128
+		ld	l,e
+		ld	h,0
+		ld	e,h
+		ld	d,h
+		ld	bc,2*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" does not exist yet",'!'+128
+		ret
+
+;prepnina sektory/cylindry pro vypis a zadavani
+CHUNITS		call	CLSWIND
+		ld	hl,UNITS
+		ld	a,(hl)
+		xor	1
+		ld	(hl),a
+		push	af
+		call	PRINTSP
+		defb	13,13
+		defb	"Changing display/entry units to",13+128
+		pop	af
+		ld	hl,CYLTXT
+		jr	z,CHUN1
+		ld	hl,SECTXT
+CHUN1		call	PRINT128
+		ld	a,'.'
+		rst	16
+		ret
+
+;smaze particii
+DELPT		call	INPART
+;zeptej se na partiticii
+		call	CLSWIND
+		ld	a,l
+		or	h
+;0 je mimo rozsah
+		jp	z,INVNUMB
+;schovej si cislo part.
+		ld	e,l
+		dec	hl
+		ld	a,(POCPART)
+		ld	c,a
+		ld	b,0
+		or	a
+		sbc	hl,bc
+		add	hl,bc
+;vic nez max je mimo rozsah
+		jp	nc,INVNUMB
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;HLx32
+		ld	bc,PARTIC
+		add	hl,bc
+		push	hl
+		pop	ix
+		ld	a,(ix+4)
+		or	a
+;je particie prazdna?
+		jr	nz,DELPT2
+;ano, varovani
+		push	af
+		push	hl
+		push	de
+		call	PRINTSP
+		defb	13,13
+		defb	"Warning: partition",' '+128
+		ld	l,e
+		ld	h,0
+		ld	e,h
+		ld	d,h
+		ld	bc,2*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" has empty"
+		defb	13
+		defb	"typ",'e'+128
+		pop	de
+		pop	hl
+		pop	af
+;je particie extended?
+DELPT2		cp	$05
+		jr	z,DELALLE
+		cp	$0F
+		jr	z,DELALLE
+		cp	$85
+		jr	nz,DELPT3
+;smahni vsechny z extended
+DELALLE		push	hl
+		push	de
+		xor	a
+		ld	hl,4*32+PARTIC
+		ld	de,4*32+PARTIC+1
+		ld	bc,59*32-1
+		ld	(hl),a
+		ld	(EXTPART),a
+		ldir
+;zustanou jen 4
+		ld	a,4
+		ld	(POCPART),a
+		pop	de
+		pop	hl
+;mazeme nekde v extended?
+DELPT3		ld	a,e
+		cp	5
+		jr	c,DELPT4
+;ano, je treba snizit pocet
+;(HL bohuzel potrebuji)
+		ld	a,(POCPART)
+		dec	a
+		ld	(POCPART),a
+;posunout zbytek
+		ld	a,63
+		sub	e
+;mazeme 63. particii?
+		jr	z,DELPT4
+		ld	e,l
+		ld	d,h
+		ld	bc,32
+		add	hl,bc
+		push	hl
+		ld	l,a
+		ld	h,0
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;HLx32
+		ld	c,l
+		ld	b,h
+		pop	hl
+		ldir
+;v DE adresa 63. particie (doufam :-)
+		ex	de,hl
+DELPT4		ld	e,l
+		ld	d,h
+		inc	de
+		ld	bc,31
+		ld	(hl),b
+		ldir
+		ret
+
+;chyba: cislo mimo rozsah
+INVNUMB		call	CLSWIND
+INVNUMB2	call	PRINTSP
+		defb	13,13
+		defb	"Value out of range",'.'+128
+		ret
+
+;vytvori prazdnou tabulku part.
+;a v mbr vytvori znacku "ok"
+CRNEW		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"Building a new DOS disklabel."
+		defb	13
+		defb	"Changes will remain in memory"
+		defb	13
+		defb	"only, until you decide to write"
+		defb	13
+		defb	"them. After that, of course, theprevious content won't be reco-"
+		defb	13
+		defb	"verable",'.'+128
+
+		xor	a
+		ld	hl,PARTIC
+		ld	de,PARTIC+1
+		ld	bc,63*32-1
+		ld	(hl),a
+		ld	(EXTPART),a
+		ldir
+
+;fixme!
+;tady by se mel radeji prenest mbr z PeCe (kuli bootovani)
+
+		ld	hl,$AA55
+		ld	(MBR+$1FE),hl
+		ld	a,4
+		ld	(POCPART),a
+		ret
+
+;vytiskne help (normal menu)
+HELP		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"a  Toggle a bootable flag"
+		defb	13
+		defb	"c  Select a compatibility level"
+		defb	13
+		defb	"d  Delete partition"
+		defb	13
+		defb	"l  List known partition types"
+		defb	13
+		defb	"m  Prints this menu"
+		defb	13
+		defb	"n  Add a new partition"
+		defb	13
+		defb	"o  Create a new empty p. table"
+		defb	13
+		defb	"p  Print the partition table"
+		defb	13
+		defb	"q  Quit without saving changes"
+		defb	13
+		defb	"t  Change a partition's sys. ID"
+		defb	13
+		defb	"u  Change display/entry units"
+		defb	13
+		defb	"w  Write table to disk and exit"
+		defb	13
+		defb	"x  Extra functionality (experts)"
+		defb	13
+
+		defb	' '+128
+		ret
+
+;vytiskne help (expert menu)
+HELPEX		call	CLSWIND
+		call	PRINTSP
+		defb	13,13
+		defb	"c  Change number of cylinders"
+		defb	13
+		defb	"h  Change number of heads"
+		defb	13
+		defb	"m  Prints this menu"
+		defb	13
+		defb	"q  Quit without saving changes"
+		defb	13
+		defb	"r  Return to main menu"
+		defb	13
+		defb	"s  Change number of sectors/tr"
+		defb	"ck"
+
+		defb	' '+128
+		ret
+
+;vypise seznam znamych sys id
+LIST		call	CLSWIND
+		ld	a,13
+		rst	16
+		ld	a,13
+		rst	16
+		ld	ix,TYPETBL
+		ld	bc,20
+LISTSM1		ld	l,(ix+0)
+		ld	h,(ix+1)
+		ld	de,TXX
+		or	a
+		sbc	hl,de
+		jr	z,LISTSM2
+		add	hl,de
+		push	hl
+		ld	h,0
+		ld	l,b
+		call	HEX8
+		ld	a,' '
+		rst	16
+		pop	hl
+		call	PRINT128
+		ld	a,13
+		rst	16
+		dec	c
+		jr	nz,LISTSM2
+		call	KEYWAIT
+		ret	nc
+		ld	c,20
+LISTSM2		inc	ix
+		inc	ix
+		inc	b
+		jr	nz,LISTSM1
+		ret
+
+;vytiskne vsechny particie
+PARTPR		call	CLSWIND
+		call	PRINTSP
+		defb	13,13,13
+		defb	"Disk h",'d'+128
+		ld	a,(DEVNUM)
+		add	a,'a'
+		rst	16
+		ld	a,':'
+		rst	16
+		ld	a,32
+		rst	16
+		ld	hl,(BIOSH)
+		ld	de,0
+		ld	bc,3*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" h,",' '+128
+		ld	hl,(BIOSS)
+		ld	de,0
+		ld	bc,3*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" s,",' '+128
+		ld	hl,(BIOSC)
+		ld	de,0
+		ld	bc,5*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" c"
+		defb	13
+		defb	"Total size:",' '+128
+		ld	hl,(BIOSC)
+		ld	a,(BIOSH)
+		ld	d,a
+		ld	a,(BIOSS)
+		ld	e,a
+		ld	a,2
+		call	CHS2MB
+		ld	de,0
+		ld	bc,5*256
+		call	DEC32X
+		call	PRINTSP
+		defb	" MB"
+		defb	13
+		defb	"Units =",' '+128
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOB
+		ex	de,hl
+		ld	hl,CYLTXT
+		ld	a,(UNITS)
+		or	a
+		jr	z,UNSK1
+		ld	hl,SECTXT
+		ld	de,1
+UNSK1		call	PRINT128
+		call	PRINTSP
+		defb	" of",' '+128
+		ex	de,hl
+		ld	de,0
+		ld	bc,5*256
+		call	DEC32X
+		call	PRINTSP
+		defb	"*512 B"
+		defb	13,13,13,19,1
+		defb	"Part Bt  Size Id Description"
+		defb	19,0,13
+		defb	"    Start       End   Sectors"
+		defb	13+128
+		ld	bc,63*256+4
+		ld	ix,PARTIC
+PARTP5		ld	a,(ix+4)
+		or	a
+		jr	z,PARTP7
+		call	PARTI1
+		dec	c
+		jr	nz,PARTP7
+;uchylarna, aby se nevypisovalo zahlavi na prazdnou stranku
+		push	ix
+		push	ix
+		pop	de
+		push	bc
+		ld	hl,4
+		add	hl,de
+		ld	de,32
+PARTP9		add	hl,de
+		ld	a,(hl)
+		or	a
+		jr	nz,PARTP8
+		dec	b
+		jp	nz,PARTP9
+		pop	bc
+		pop	ix
+		ret
+
+PARTP8		pop	bc
+		pop	ix
+		call	KEYWAIT
+		ret	nc
+		call	PRINTSP
+		defb	19,1
+		defb	"Part Bt  Size Id Description"
+		defb	19,0,13
+		defb	"    Start       End   Sectors"
+		defb	13+128
+		ld	c,6
+PARTP7		ld	de,32
+		add	ix,de
+		djnz	PARTP5
+		ret
+
+;vypis jedne particie
+PARTI1
+		push	bc
+		ld	a,13
+		rst	16
+		ld	a,19
+		rst	16
+		ld	a,1
+		rst	16
+		ld	a,'h'
+		rst	16
+		ld	a,'d'
+		rst	16
+		ld	a,(DEVNUM)
+		add	a,'a'
+		rst	16
+		ld	a,64
+		sub	b
+		ld	(CYLTST+1),a
+		ld	de,0
+		ld	l,a
+		ld	h,d
+		ld	bc,2*256
+		call	DEC32X
+		ld	a,23
+		rst	16
+		ld	a,5
+		rst	16
+		rst	16
+		ld	a,(ix+0)
+		or	a
+		ld	b,'*'
+		jr	nz,PARTP4
+		ld	b,' '
+PARTP4		ld	a,b
+		rst	16
+		ld	l,(ix+12)
+		ld	h,(ix+13)
+		ld	e,(ix+14)
+		ld	d,(ix+15)
+		push	de
+		exx
+		pop	hl
+		ld	bc,1024*2
+		call	DELENI42
+		ld	h,d
+		ld	l,e
+		ld	de,0
+		ld	bc,5*256+' '
+		call	DEC32X
+		ld	a,'M'
+		rst	16
+		ld	a,'B'
+		rst	16
+		ld	a,' '
+		rst	16
+		ld	l,(ix+4)
+		ld	h,0
+		call	HEX8
+		ld	a,' '
+		rst	16
+		ld	l,(ix+4)
+		ld	h,0
+		add	hl,hl
+		ld	de,TYPETBL
+		add	hl,de
+		ld	a,(hl)
+		inc	hl
+		ld	h,(hl)
+		ld	l,a
+		call	PRINT128
+		ld	a,19
+		rst	16
+		xor	a
+		rst	16
+		ld	a,13
+		rst	16
+
+;druhy radek vypisu
+		ld	a,(UNITS)
+		or	a
+		jp	z,VYCYL
+;vypisujeme v sektorech
+		ld	l,(ix+8)
+		ld	h,(ix+9)
+		ld	e,(ix+10)
+		ld	d,(ix+11)
+		ld	bc,9*256+' '
+		call	DEC32X
+		ld	a,' '
+		rst	16
+		push	de
+		ld	c,l
+		ld	b,h
+		ld	l,(ix+12)
+		ld	h,(ix+13)
+		add	hl,bc
+		pop	bc
+		ex	de,hl
+		ld	l,(ix+14)
+		ld	h,(ix+15)
+		adc	hl,bc
+		ex	de,hl
+;snizeni DEHL o 1
+		call	DECDEHL
+		ld	bc,9*256+' '
+		call	DEC32X
+VYPSPOL		ld	a,' '
+		rst	16
+		ld	l,(ix+12)
+		ld	h,(ix+13)
+		ld	e,(ix+14)
+		ld	d,(ix+15)
+		ld	bc,9*256+' '
+		call	DEC32X
+		ld	a,13
+		rst	16
+		pop	bc
+		ret
+
+;vypisujeme v cylindrech
+VYCYL
+		ld	hl,(BIOSH)
+		ld	de,(BIOSS)
+		call	NASOBS
+		ld	b,h
+		ld	c,l
+		push	bc
+		exx
+		ld	l,(ix+8)
+		ld	h,(ix+9)
+		push	hl
+		exx
+		ld	l,(ix+10)
+		ld	h,(ix+11)
+		push	hl
+		call	DELENI42
+		ex	de,hl
+;cislujem cylindry od 1
+		inc	hl
+;je potreba zjistit, jestli zacatek je na hlave 1, sec 0
+		exx
+		ld	a,(BIOSS)
+		ld	d,a
+		call	DELENI21
+;vysledek musi byt jen 0 nebo 1 pro 1. log pt (celk. 5.) i 2
+		ld	a,c
+		or	a
+		jr	z,CYLREM
+		dec	a
+		jr	z,CYLREM
+		dec	a
+		jr	nz,CYLBAD
+CYLTST		ld	a,0
+		cp	5
+		jr	nz,CYLBAD
+;pokud L<>0 particie nezacina na hranici valce nebo hlavy (pro 1. particii)
+CYLREM		ld	a,l
+		or	a
+
+
+
+		ld	a,' '
+		jr	z,VYCYL3
+CYLBAD		ld	a,'!'
+VYCYL3		exx
+		push	af
+		ld	de,0
+		ld	bc,8*256+' '
+		call	DEC32X
+		pop	af
+		rst	16
+		ld	a,' '
+		rst	16
+		pop	bc
+		pop	de
+		ld	l,(ix+12)
+		ld	h,(ix+13)
+		add	hl,de
+		push	bc
+		exx
+		pop	de
+		ld	l,(ix+14)
+		ld	h,(ix+15)
+		adc	hl,de
+		pop	bc
+		call	DELENI42
+		ex	de,hl
+		exx
+		ld	a,l
+		or	h
+		ld	a,' '
+		jr	z,VYCYL4
+		ld	a,'!'
+VYCYL4		exx
+		push	af
+		ld	de,0
+		ld	bc,8*256+' '
+		call	DEC32X
+		pop	af
+		rst	16
+		jp	VYPSPOL
+
+
+CYLTXT		defb	"cylinder",'s'+128
+SECTXT		defb	"sector",'s'+128
+HEADTXT		defb	"head",'s'+128
+
+
+;ukonceni cinnosti
+BASIC
+		pop	af
+		pop	hl
+		exx
+		ei
+		ret
+
+
+;ceka na stisk ENTER (next) nebo SPACE (quit) = nc
+KEYWAIT		xor	a
+		call	$1601
+		call	PRINTSP
+		defb	22,1,0
+		defb	"ENTER-next page     SPACE-qui",'t'+128
+LISTSM5		ld	a,127
+		in	a,(254)
+		rra
+		ret	nc
+		ld	a,191
+		in	a,(254)
+		rra
+		jr	c,LISTSM5
+		call	CLSWIND
+		ld	a,13
+		rst	16
+		ld	a,13
+		rst	16
+		scf
+		ret
+
+;smaze pracovni okno
+CLSWIND		push	bc
+		push	hl
+		push	de
+		ld	hl,22528+64
+		ld	de,22528+64+1
+		ld	bc,767-64
+		ld	a,(23693)
+		ld	(hl),a
+		ldir
+		ld	a,2
+		call	$1601
+		ld	hl,2*32+16384
+		ld	b,22
+CLSW2		ld	c,8
+		xor	a
+CLSW3		push	hl
+		push	bc
+		ld	d,h
+		ld	e,l
+		inc	de
+		ld	bc,31
+		ld	(hl),a
+		ldir
+		pop	bc
+		pop	hl
+		inc	h
+		dec	c
+		jr	nz,CLSW3
+		dec	h
+		call	DOWNHL
+		djnz	CLSW2
+		call	PRINTSP
+		defb	22,0,128
+;kuli radkovani
+		pop	de
+		pop	hl
+		pop	bc
+		ret
+
+;smaze celou obrazovku a vytiskne zahlavi
+CLS		ld	hl,16384
+		ld	de,16385
+		ld	bc,6144
+		xor	a
+		ld	(hl),a
+		ldir
+		ld	a,(23693)
+		ld	(hl),a
+		rra
+		rra
+		rra
+		and	7
+		out	(254),a
+		ld	bc,767
+		ldir
+		ld	a,2
+		call	$1601
+		call	PRINTSP
+		defb	19,1
+		defb	22,0,3
+		defb	" ZX FDISK v0.5e 2001 DTP "
+		defb	19,0,22,0,128
+		ret
+
+;nastavi realnou geometrii disku, nejlepe predany parametr z os (zatim neumime)
+;a potom podle kompatibility flagu nastavi geometrii pro pc bios
+SETGEOM
+;fixme-matrix!
+;(nahrada za predani z os)
+		in	a,(RHEAD)
+;korekce pro demetni disky
+		cp	255
+		jr	z,SETGEOM
+		and	16
+		ld	b,0
+		jr	z,SETGEOM3
+		inc	b
+SETGEOM3	or	HKONST
+		ld	(MOS+1),a
+		ld	a,b
+		ld	(DEVNUM),a
+;identify drive
+		ld	a,CIDENT
+		ld	hl,SEKTMP
+		call	HDRD2
+		ld	hl,(SEKTMP+6)
+		ld	(REALH),hl
+		ld	hl,(SEKTMP+12)
+		ld	(REALS),hl
+		ld	hl,(SEKTMP+2)
+		ld	(REALC),hl
+;pokud je realnych cylyndru mene nez 1024, neni potreba prepocitavat podle LBA
+		ld	bc,1024
+		or	a
+		sbc	hl,bc
+		ld	a,3
+		jr	c,SETGEOM4
+		inc	a
+SETGEOM4	ld	(COMPATL),a
+
+;pro pripad, ze bude "normal"
+SETGEOM2	ld	hl,REALC
+		ld	de,BIOSC
+		ld	bc,6
+		ldir
+
+		ld	a,(COMPATL)
+		and	1
+		ret	nz
+;pokracujem jen pri sudych cislech (2 a 4)
+
+;nasleduje vypocet CHS pro BIOS (podle "normy LBA")
+		ld	de,(REALC)
+		ld	a,(REALH)
+		ld	b,a
+		exx
+		ld	hl,0
+		ld	de,0
+		exx
+		ld	hl,0
+BIOSTR1		add	hl,de
+		exx
+		adc	hl,de
+		exx
+		djnz	BIOSTR1
+		ld	de,0
+		ex	de,hl
+		exx
+		ld	de,0
+		ex	de,hl
+		exx
+		ld	a,(REALS)
+		ld	b,a
+BIOSTR2		add	hl,de
+		exx
+		adc	hl,de
+		exx
+		djnz	BIOSTR2
+		push	hl
+		exx
+		push	hl
+		ld	bc,1024
+		call	DELENI42
+		ex	de,hl
+		exx
+		ld	hl,0
+		ld	bc,63
+		call	DELENI42
+		ld	a,d
+		or	a
+		ld	b,255
+		jr	nz,MAMHEAD
+		ld	a,e
+		cp	127
+		jr	nc,MAMHEAD
+		ld	b,128
+		cp	63
+		jr	nc,MAMHEAD
+		ld	b,64
+		cp	31
+		jr	nc,MAMHEAD
+		ld	b,32
+		cp	15
+		jr	nc,MAMHEAD
+		ld	b,16
+MAMHEAD		ld	a,b
+		ld	(BIOSH),a
+		ld	l,b
+		ld	h,0
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		ld	c,b
+		ld	b,0
+		or	a
+		sbc	hl,bc
+;HLx63
+		ld	b,h
+		ld	c,l
+		pop	hl
+		exx
+		pop	hl
+		exx
+		call	DELENI42
+		ld	(BIOSC),de
+		ld	bc,63
+		ld	(BIOSS),bc
+		ld	hl,(BIOSC)
+		push	hl
+		push	hl
+		jp	LOTSCYL
+
+;prevede retezec partiticii na jednotlive editovatelne 16B polozky
+PARTDEK
+;vynulujem tabulku a zacatky
+		xor	a
+		ld	hl,PARTIC
+		ld	de,PARTIC+1
+		ld	bc,64*32-1
+		ld	(hl),a
+		ldir
+;neni zadna extended
+		ld	(EXTPART),a
+
+;fixme-matrix!
+;tady by mel byt nacten mbr (logicky sektor 0)
+
+
+		ld	hl,0
+		ld	de,0
+;hl=LBA (00-15)
+;de=LBA (16-27)
+		call	LBAWR
+		ld	hl,MBR
+;hl=adresa dat
+		call	HDRD
+
+
+;fixme!
+;debug, smazat
+;		ld	hl,49152
+;		ld	(DEBUG+1),hl
+;/debug
+
+
+;test, je-li mbr platny
+		ld	hl,(MBR+$1FE)
+		ld	bc,$AA55
+		or	a
+		sbc	hl,bc
+		jp	z,PDK2
+
+;pokud mbr obsahuje jen nuly, je prohlasen za prazdny a je vygenerovana znacka "mbr ok"
+		ld	hl,MBR
+		ld	bc,512
+PDK3		xor	a
+		or	(hl)
+		jr	nz,PDK4
+		inc	hl
+		dec	bc
+		ld	a,c
+		or	b
+		jr	nz,PDK3
+;mbr je prazdny
+		call	PRINTSP
+		defb	13,13
+		defb	"Device NOT contain a valid DOS"
+		defb	13
+		defb	"partition table."
+		defb	13,13,13
+		defb	"Press any key",'.'+128
+PDKX		xor	a
+		in	a,(254)
+		cpl
+		and	31
+		jr	z,PDKX
+;vytvor novy prazdny
+		jp	CRNEW
+
+;je tam chyba, slusne oznamime
+PDK4		call	PRINTSP
+		defb	13,13
+		defb	"Master Boot Record have BAD"
+		defb	13
+		defb	"signature."
+		defb	13,13
+		defb	"Use 'o' to build a new empty"
+		defb	13
+		defb	"one",'.'+128
+;jsou preneseny prvni 4 zaznamy pravdepodobne neplatne, ale to at rozhodne uzivatel
+MBR2PT		ld	a,4
+		ld	bc,16
+		ld	hl,MBR+$1BE
+		ld	de,PARTIC
+		push	de
+MBR2PT2		push	bc
+		push	hl
+		pop	ix
+		exx
+		ld	l,(ix+8)
+		ld	h,(ix+9)
+		ld	e,(ix+10)
+		ld	d,(ix+11)
+		exx
+		ldir
+		push	de
+		pop	ix
+		exx
+		ld	(ix+0),l
+		ld	(ix+1),h
+		ld	(ix+2),e
+		ld	(ix+3),d
+		exx
+		ex	de,hl
+		pop	bc
+		add	hl,bc
+		ex	de,hl
+		dec	a
+		jr	nz,MBR2PT2
+		pop	ix
+		ret
+
+;MBR plati, prenes prvni 4 zaz.
+PDK2		call	MBR2PT
+;particie jsou alespon ctyri
+		ld	a,4
+		ld	(POCPART),a
+;v IX je partic
+		ld	b,a
+PDK5		ld	a,(ix+4)
+		or	a
+		jp	z,NOPART
+		cp	$05
+		jr	z,EXTDP
+		cp	$0F
+		jr	z,EXTDP
+		cp	$85
+		jr	z,EXTDP
+NOPART		ld	de,32
+		add	ix,de
+		djnz	PDK5
+		ret
+
+EXTSTART	defw	0,0
+;start ext. partition (v tabulce jsou relativni cisla)
+
+EXTDP		ld	l,(ix+8)
+		ld	h,(ix+9)
+		ld	(EXTSTART),hl
+		ld	l,(ix+10)
+		ld	h,(ix+11)
+		ld	(EXTSTART+2),hl
+;mame extended
+		ld	a,255
+		ld	(EXTPART),a
+		push	ix
+		push	bc
+		ld	de,0
+		exx
+		ld	de,0
+		ld	iy,4*32+PARTIC
+EXTDPART
+		ld	l,(ix+8)
+		ld	h,(ix+9)
+		add	hl,de
+		ld	(iy+16),l
+		ld	(iy+17),h
+		exx
+		ld	l,(ix+10)
+		ld	h,(ix+11)
+		adc	hl,de
+		ld	(iy+18),l
+		ld	(iy+19),h
+
+;fixme-matrix!
+;nacist sektor na SEKTMP
+;LBA v HLHL'
+;navrat HL na SEKTMP+512
+;musi zachovat IY
+
+		push	hl
+		exx
+		pop	de
+
+;fixme!
+;debug, smazat
+;		push	de
+;		push	hl
+;		ld	bc,9*256+"0"
+;		call	DEC32X
+;		ld	a,13
+;		rst	16
+;		pop	hl
+;		pop	de
+
+		call	LBAWR
+		ld	hl,SEKTMP
+		call	HDRD
+
+;fixme!
+;debug, smazat
+;		ld	bc,32765
+;		ld	a,23
+;		out	(c),a
+;		ld	hl,SEKTMP
+;DEBUG	ld	de,49152
+;		ld	bc,512
+;		ldir
+;		ld	(DEBUG+1),de
+;		ld	bc,32765
+;		ld	a,16
+;		out	(c),a
+;X		equ	49152
+;Y		equ	49152+8192
+;P1		equ	$1BE
+;P2		equ	$1CE
+;P3		equ	$1DE
+;P4		equ	$1EE
+;/debug
+
+
+;je potreba zjistit platnost
+		dec	hl
+		ld	a,(hl)
+		dec	hl
+		ld	l,(hl)
+		ld	h,a
+		ld	de,$AA55
+		or	a
+		sbc	hl,de
+;pokud chyba v retezci particii navrat jako se spravne ukoncenym retezcem
+		jr	nz,ENDEXT
+EXTDVLD		ld	a,(SEKTMP+$1BE+4)
+		or	a
+		jr	z,ENDEXT
+;na SEKTMP+$1BE jsou data ;o particii na kterou ukazovala predesla extended
+		ld	hl,POCPART
+		ld	a,(hl)
+		inc	a
+		cp	64
+;nemuze byt vic jak 63 particii
+		jr	nc,ENDEXT
+		ld	(hl),a
+;cisla pro part. jsou relatvni je potreba provest korekci
+		ld	hl,(SEKTMP+$1C6)
+;$1BE+8
+		ld	e,(iy+16)
+		ld	d,(iy+17)
+		add	hl,de
+		ld	(SEKTMP+$1C6),hl
+		ld	hl,(SEKTMP+$1C8)
+;$1BE+10
+		ld	e,(iy+18)
+		ld	d,(iy+19)
+		adc	hl,de
+		ld	(SEKTMP+$1C8),hl
+;zjistime kam prenest
+;v A zustalo cislo particie
+		dec	a
+;jedeme od 0
+		ld	l,a
+		ld	h,0
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;HLx32
+		ld	de,PARTIC
+		add	hl,de
+		ex	de,hl
+		ld	hl,SEKTMP+$1BE
+		ld	bc,32
+		add	iy,bc
+		srl	c
+;BC=16
+		ldir
+;na SEKTMP+$1CE jsou prip. data o dalsi extended particii
+		ld	ix,SEKTMP+$1CE
+		ld	de,(EXTSTART+2)
+		exx
+		ld	de,(EXTSTART)
+		ld	a,(ix+4)
+		or	a
+;mela by to byt jen extended ale asi je to celkem jedno
+;pokud neni, v pristim prubehu to stejne hodi chybu
+		jp	nz,EXTDPART
+ENDEXT		pop	bc
+		pop	ix
+		jp	NOPART
+
+
+;pocka b preruseni
+WAIT		halt
+		djnz	WAIT
+		ret
+
+;klasika
+DOWNHL		inc	h
+		ld	a,h
+		and	7
+		ret	nz
+		ld	a,l
+		add	a,32
+		ld	l,a
+		ret	c
+		ld	a,h
+		sub	8
+		ld	h,a
+		ret
+
+
+;pricte A k DE
+ADDDEA
+		add	a,e
+		ld	e,a
+		ret	nc
+		inc	d
+		ret
+
+
+;pricte A k HL
+ADDHLA
+		add	a,l
+		ld	l,a
+		ret	nc
+		inc	h
+		ret
+
+
+;pricte A k DEHL
+ADDDEHLA
+		add	a,l
+		ld	l,a
+		ret	nc
+		ld	a,1
+		add	a,h
+		ld	h,a
+		ret	nc
+		inc	de
+		ret
+
+
+;snizi DEHL o 1
+DECDEHL		ld	bc,1
+;odecteni BC od DEHL
+SUBDHBC		or	a
+		sbc	hl,bc
+		ret	nc
+		dec	de
+		ret
+
+CHS2MB
+;prevede chs na velikost v MB
+;HL-cyl, D-head, E-sec
+;A-velikost sec v bytes (jen H)
+;(ignorovano kuli presnosti)
+;navrat v BC a HL velikost v MB
+		push	ix
+		push	af
+		push	hl
+		ld	l,d
+		ld	d,0
+		ld	h,d
+		call	NASOBS
+		pop	de
+		call	NASOB
+		exx
+		push	ix
+		pop	hl
+		ld	bc,1024*2
+;		ld	bc,1024*4
+;1024=1MB a 4 pro velikost sec
+		call	DELENI42
+		pop	af
+;navic
+		ld	a,1
+		ld	h,0
+		ld	l,a
+		call	NASOB
+		ld	b,h
+		ld	c,l
+		pop	ix
+		ret
+
+;nasobeni
+;vstup HL*DE
+;vystup IXHL
+NASOB		ld	b,16
+		ld	a,h
+		ld	c,l
+		ld	ix,0
+		ld	hl,0
+NASOB2		add	ix,ix
+		add	hl,hl
+		jr	nc,NASOB4
+		inc	ix
+NASOB4		rl	c
+		rla
+		jr	nc,NASOB3
+		add	hl,de
+		jr	nc,NASOB3
+		inc	ix
+NASOB3		djnz	NASOB2
+		ret
+
+;nasobeni (pro vstup 8b cisel)
+;vstup HL*DE (H=D=0)
+;vystup HL
+NASOBS		ld	b,16
+		ld	a,h
+		ld	c,l
+		ld	hl,0
+NASOBS2		add	hl,hl
+		rl	c
+		rla
+		jr	nc,NASOBS3
+		add	hl,de
+NASOBS3		djnz	NASOBS2
+		ret
+
+DELENI42
+;HLH'L' / BC
+;>DE vysledek
+; H'L' zbytek
+		ld	de,$0001
+		exx
+		ld	bc,0
+		exx
+DELENI1
+;		or	a
+;		rr	b
+;proc je todle vynechany?
+		srl	b
+		rr	c
+		exx
+		rr	b
+		rr	c
+		sbc	hl,bc
+		exx
+		sbc	hl,bc
+		jr	nc,DELENI2
+		exx
+		add	hl,bc
+		exx
+		adc	hl,bc
+DELENI2
+		ccf
+		rl	e
+		rl	d
+		jr	nc,DELENI1
+		ret
+
+DELENI21
+;> HL:D=C, zbytek L
+		ld	c,1
+		ld	e,0
+DELENI3
+		srl	d
+		rr	e
+		sbc	hl,de
+		jr	nc,DELENI4
+		add	hl,de
+DELENI4
+		ccf
+		rl	c
+		jr	nc,DELENI3
+		ret
+
+HEXBIN
+;prevede retezec hex cislic na bin cislo (2B)
+;<HL ukaz na cislice, end 0
+;>c chyba (spatne znaky) nc OK
+; HL cislo, DE ukaz za string
+		ex	de,hl
+;DE string
+		ld	hl,0
+HEXBIN1
+;nactem cislici
+		ld	a,(de)
+		inc	de
+		or	a
+		ret	z
+		sub	48
+		ret	c
+		cp	10
+		jr	c,HEXNUM
+		add	a,48
+		or	32
+;na mala pismena
+		sub	'a'
+		ret	c
+		cp	6
+		ccf
+		ret	c
+		add	a,10
+HEXNUM
+;HL*16
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+		add	hl,hl
+;HL+cislice
+		call	ADDHLA
+		jr	HEXBIN1
+
+
+DECBIN
+;prevede retezec cislic na bin cislo (2B)
+;<HL ukaz na cislice, end 0
+;>c chyba (spatne znaky) nc OK
+; HL cislo, DE ukaz za string
+		ex	de,hl
+;DE string
+		ld	hl,0
+DECBIN1
+;nactem cislici
+		ld	a,(de)
+		inc	de
+		or	a
+		ret	z
+		sub	48
+		ret	c
+		cp	10
+		ccf
+		ret	c
+;je to opravdu cislice
+;HL*10
+		add	hl,hl
+		ld	b,h
+		ld	c,l
+		add	hl,hl
+		add	hl,hl
+		add	hl,bc
+;HL+cislice
+		call	ADDHLA
+		jr	DECBIN1
+
+
+DECBINL
+;prevede retezec cislic na bin cislo (4B)
+;<HL ukaz na cislice, end 0
+;>c chyba (spatne znaky) nc OK
+; DEHL cislo, IX ukaz za string
+		push	hl
+		pop	ix
+;IX string
+		ld	de,0
+		ld	hl,0
+DECBINL1
+;nactem cislici
+		ld	a,(ix+0)
+		inc	ix
+		or	a
+		ret	z
+		sub	48
+		ret	c
+		cp	10
+		ccf
+		ret	c
+;je to opravdu cislice
+;DEHL*10
+		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		push	hl
+		ex	de,hl
+		push	hl
+		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		ex	de,hl
+		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		ex	de,hl
+		pop	bc
+		add	hl,bc
+		pop	bc
+		ex	de,hl
+		adc	hl,bc
+		ex	de,hl
+;DEHL+cislice
+		call	ADDDEHLA
+		jr	DECBINL1
+
+INPUT
+;prevzato z III z 98.06.24
+;zakomentovano omezeni vstupu;;
+;
+;HL kam ukladat text
+;DE kde na obrazovce
+;B  akt poz kurzoru (1..C+1<=A)
+;C  poc vlozenych znaku(0..A)+1
+;A  max poc zn
+;>  zadany text ukoncen nulou !!!
+;C  poc vlozenych znaku(0..A)
+;   (bez te 0)
+;HL zac txt
+;MENI AFAF'BC
+
+
+;		ld	ix,ret
+;INPUT2
+;IX omezeni vstupu
+
+		ld	(INMAX+1),a
+		push	hl
+		dec	a
+		call	ADDHLA
+;nebo misto dec a zde dec hl
+		ld	(INKON+1),hl
+		push	de
+		halt
+		halt
+		halt
+		halt
+INPUTOP2
+		ld	a,22
+		rst	16
+		ld	a,1
+		rst	16
+		xor	a
+		rst	16
+		pop	de
+		pop	hl
+		push	hl
+		push	de
+		push	bc
+		ld	b,c
+		call	PRINTB
+		pop	bc
+		push	bc
+		ld	a,(INMAX+1)
+		sub	c
+		jr	z,INDAL
+		ld	c,4*8+0
+		call	INSPACE
+INDAL
+INPUTOP
+		pop	bc
+;;INPUTOP3
+		pop	hl
+		push	hl
+		push	bc
+		ld	a,l
+		add	a,b
+		dec	a
+		ld	l,a
+		ld	b,8
+INKUROP
+		ld	a,$80
+		xor	(hl)
+		ld	(hl),a
+		inc	h
+		djnz	INKUROP
+
+INPOKE2		ld	bc,300
+		halt
+		halt
+
+INKEYOP
+		push	bc
+		call	KEYASCII
+		pop	bc
+		jr	nc,INKEY
+INPOKE3		cp	0
+		jr	nz,INKLAV
+		dec	c
+		jr	nz,INKEYOP
+		dec	b
+		jr	nz,INKEYOP
+		ld	hl,300
+		jr	INKLAV2
+INKEY
+		xor	a
+		ld	(INPOKE3+1),a
+		ld	hl,300
+		ld	(INPOKE2+1),hl
+		djnz	INKEYOP
+		jr	INPUTOP
+
+INKLAV
+		ld	hl,1000
+INKLAV2
+		ld	(INPOKE2+1),hl
+		ld	(INPOKE3+1),a
+		pop	bc
+		cp	32
+		jr	c,INSPEC
+
+;;		call	JPIX
+;;		jr	c,INPUTOP3
+
+		ex	af,af'
+INMAX		ld	a,0
+		sub	b
+		jr	nz,INDOMAX
+		ex	af,af'
+INKON		ld	(0),a
+		jr	ININCC
+;nemuze byt rovnou INPUTOP2
+;kvuli stavu C=A-1 a B=A
+INDOMAX
+;posunout zbytek vpred
+		push	bc
+		ld	hl,(INKON+1)
+		ld	d,h
+		ld	e,l
+		dec	hl
+		ld	c,a
+		ld	b,0
+		lddr
+		ex	de,hl
+		pop	bc
+
+		inc	b
+		ex	af,af'
+		ld	(hl),a
+ININCC
+		ld	a,(INMAX+1)
+		cp	c
+		jr	z,INZPOP
+		inc	c
+INZPOP
+		jp	INPUTOP2
+INSPEC
+;24 capslock
+;31 break
+;27 SS+q cele vymazat
+;26 SS+w na zacatek
+;25 SS+e na konec
+;12 (DELETE) backspace
+;15 (GRAPH) delete
+
+		cp	8
+		jr	nz,INDAL1
+;doleva
+		dec	b
+		jr	nz,INZPOP
+		inc	b
+		jr	INZPOP
+INDAL1
+		cp	9
+;doprava
+		jr	nz,INDAL2
+		ld	a,c
+		cp	b
+		jr	c,INZPOP
+INRIGHT
+		ld	a,(INMAX+1)
+		cp	b
+		jr	z,INZPOP
+		inc	b
+		jr	INZPOP
+INDAL2
+		cp	26
+;na zacatek
+		jr	nz,INDAL3
+		ld	b,1
+		jr	INZPOP
+INDAL3
+		cp	25
+;na konec
+		jr	nz,INDAL4
+		ld	b,c
+		jr	INRIGHT
+INDAL4
+		cp	27
+		jr	nz,INDAL5
+		ld	bc,$0100
+		jr	INZPOP
+INDAL5
+		cp	15
+		jr	nz,INDAL6
+;delete
+INDEL
+		pop	de
+		pop	hl
+		push	hl
+		push	de
+		ld	a,b
+		call	ADDHLA
+		ld	d,h
+		ld	e,l
+		dec	de
+		ld	a,c
+		sub	b
+		jr	z,INDEL1
+		jr	c,INZPOP
+		push	bc
+		ld	c,a
+		ld	b,0
+		ldir
+		pop	bc
+INDEL1
+		dec	c
+		jr	INZPOP
+INDAL6
+		cp	12
+		jr	nz,INDAL7
+		dec	b
+		jr	nz,INDEL
+		inc	b
+		jr	INDEL
+INDAL7
+
+		cp	13
+		jr	nz,INZPOP
+		ld	a,22
+		rst	16
+		ld	a,1
+		rst	16
+		xor	a
+		rst	16
+		pop	de
+		push	de
+		push	bc
+		ld	a,(INMAX+1)
+		call	INSPACE
+		pop	bc
+		pop	de
+		pop	hl
+		push	hl
+		ld	a,c
+		call	ADDHLA
+		ld	(hl),0
+		pop	hl
+		ret
+
+INSPACE
+		push	af
+		ld	a,32
+		rst	16
+		pop	af
+		dec	a
+		jr	nz,INSPACE
+		ret
+
+
+KEYASCII
+;cte jednu stlacenou klavesu plus shifty a prevede ji na ascii
+;ignoruje SS,CS,EXTEND
+;I/
+
+;verze tnt - zacatek
+
+;O/
+; c= stlaceno;A=ASCII;
+;
+;nc= nestlaceno;
+;
+;31 break
+;30 space+SS
+;29 enter+CS
+;28 enter+SS
+;27 SS+q
+;26 SS+w
+;25 SS+e
+;24 capslock
+;23 extend
+;22 SS
+;21 CS
+
+;Prepisuje AFBCHL, vyzaduje povolene preruseni
+
+;osetreni "svindlovani" klaves
+;		halt
+;		halt
+
+		call	KEY_SCAN
+		ld	a,0
+		scf
+		ret	nz
+;moc klaves
+
+		ld	a,e
+		cp	255
+		ret	z
+;nestisknuto (nc)
+
+		ld	hl,KEYTAB
+		ld	bc,0
+		ld	a,d
+		cp	$27
+		jr	nz,INKEYB
+		ld	c,40
+INKEYB		cp	$18
+		jr	nz,INKEYA
+		ld	c,80
+INKEYA		ld	d,0
+		add	hl,de
+		add	hl,bc
+
+		ld	a,(hl)
+		scf
+		ret
+
+KEYTAB		defb	"bhy65tgv"
+		defb	"nju74rfc"
+		defb	"mki83edx"
+		defb	22
+		defb	"lo92wsz"
+		defb	' ',13
+		defb	"p01qa"
+		defb	21
+;cs
+		defb	"BHY"
+		defb	10,8
+		defb	"TGVNJU"
+		defb	11,5
+		defb	"RFCMKI"
+		defb	9,4
+		defb	"EDX"
+		defb	23
+		defb	"LO"
+		defb	15,24
+		defb	"WSZ"
+		defb	31,29,'P'
+		defb	12,7
+		defb	"QA"
+		defb	0
+;ss
+		defb	"*^[&%>}/"
+		defb	",-]'$<{?.+(#"
+		defb	25
+		defb	92,'`'
+		defb	0
+		defb	"=;)@"
+		defb	26
+		defb	"|:"
+		defb	30,28,34
+		defb	"_!"
+		defb	27
+		defb	'~'
+		defb	23
+
+KEY_SCAN
+;program na cteni klaves
+;kopie z rom zxs
+;nz stlaceny 2 a vice kl
+; z stlacena 1 kl +- shift
+		ld	l,$2F
+		ld	de,$FFFF
+		ld	bc,$FEFE
+KEY_LINE	in	a,(c)
+		cpl
+		and	$1F
+		jr	z,KEY_DONE
+		ld	h,a
+		ld	a,l
+KEY_3KEY	inc	d
+		ret	nz
+KEY_BITS	sub	8
+		srl	h
+		jr	nc,KEY_BITS
+		ld	d,e
+		ld	e,a
+		jr	nz,KEY_3KEY
+KEY_DONE	dec	l
+		rlc	b
+		jr	c,KEY_LINE
+		ld	a,d
+		inc	a
+		ret	z
+		cp	$28
+		ret	z
+		cp	$19
+		ret	z
+		ld	a,e
+		ld	e,d
+		ld	d,a
+		cp	$18
+		ret
+
+
+;tiskaci rutiny
+;------------------------------
+PRINTB
+;HL adr
+;B pocet
+		ld	a,b
+		or	a
+		ret	z
+PRINTB2
+		ld	a,(hl)
+		push	hl
+		push	bc
+		rst	16
+		pop	bc
+		pop	hl
+		inc	hl
+		djnz	PRINTB2
+		ret
+PRINT0
+		ld	a,(hl)
+		or	a
+		ret	z
+		push	hl
+		rst	16
+		pop	hl
+		inc	hl
+		jr	PRINT0
+PRINT128
+		ld	a,(hl)
+		bit	7,a
+		push	af
+		and	127
+		push	hl
+		rst	16
+		pop	hl
+		inc	hl
+		pop	af
+		jr	z,PRINT128
+		ret
+PRINTSP
+; call	printsp
+; defb	'text'
+; ...
+		pop	hl
+		call	PRINT128
+		push	hl
+		ret
+
+;tiskaci rutiny cisel
+HEX16
+;v hl cislo pro hex print
+		ld	de,-$1000
+		call	CIFRA
+		ld	de,-$100
+		call	CIFRA
+HEX8
+		ld	de,-$10
+		call	CIFRA
+		ld	e,-$1
+CIFRA		ld	a,'0'-1
+CIF1		add	hl,de
+		inc	a
+		jr	c,CIF1
+		sbc	hl,de
+		cp	'9'+1
+		jr	c,CIF2
+		add	a,'a'-':'
+CIF2		rst	16
+		ret
+
+;(c)Busy in BSDOS 308
+;DEHL cislo pro tisk
+;C znak pro uvodni 0 (0=nic)
+;B max delka (10)
+DEC32X		push	hl
+		push	de
+		push	bc
+		xor	a
+		ld	de,DATA
+		ld	b,$0A
+DCC1		ld	(de),a
+		inc	de
+		djnz	DCC1
+		pop	bc
+		pop	de
+		push	de
+		push	bc
+		ld	b,$20
+DCC2		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		ex	de,hl
+		push	bc
+		push	de
+		ld	bc,$0A0A
+		ld	de,DATA
+DCC3		ld	a,(de)
+		adc	a,a
+		cp	c
+		jr	c,DCC4
+		sub	c
+DCC4		ld	(de),a
+		ccf
+		inc	de
+		djnz	DCC3
+		pop	de
+		pop	bc
+		djnz	DCC2
+		ld	d,b
+		pop	bc
+		push	bc
+		ld	e,b
+		ld	hl,DATA-1
+		add	hl,de
+		dec	b
+		jr	z,DCC8
+DCC5		ld	a,(hl)
+		or	a
+		jr	nz,DCC6
+		ld	a,c
+		defb	$11
+DCC6		ld	c,'0'
+DCC7		or	c
+		dec	hl
+		or	a
+		call	nz,16
+		djnz	DCC5
+DCC8		ld	a,(hl)
+		or	'0'
+		rst	16
+		pop	bc
+		pop	de
+		pop	hl
+		ret
+
+
+;docasne rutiny pro nacitani a zapis sektoru
+;HL kam/odkud
+
+HDRD		ld	a,CREAD
+;ld de,inir
+HDRD2		defb	17
+		inir
+		jr	HDRW
+
+HDWR		ld	a,CWRITE
+;ld de,otir
+		defb	17
+		otir
+HDRW		push	af
+		ld	(HDMODE1),de
+		ld	(HDMODE2),de
+HDRW2		in	a,(RSTAT)
+		bit	7,a
+		jr	nz,HDRW2
+		ld	a,1
+		out	(RSECPOC),a
+		pop	af
+		out	(RCOM),a
+		call	TEST
+		ld	bc,RDATA
+HDMODE1		inir
+HDMODE2		inir
+		ret
+
+TEST		in	a,(RSTAT)
+		bit	3,a
+		jr	z,TEST
+		ret
+
+;zapise LBA sektoru do reg. hdd
+;jako CHS
+;<DEHL lba sektoru
+LBAWR
+;cekej na not busy
+		in	a,(RSTAT)
+		bit	7,a
+		jr	nz,LBAWR
+		push	de
+		push	hl
+		ld	de,(REALS)
+		ld	hl,(REALH)
+		call	NASOBS
+		ld	c,l
+		ld	b,h
+		exx
+		pop	hl
+		exx
+		pop	hl
+		call	DELENI42
+		ld	a,d
+		out	(RCYLH),a
+		ld	a,e
+		out	(RCYLL),a
+		exx
+		ld	a,(REALS)
+		ld	d,a
+		call	DELENI21
+		inc	l
+		ld	a,l
+		out	(RSEC),a
+MOS		ld	a,0
+		or	c
+;master/slave
+		out	(RHEAD),a
+		ret
+
+
+
+
+;------------------------------
+
+;tabulka odkazu vsech sys id
+TYPETBL		defw	T00,T01,T02,T03
+		defw	T04,T05,T06,T07
+		defw	T08,T09,T0A,T0B
+		defw	T0C,TXX,T0E,T0F
+		defw	T10,T11,T12,TXX
+		defw	T14,TXX,T16,T17
+		defw	T18,TXX,TXX,T1B
+		defw	T1C,TXX,T1E,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	T24,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+;t30
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	T3C,TXX,TXX,TXX
+		defw	T40,T41,T42,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	T48,T49,TXX,TXX
+		defw	TXX,T4D,T4E,T4F
+		defw	T50,T51,T52,T53
+		defw	T54,T55,T56,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	T5C,TXX,TXX,TXX
+		defw	TXX,T61,TXX,T63
+		defw	T64,T65,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	T70,TXX,TXX,TXX
+		defw	TXX,T75,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	T80,T81,T82,T83
+		defw	T84,T85,T86,T86
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,T93
+		defw	T94,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TA0,TXX,TXX,TXX
+		defw	TXX,TA5,TA6,TA7
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TB7
+		defw	TB8,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TC1,TXX,TXX
+		defw	TC4,TXX,TC6,TC7
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+;td0
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TDB
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TE1,TXX,TE3
+		defw	T61,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TEB
+		defw	TXX,TXX,TXX,TXX
+;tf0
+		defw	TXX,T61,TF2,TXX
+		defw	T61,TXX,TXX,TXX
+		defw	TXX,TXX,TXX,TXX
+		defw	TXX,TFD,TFE,TFF
+
+;text vsech znamych sys id
+TXX		defb	"Unknow",'n'+128
+T00		defb	"Empt",'y'+128
+T01		defb	"FAT1",'2'+128
+T02		defb	"XENIX roo",'t'+128
+T03		defb	"XENIX us",'r'+128
+T04		defb	"FAT16 <32",'M'+128
+T05		defb	"Extende",'d'+128
+T06		defb	"FAT1",'6'+128
+T07		defb	"HPFS/NTF",'S'+128
+T08		defb	"AI",'X'+128
+T09		defb	"AIX bootabl",'e'+128
+T0A		defb	"OS/2 Boot Mana",'g'+128
+T0B		defb	"Win9x FAT3",'2'+128
+T0C		defb	"Win9x FAT32 LB",'A'+128
+T0E		defb	"Win9x FAT16 LB",'A'+128
+T0F		defb	"Win9x Extd LB",'A'+128
+T10		defb	"OPU",'S'+128
+T11		defb	"Hid FAT1",'2'+128
+T12		defb	"Compaq dia",'g'+128
+T14		defb	"Hid FAT16 <32",'M'+128
+T16		defb	"Hid FAT1",'6'+128
+T17		defb	"Hid HPFS/NTF",'S'+128
+T18		defb	"AST Win swa",'p'+128
+T1B		defb	"Hid W9x FAT3",'2'+128
+T1C		defb	"Hid W9x FAT32 ",'L'+128
+T1E		defb	"Hid W9x FAT16 ",'L'+128
+T24		defb	"NEC DO",'S'+128
+T3C		defb	"PartMagic reco",'v'+128
+T40		defb	"Venix 8028",'6'+128
+T41		defb	"PPC PReP Boo",'t'+128
+T42		defb	"SFS (non ZX",')'+128
+T48		defb	"ZX SF",'S'+128
+T49		defb	"MDOS ",'3'+128
+T4D		defb	"QNX4.",'x'+128
+T4E		defb	"QNX4.x 2nd par",'t'+128
+T4F		defb	"QNX4.x 3rd par",'t'+128
+T50		defb	"OnTrck D",'M'+128
+T51		defb	"OnTrck DM6 Aux",'1'+128
+T52		defb	"CP/",'M'+128
+T53		defb	"OnTrck DM6 Aux",'3'+128
+T54		defb	"OnTrck DM",'6'+128
+T55		defb	"EZ-Driv",'e'+128
+T56		defb	"Golden Bo",'w'+128
+T5C		defb	"Priam Edis",'k'+128
+T61		defb	"SpeedSto",'r'+128
+T63		defb	"GNU HURD / Sys",'V'+128
+T64		defb	"Novell NW 28",'6'+128
+T65		defb	"Novell NW 38",'6'+128
+T70		defb	"DiscSecure Mul",'B'+128
+T75		defb	"PC/I",'X'+128
+T80		defb	"Old Mini",'x'+128
+T81		defb	"Minix / O Linu",'x'+128
+T82		defb	"Linux swa",'p'+128
+T83		defb	"Linu",'x'+128
+T84		defb	"OS/2 C: driv",'e'+128
+T85		defb	"Linux extende",'d'+128
+T86		defb	"NTFS volume se",'t'+128
+T93		defb	"Amoeb",'a'+128
+T94		defb	"Amoeba BB",'T'+128
+TA0		defb	"IBM hibernatio",'n'+128
+TA5		defb	"BSD/38",'6'+128
+TA6		defb	"OpenBS",'D'+128
+TA7		defb	"NeXTSTE",'P'+128
+TB7		defb	"BSDI f",'s'+128
+TB8		defb	"BSDI swa",'p'+128
+TC1		defb	"DRDOS FAT1",'2'+128
+TC4		defb	"DRDOS FAT16<32",'M'+128
+TC6		defb	"DRDOS FAT1",'6'+128
+TC7		defb	"Syrin",'x'+128
+TDB		defb	"CP/M / CTO",'S'+128
+TE1		defb	"DOS acces",'s'+128
+TE3		defb	"DOS R/",'O'+128
+TEB		defb	"BeOS f",'s'+128
+TF2		defb	"DOS secondar",'y'+128
+TFD		defb	"Linux raid aut",'o'+128
+TFE		defb	"LANste",'p'+128
+TFF		defb	"BB",'T'+128
+
+;------------------------------
+;data pro HDD
+;------------------------------
+
+;geometrie pro praci
+BIOSC		defw	0
+BIOSH		defw	0
+BIOSS		defw	0
+
+;skutecna geometrie disku
+REALC		defw	0
+REALH		defw	0
+REALS		defw	0
+
+;cislo zarizeni
+DEVNUM		defb	0
+
+;pocet particii
+POCPART		defb	4
+
+;priznak, jestli se vytvari logicka particie
+;musi byt 0 nebo 255!!!
+LOGIC		defb	0
+
+;je nejaka extended?
+EXTPART		defb	0
+
+;vstupni a vystupni jednotky
+UNITS		defb	0
+;0 cylindry, 1 sektory
+
+;uroven kompatibility pri praci s particii
+COMPATL		defw	3
+;1 - sektory v normal
+;2 - sektory v LBA
+;3 - cylindry v normal
+;4 - cylindry v LBA
+;sektory-umozni zadat start a konec particie mimo hranu valce
+;normal-neprovede se LBA prep. cyl/head/sec pro velke disky
+
+;------------------------------
+
+LENGTH		equ	$-START
+
+INPBUF		ds	33
+DATA		ds	11
+
+;512
+MBR		equ	49152
+;512
+SEKTMP		equ	MBR+512
+;64*32 (2048)
+PARTIC		equ	SEKTMP+512
+;  0-15	vyznam jako part. table
+;  0		priznak aktivni oblasti 0/80
+;  1		cislo povrchu zacatku part.
+;  2-3	cislo sektoru a valce zac.
+;  4		typ particie (OS)
+;  5		cislo povrchu konce part.
+;  6-7	cislo sektoru a valce konc
+;  8-12	log cislo 1. sektoru part
+;  13-15	pocet sektoru part.
+;  16-19	skutecny start part.
+;  20-31	volne
+
+; for SjASMPlus
+		savebin "zxfdisk.bin",START,LENGTH
+		
+
+; nastaveni pro VI (tabulatory 5 znaku a filetype)
+; vim:set ts=8 ft=z8asl:
