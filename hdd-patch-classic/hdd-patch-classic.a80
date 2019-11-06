@@ -616,13 +616,13 @@ p5:		out	(0),a
 		ld	a,d
 p6:		out	(0),a		;number of cylinder
 
-		ld	a,#21
-p8:		out	(0),a		;read with retries
+		ld	a,#20		;ATA command, read sector(s)
+p8:		out	(0),a
 
 		call	tst_bsy
 		jp	nz,error
 
-		call	rd_512		;work as inir (hl+512)
+		call	rd_512		;works as inir (hl+512)
 
 		call	tst_err
 		jp	nz,error
@@ -646,8 +646,8 @@ p51:		out	(0),a
 		ld	a,d
 p61:		out	(0),a		;number of cylinder
 
-		ld	a,#31
-p81:		out	(0),a		;write with retries
+		ld	a,#30		;ATA command, write sector(s)
+p81:		out	(0),a
 
 		call	tst_bsy
 		jp	nz,error
@@ -710,8 +710,8 @@ p52:		out	(0),a
 		ld	a,d
 p62:		out	(0),a		;number of cylinder
 
-		ld	a,#21
-p82:		out	(0),a		;read with retries
+		ld	a,#20		;ATA command, read sector(s)
+p82:		out	(0),a
 
 		call	tst_bsy
 		jr	nz,error
@@ -748,8 +748,8 @@ p53:		out	(0),a
 		ld	a,d
 p63:		out	(0),a		;number of cylinder
 
-		ld	a,#31
-p83:		out	(0),a		;write with retries
+		ld	a,#30		;ATA command, write sector(s)
+p83:		out	(0),a
 
 		call	tst_bsy
 		jr	nz,error
