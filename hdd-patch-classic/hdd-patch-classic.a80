@@ -161,7 +161,7 @@ install:	di
 		ld	bc,768
 		ldir			;font copied to hdd_bank
 
-		ld	a,%01000000
+		ld	a,%01000000	;rom_bank pagein
 		out	(23),a
 		ei
 		ret
@@ -171,7 +171,7 @@ install:	di
 ;------------------------------
 ;address 62 in dos_bank
 adr62:
-		ld	c,a
+		ld	c,a		;is verify needed?
 		ld	a,(#03ef)
 		cp	5
 		ld	a,c
@@ -180,34 +180,31 @@ adr62:
 
 ;------------------------------
 ;------------------------------
-
-;address 20 in dos_bnk
+;address 20 in dos_bank
 ;hdd_bank must be dos_bank+1
 
 adr20:
-		ld	(hl),b
+		ld	(hl),b		;write byte in dos_bank
 		inc	a
-		out	(23),a
+		out	(23),a		;patch_bank page in
 		jp	144
 
 ;address 27
-		ld	a,98
+		ld	a,98		;patch_bank page in
 		out	(23),a
 		ret
 
 ;------------------------------
 ;------------------------------
-
 ;address 35 in dos_bank
 
 adr35:
-		out	(c),b
+		out	(c),b		;start DMA transfer
 		inc	a
-		out	(23),a
+		out	(23),a		;patch_bank page in
 
 ;------------------------------
 ;------------------------------
-
 ;address 0 in hdd_bank
 
 dma_strt:	equ	33
@@ -226,31 +223,27 @@ adr0:
 		out	(23),a
 		ret
 		nop
-		nop			;adr27 - route to hdd_bnk
+		nop			;adr27 - route to hdd_bank
 		ld	a,97
 		out	(23),a
 		db	24, 111		;jr 144
 
 ;adr33 - route to dma_strt
-;must be ld a,97
-;and ld bc,port_dma
+;input must be: a=97, bc=port_dma
 		out	(23),a
 		out	(c),b
 		inc	a
 		out	(23),a
 		ret
 
-
 ;------------------------------
 ;------------------------------
 ;address 144 in dos_bank
 
-
 sem:
 		disp	144
 
-adr144d:
-		push	hl
+adr144d:	push	hl
 		ld	hl,255
 		ld	(hl),a
 		dec	hl
@@ -260,8 +253,8 @@ adr144d:
 		jr	c,skip1
 		cp	15
 		jr	c,sluz1214
-skip1:
-		cp	16
+
+skip1:		cp	16
 		jr	z,setmlt
 		or	a
 		ret	z
@@ -271,8 +264,8 @@ act:		ret
 
 		inc	sp
 		inc	sp
-aaa:
-		cp	4
+
+aaa:		cp	4
 		jr	c,loop12
 		cp	6
 		jr	c,rdwrsec
@@ -305,8 +298,7 @@ loop14:		ld	(rut+1),hl
 		ret
 
 
-sluz1214:
-		push	de
+sluz1214:	push	de
 		push	hl
 		ld	b,a
 		ld	(sp_st+1),sp
@@ -320,22 +312,17 @@ sluz1214:
 		inc	sp
 		inc	sp
 		push	de
-no_nfo:
-		pop	de
+no_nfo:		pop	de
 		cp	255
-		ret	z
-;nz=ret immediately
-;z=pass
-pryc:
-		inc	sp
+		ret	z		;nz=ret immediately, z=pass
+pryc:		inc	sp
 		inc	sp
 		ret
 
 		nop
 		nop
 
-a1_254:
-		ld	a,85
+a1_254:		ld	a,85
 ;address 256 should be here
 
 		ent
@@ -364,11 +351,9 @@ m_hea2:		db	0
 m_cyl2:		dw	0
 
 
-tab_drv:
-		ds	1024
+tab_drv:	ds	1024
 
-preskoc:
-		push	hl
+preskoc:	push	hl
 		ld	hl,rett
 		ex	(sp),hl
 
@@ -388,16 +373,10 @@ set_wrm1:	jp	z,wr_sec0
 		cp	7
 		jp	z,wr_trk
 		xor	a
-
 		ret
 
-
-rett:
-		ld	b,a
+rett:		ld	b,a
 		jp	27
-
-
-;---------
 
 info1:		ld	a,e
 		call	tst_drv
@@ -407,16 +386,12 @@ info1:		ld	a,e
 		xor	a
 		ret
 
-;---------
-
 pasive1:	ld	a,201
 		ld	hl,act
 		ld	b,a
 		rst	16
 		ld	a,255
 		ret
-
-;---------
 
 aktive1:	call	pasive1
 		ld	a,e
@@ -430,12 +405,7 @@ aktive1:	call	pasive1
 		ld	a,2
 		ret
 
-
-;------------------------------
-
-wr_trk:
-
-		ld	a,e
+wr_trk:		ld	a,e
 		and	128
 		ld	e,a
 		xor	a
@@ -453,68 +423,48 @@ set_wrm2:	call	wr_sec0
 		inc	a
 		cp	9		;num of sectors -1
 		jr	nz,wtrk1
-
 		ret
 
-
-
-;------------------------------
-
-sect_num:
-
+;-----------------------------------
 ;counts logical number of sector
 ;hl is preserved
 ;result is passed directly to prepoc
 
-		push	hl
+sect_num:	push	hl
 		ld	l,d
 		ld	h,0
 		add	hl,hl
 		add	hl,hl
 		add	hl,hl
-		add	hl,hl
-;*16
+		add	hl,hl		;*16
 		ld	a,e
 		dec	a
 		and	%00000111
 		bit	7,e
 		jr	z,rds1
 		or	%00001000
-rds1:
-		or	l
-		ld	l,a
-
-;hl = log. number of sector
-;counts from 0
-
-		add	hl,hl
-
-;*2
-;sector is 512 bytes long
-;we need two sectors
-
+rds1:		or	l
+		ld	l,a		;hl = log. number of sector, counts from 0
+		add	hl,hl		;*2 - sector is 512 bytes long, we need two sectors
 		ld	(prepoc+1),hl
 		ld	a,h
 		pop	hl
 		and	%11110000
 		ret	z
 
-		ld	a,%00010000
+		ld	a,%00010000	;seek error
 		or	a
 		ret
 
-;seek error
 
-;------------------------------
-
-prepoc:
+;-------------------------------
 ;counts logical number of sector
 ;of disk image to corresponding
 ;physical cyl,sec,hea on HDD/CF
 
 ;hl = logical number of sector
 
-		ld	hl,0
+prepoc:		ld	hl,0
 
 low24:		ld	de,0
 		add	hl,de
@@ -541,36 +491,21 @@ m_cyl:		ld	de,0
 		inc	c
 		ret
 
-;----------
-
-prep_lba:
-		ld	hl,(prepoc+1)
+prep_lba:	ld	hl,(prepoc+1)
 		ld	de,(low24+1)
 		add	hl,de
 		ld	de,(hig24+1)
 		jr	nc,prep2
 		inc	de
-prep2:
-
-;ATA ports Dron
-;p_dat:		db	195
-;p_err:		db	199
-;p_hse:		db	203
-;p_nse:		db	207
-;p_cyl:		db	211
-;p_cyh:		db	215
-;p_hea:		db	219
-;p_com:		db	223
 
 ;b - head (p_hea)
 ;c - sector (p_nse)
 ;de - cylinder	(e - p_cyl, d - p_cyh)
 
-		ld	b,d
+prep2:		ld	b,d
 		ld	d,e
 		ld	e,h
 		ld	c,l
-
 		ret
 
 
@@ -578,8 +513,7 @@ prep2:
 ;---------- generic 000 -------
 ;------------------------------
 
-rd_sec0:
-		call	sect_num
+rd_sec0:	call	sect_num
 		ret	nz
 
 		call	rdd
@@ -590,19 +524,13 @@ rd_sec0:
 		call	rdd
 		ret			;if ok, zero flag is returned
 
-;-------
-
-rdd:
-		push	hl
+rdd:		push	hl
 		call	prepoc
 		pop	hl
 		call	read0
 		ret
 
-;------------------------------
-
 wr_sec0:
-
 wr_prot:	ld	a,0
 		or	a
 		ret	nz
@@ -618,19 +546,13 @@ wr_prot:	ld	a,0
 		call	wrr
 		ret			;if ok, zero flag is returned
 
-;------
-
-wrr:
-		push	hl
+wrr:		push	hl
 		call	prepoc
 		pop	hl
 		call	write0
 		ret
 
-;------------------------------
-
-read0:
-		call	tst_bsy
+read0:		call	tst_bsy
 		jp	nz,error
 
 		ld	a,b
@@ -662,11 +584,7 @@ p8:		out	(0),a		;read with retries
 		xor	a
 		ret
 
-;------------------------------
-
-write0:
-
-		call	tst_bsy
+write0:		call	tst_bsy
 		jp	nz,error
 
 		ld	a,b
@@ -708,8 +626,7 @@ p81:		out	(0),a		;write with retries
 ;--------- generic+ 001 -------
 ;------------------------------
 
-rd_sec1:
-		call	sect_num
+rd_sec1:	call	sect_num
 		ret	nz
 		push	hl
 		call	prepoc
@@ -717,10 +634,7 @@ rd_sec1:
 		call	read1
 		ret
 
-;------------------------------
-
-wr_sec1:
-		ld	a,(wr_prot+1)
+wr_sec1:	ld	a,(wr_prot+1)
 		or	a
 		ret	nz
 
@@ -732,10 +646,7 @@ wr_sec1:
 		call	write1
 		ret
 
-;------------------------------
-
-read1:
-		call	tst_bsy
+read1:		call	tst_bsy
 		jp	nz,error
 
 		ld	a,b
@@ -775,11 +686,7 @@ p82:		out	(0),a		;read with retries
 		xor	a
 		ret
 
-;------------------------------
-
-write1:
-
-		call	tst_bsy
+write1:		call	tst_bsy
 		jr	nz,error
 
 		ld	a,b
@@ -815,7 +722,6 @@ p83:		out	(0),a		;write with retries
 		call	tst_err
 		jr	nz,error
 
-
 		xor	a
 		ret
 
@@ -827,11 +733,10 @@ p83:		out	(0),a		;write with retries
 
 
 ;------------------------------
-;-------- lba mode 010 --------
+;-------- LBA mode 010 --------
 ;------------------------------
 
-rd_sec2:
-		call	sect_num
+rd_sec2:	call	sect_num
 		ret	nz
 
 		push	hl
@@ -839,13 +744,9 @@ rd_sec2:
 		pop	hl
 
 		call	read1
-
 		ret
 
-;------------------------------
-
-wr_sec2:
-		ld	a,(wr_prot+1)
+wr_sec2:	ld	a,(wr_prot+1)
 		or	a
 		ret	nz
 
@@ -857,31 +758,13 @@ wr_sec2:
 		pop	hl
 
 		call	write1
-
 		ret
 
-
 ;------------------------------
-;---- end of lba mode 010 -----
-;------------------------------
-
-
-
-
-;------------------------------
-;-------- lba mode+ 011 -------
+;---- end of LBA mode 010 -----
 ;------------------------------
 
-
-
-;------------------------------
-;---- end of lba mode+ 011 ----
-;------------------------------
-
-
-
-error:
-		cp	255
+error:		cp	255
 		jr	nz,err1
 		ld	a,1
 		ret
@@ -895,11 +778,7 @@ err2:
 		ret
 
 
-
-;------------------------------
-
-tst_bsy:
-		push	hl
+tst_bsy:	push	hl
 		push	bc
 		ld	hl,0
 
@@ -924,8 +803,6 @@ tout1:
 		pop	hl
 		ret
 
-;------------------------------
-
 tst_err:
 p85:		in	a,(0)
 		inc	a
@@ -936,16 +813,10 @@ p85:		in	a,(0)
 p2:		 in	a,(0)
 		ret
 
-;------------------------------
-
-;------------------------------
-
-
-rd_512:
-		ld	(dma_adr1),hl
+rd_512:		ld	(dma_adr1),hl
 		push	hl
 		ld	hl,dma_in
-		ld	bc,14*256+11
+		ld	bc,((dma_in_end-dma_in)*256)+11
 		otir
 		ld	a,97
 		ld	b,#87
@@ -955,25 +826,23 @@ rd_512:
 		add	hl,bc
 		ret
 
-dma_in:		db	#c3
-		db	%01111101
-p1:		dw	0
-		dw	511
-		db	%00101100
-		db	%00010000
-		db	%10101101
-dma_adr1:	dw	0
-		db	%10010010
-		db	#cf
-		db	#b3
+dma_in:		db	#c3		;WR6-reset
+		db	%01111101	;WR0 PA->PB, transfer
+p1:		dw	0		;source port
+		dw	511		;block size
+		db	%00101100	;WR1 PA-port, fixed
+		db	%00010000	;WR2 PB-memory, increment
+		db	%10101101	;WR4 continuous
+dma_adr1:	dw	0		;destination memory
+		db	%10010010	;WR5 ready low,CE/WAIT,stop on end of block
+		db	#cf		;WR6 load
+		db	#b3		;WR6 force ready
+dma_in_end:
 
-;-------------
-
-wr_512:
-		ld	(dma_adr2),hl
+wr_512:		ld	(dma_adr2),hl
 		push	hl
 		ld	hl,dma_out
-		ld	bc,((dma_outend-dma_out)*256)+11
+		ld	bc,((dma_out_end-dma_out)*256)+11
 		ld	a,97
 		otir
 		ld	a,97
@@ -990,21 +859,17 @@ dma_out:	db	#c3		;WR6-reset
         	db	%00101000	;WR2-PB io, fixed
         	db	%10000000	;WR3
         	db	%10101101	;WR4-Write Port B (fixed destination) address to WR4.
-p11:		dw	0
+p11:		dw	0		;port
         	db	#cf		;WR6-load
         	db	%01111101	;WR0-transfer,portA,block length
-dma_adr2:	dw	0
-        	dw	511
+dma_adr2:	dw	0		;memory
+        	dw	511		;block size
         	db	%10010010	;WR5-stop on end,/CE/WAIT,Ready low
         	db	#cf		;WR6-load
         	db	#b3		;WR6-force ready
-dma_outend:
+dma_out_end:
 
-;------------------------------
-
-
-tst_drv:
-		ld	l,a
+tst_drv:	ld	l,a
 		ld	h,0
 		add	hl,hl
 		add	hl,hl
@@ -1037,10 +902,7 @@ tst_drv:
 		jr	z,mode2
 		jr	mode3
 
-
-
-mode0:
-		ld	a,d
+mode0:		ld	a,d
 		or	%10100000
 		and	%10110000	;LBA no way
 		ld	(hea_wr0+1),a
@@ -1054,9 +916,7 @@ mode0:
 
 		jr	mst_slv		;hl & de contains data!
 
-
-mode1:
-		ld	a,d
+mode1:		ld	a,d
 		or	%10100000
 		and	%10110000	;LBA no way
 		ld	(hea_wr1+1),a
@@ -1070,9 +930,7 @@ mode1:
 
 		jr	mst_slv		;hl & de contains data!
 
-
-mode2:
-		ld	a,d
+mode2:		ld	a,d
 		or	%11100000	;100% LBA
 		and	%11110000
 		ld	(hea_wr1+1),a
@@ -1087,10 +945,7 @@ mode2:
 		jr	lba_mod		;hl & de contains data!
 
 mode3:
-
-
-mst_slv:
-		and	%00010000
+mst_slv:	and	%00010000
 		jr	z,prim
 		ld	a,(m_sec2)
 		ld	(m_sec+1),a
@@ -1099,16 +954,15 @@ mst_slv:
 		ld	bc,(m_cyl2)
 		ld	(m_cyl+1),bc
 		jr	slave
-prim:
-		ld	a,(m_sec1)
+
+prim:		ld	a,(m_sec1)
 		ld	(m_sec+1),a
 		ld	a,(m_hea1)
 		ld	(m_hea+1),a
 		ld	bc,(m_cyl1)
 		ld	(m_cyl+1),bc
 slave:
-lba_mod:
-		ld	d,0
+lba_mod:	ld	d,0
 		ld	(low24+1),hl
 		ld	(hig24+1),de
 
@@ -1117,11 +971,7 @@ lba_mod:
 		or	l
 		ret
 
-
-;------------------------------
-
-div:
-		ld	a,h
+div:		ld	a,h
 		ld	c,l
 		ld	hl,0
 		ld	b,16
@@ -1138,16 +988,12 @@ div3:		djnz	div2
 		ld	l,c
 		ret
 
-;------------------------------
-
-div248:
-		push	ix
+div248:		push	ix
 		ld	bc,0
 		ld	d,0
 		ld	lx,a
 		ld	hx,24
-div2481:
-		sll	l
+div2481:	sll	l
 		rl	h
 		rl	e
 		rl	d
@@ -1161,8 +1007,7 @@ div2481:
 		dec	c
 		jp	p,divok1
 		dec	b
-divok1:					;sbc bcd,lx
-		jp	p,divok3
+divok1:		jp	p,divok3	;sbc bcd,lx
 
 		add	a,lx
 		ld	d,a
@@ -1170,15 +1015,12 @@ divok1:					;sbc bcd,lx
 		inc	c
 		jp	nz,divok2
 		inc	b
-divok2:
-		dec	l
-divok3:					;add bcd,lx
-		dec	hx
+divok2:		dec	l
+divok3:		dec	hx		;add bcd,lx
 		jp	nz,div2481
 
 		pop	ix
 		ret
-
 
 len:		equ	$-144
 
