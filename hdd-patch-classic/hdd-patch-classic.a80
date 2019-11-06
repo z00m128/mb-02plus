@@ -26,40 +26,66 @@
 		
 		org	32768
 
+;definitions
+rom_bank:	equ	#60
+dos_bank:	equ	#61
+patch_bank:	equ	#62
+
+dma_port:	equ	#0b
+
+mem_port:	equ	#17
+
+;HDD patch starts here
 begin:		jp	install
 
 ;virtual disk table
-vdt:		ds	8+1024
+vdt:		db	0		;master: sectors
+		db	0		;master: heads
+		db	0		;master: cylinders low
+		db	0		;master: cylinders high
+
+		db	0		;slave: sectors
+		db	0		;slave:	heads
+		db	0		;slave: cylinders low
+		db	0		;slave: cylinders high
+
+		db	0, 0, 0 ,0	;@0 - tape, don't change
+
+		db	0, 0, 0, 0	;@1 - floppy 1, don't change for MB-02+
+		db	0, 0, 0, 0	;@2 - floppy 2, don't change if two fdds are connected
+
+		ds	1012		;table of virtual drives @3-@255
+vdt_end:
 
 ;ATA ports DRON
-;p_dat:		equ	195	;#c3
-;p_err:		equ	199	;#c7
-;p_hse:		equ	203	;#cb
-;p_nse:		equ	207	;#cf
-;p_cyl:		equ	211	;#d3
-;p_cyh:		equ	215	;#d7
-;p_hea:		equ	219	;#db
-;p_com:		equ	223	;#df
+;p_dat:		db	195		;#c3
+;p_err:		db	199		;#c7
+;p_hse:		db	203		;#cb
+;p_nse:		db	207		;#cf
+;p_cyl:		db	211		;#d3
+;p_cyh:		db	215		;#d7
+;p_hea:		db	219		;#db
+;p_com:		db	223		;#df
 
 ;ATA ports PVL
-p_dat:		equ	163	;#a3
-p_err:		equ	167	;#a7
-p_hse:		equ	171	;#ab
-p_nse:		equ	175	;#af
-p_cyl:		equ	179	;#b3
-p_cyh:		equ	183	;#b7
-p_hea:		equ	187	;#bb
-p_com:		equ	191	;#bf
+p_dat:		db	163		;#a3
+p_err:		db	167		;#a7
+p_hse:		db	171		;#ab
+p_nse:		db	175		;#af
+p_cyl:		db	179		;#b3
+p_cyh:		db	183		;#b7
+p_hea:		db	187		;#bb
+p_com:		db	191		;#bf
 
 ;ATA ports MB03
-;p_dat:		equ	195	;#c3
-;p_err:		equ	167	;#a7
-;p_hse:		equ	203	;#cb
-;p_nse:		equ	175	;#af
-;p_cyl:		equ	211	;#d3
-;p_cyh:		equ	183	;#b7
-;p_hea:		equ	219	;#db
-;p_com:		equ	191	;#bf
+;p_dat:		db	195		;#c3
+;p_err:		db	167		;#a7
+;p_hse:		db	203		;#cb
+;p_nse:		db	175		;#af
+;p_cyl:		db	211		;#d3
+;p_cyh:		db	183		;#b7
+;p_hea:		db	219		;#db
+;p_com:		db	191		;#bf
 
 install:	di
 
@@ -70,54 +96,54 @@ install:	di
 
 		ld	hl,vdt
 		ld	de,tab
-		ld	bc,1024+8
-		ldir
+		ld	bc,vdt_end-vdt
+		ldir			;move VDT into patch
 
-		ld	a,97
-		out	(23),a
+		ld	a,dos_bank
+		out	(mem_port),a	;dos_bank page in
 
-		ld	hl,adr20
-		ld	de,20
-		ld	bc,12
-		ldir
+		ld	hl,dos_14h
+		ld	de,#14
+		ld	bc,dos_14h_end-dos_14h
+		ldir			;patch mods part1 moved to dos_bank
 
-		ld	hl,adr35
-		ld	de,35
-		ld	c,5
-		ldir
+		ld	hl,dos_23h
+		ld	de,#23
+		ld	bc,dos_23h_end-dos_23h
+		ldir			;patch mods part2 moved to dos_bank
 
-		ld	hl,adr62
-		ld	de,62
-		ld	c,11
-		ldir
+		ld	hl,dos_3eh
+		ld	de,#3e
+		ld	bc,dos_3eh_end-dos_3eh
+		ldir			;patch mods part3 moved to dos_bank
+
+		ld	hl,dos_90h		
+		ld	de,#90
+		ld	bc,dos_90h_end-dos_90h
+		ldir			;patch mods part4 moved to dos_bank
 
 		ld	a,205
 		ld	(#13ca),a
 		ld	hl,62
 		ld	(#13ca+1),hl	;set no_verify patch
 
-		ld	hl,sem
-		ld	de,144
-		ld	bc,112
-		ldir
+		ld	a,patch_bank
+		out	(mem_port),a	;patch_bank page in
 
-		ld	a,98
-		out	(23),a
-
-		ld	hl,adr0
+		ld	hl,patch_00h
 		ld	de,0
-		ld	bc,33+8
-		ldir
+		ld	bc,patch_00h_end-patch_00h
+		ldir			;patch body part1 moved to patch_bank
+
+		ld	hl,patch_90h
+		ld	de,#90
+		ld	bc,patch_90h_end-patch_90h
+		ldir			;patch body part2 moved to patch_bank
 
 		ld	hl,201*256+251
 		ld	(56),hl
 
-		ld	hl,sem1
-		ld	de,144
-		ld	bc,len
-		ldir
-
-		ld	a,(p_dat)
+		ld	a,(p_dat)	;set ATA ports in patch code
 		ld	(p1),a
 		ld	(p11),a
 		ld	a,(p_err)
@@ -159,18 +185,54 @@ install:	di
 		ld	hl,40000
 		ld	de,15616
 		ld	bc,768
-		ldir			;font copied to hdd_bank
+		ldir			;font copied to patch_bank
 
-		ld	a,%01000000	;rom_bank pagein
-		out	(23),a
+		ld	a,rom_bank	;rom_bank page in
+		out	(mem_port),a
 		ei
 		ret
 
+;------------------------------------
+;------------------------------------
+;mod at #14 in dos_bank
+;input: a=dos_bank
 
-;------------------------------
-;------------------------------
-;address 62 in dos_bank
-adr62:
+dos_14h:	
+		disp	#14
+
+		ld	(hl),b		;write byte in dos_bank
+		inc	a
+		out	(mem_port),a	;patch_bank page in
+		jp	adr144d
+
+dos_1bh:	ld	a,patch_bank	;route to patch_bank
+		out	(mem_port),a
+		ret
+
+		ent
+dos_14h_end:
+
+;------------------------------------
+;------------------------------------
+;mod at #23 in dos_bank
+;input: a=dos_bank
+
+dos_23h:
+		disp	#23
+
+		out	(c),b		;start DMA transfer
+		inc	a
+		out	(mem_port),a	;patch_bank page in
+
+		ent
+dos_23h_end:
+
+;-----------------------------------
+;-----------------------------------
+;mod at #3e in dos_bank
+dos_3eh:
+		disp	#3e
+
 		ld	c,a		;is verify needed?
 		ld	a,(#03ef)
 		cp	5
@@ -178,70 +240,15 @@ adr62:
 		ret	nc
 		jp	#1463
 
-;------------------------------
-;------------------------------
-;address 20 in dos_bank
-;hdd_bank must be dos_bank+1
+		ent
+dos_3eh_end:
 
-adr20:
-		ld	(hl),b		;write byte in dos_bank
-		inc	a
-		out	(23),a		;patch_bank page in
-		jp	144
+;------------------------------------
+;------------------------------------
+;mod at #90 in dos_bank
 
-;address 27
-		ld	a,98		;patch_bank page in
-		out	(23),a
-		ret
-
-;------------------------------
-;------------------------------
-;address 35 in dos_bank
-
-adr35:
-		out	(c),b		;start DMA transfer
-		inc	a
-		out	(23),a		;patch_bank page in
-
-;------------------------------
-;------------------------------
-;address 0 in hdd_bank
-
-dma_strt:	equ	33
-
-adr0:
-		di
-		xor	a
-		ld	de,65535
-		jp	5
-		db	"HddDrive"
-
-		ld	a,97
-		out	(23),a
-		ld	(hl),b
-		inc	a
-		out	(23),a
-		ret
-		nop
-		nop			;adr27 - route to hdd_bank
-		ld	a,97
-		out	(23),a
-		db	24, 111		;jr 144
-
-;adr33 - route to dma_strt
-;input must be: a=97, bc=port_dma
-		out	(23),a
-		out	(c),b
-		inc	a
-		out	(23),a
-		ret
-
-;------------------------------
-;------------------------------
-;address 144 in dos_bank
-
-sem:
-		disp	144
+dos_90h:
+		disp	#90
 
 adr144d:	push	hl
 		ld	hl,255
@@ -280,7 +287,7 @@ rdwrsec:	push	hl
 		ld	b,a
 		ld	(sp_st+1),sp
 		ld	sp,128
-		call	27
+		call	dos_1bh
 sp_st:		ld	sp,0
 		push	bc
 rut:		call	nic
@@ -303,7 +310,7 @@ sluz1214:	push	de
 		ld	b,a
 		ld	(sp_st+1),sp
 		ld	sp,128
-		call	27
+		call	dos_1bh
 		ld	sp,(sp_st+1)
 		ld	a,b
 		pop	hl
@@ -322,24 +329,63 @@ pryc:		inc	sp
 		nop
 		nop
 
-a1_254:		ld	a,85
-;address 256 should be here
+a1_254:		ld	a,#55
+
+;address #100 should be here
+		if	$>#100
+		display "!!!! Address #100 overflow in dos_bank by ",/D,$-#100," bytes !!!!"
+		endif
 
 		ent
-;------------------------------
-;------------------------------
+dos_90h_end:
 
+;------------------------------------
+;------------------------------------
+;hooks at #0 in patch_bank
 
-sem1:
-		disp	144
+patch_00h:
+		disp	0
 
-;address 144 v hdd_bank
+		di
+		xor	a
+		ld	de,65535
+patch_05h:	jp	patch_05h
+		db	"HddDrive"
 
-		jp	preskoc
+patch_10h:	ld	a,dos_bank
+		out	(mem_port),a
+patch_14h:	ld	(hl),b
+		inc	a
+		out	(mem_port),a
+		ret
+		nop
+		nop
+patch_1bh:	ld	a,dos_bank	;#1b - route to dos_bank
+		out	(mem_port),a
+		jr	adr144p
+
+dma_start:	out	(mem_port),a	;#21 - route to dma_start, input must be: a=dos_bank, bc=dma_port
+		out	(c),b
+		inc	a
+		out	(mem_port),a
+		ret
+
+		ent
+patch_00h_end:
+
+;------------------------------------
+;------------------------------------
+;patch body at #90 in patch_bank
+
+patch_90h:
+		disp	#90
+
+adr144p:	jp	preskoc
+
 		ent
 
 tab:
-		disp	144+3
+		disp	#93
 ;primary
 m_sec1:		db	0
 m_hea1:		db	0
@@ -376,7 +422,7 @@ set_wrm1:	jp	z,wr_sec0
 		ret
 
 rett:		ld	b,a
-		jp	27
+		jp	patch_1bh
 
 info1:		ld	a,e
 		call	tst_drv
@@ -425,7 +471,7 @@ set_wrm2:	call	wr_sec0
 		jr	nz,wtrk1
 		ret
 
-;-----------------------------------
+;------------------------------------
 ;counts logical number of sector
 ;hl is preserved
 ;result is passed directly to prepoc
@@ -457,10 +503,10 @@ rds1:		or	l
 		ret
 
 
-;-------------------------------
-;counts logical number of sector
-;of disk image to corresponding
-;physical cyl,sec,hea on HDD/CF
+;------------------------------------
+;counts logical number of sector of 
+;disk image to corresponding physical
+;cyl,sec,hea on HDD/CF
 
 ;hl = logical number of sector
 
@@ -483,7 +529,7 @@ m_hea:		ld	a,0
 		call	div
 		push	de		;de -> heads
 m_cyl:		ld	de,0
-		call div		;de -> cyl
+		call	div		;de -> cyl
 		pop	hl
 		ld	b,l
 		pop	hl
@@ -509,9 +555,9 @@ prep2:		ld	b,d
 		ret
 
 
-;------------------------------
-;---------- generic 000 -------
-;------------------------------
+;------------------------------------
+;---------- generic 000 -------------
+;------------------------------------
 
 rd_sec0:	call	sect_num
 		ret	nz
@@ -616,15 +662,15 @@ p81:		out	(0),a		;write with retries
 		xor	a
 		ret
 
-;------------------------------
-;----- end of generic 000 -----
-;------------------------------
+;------------------------------------
+;----- end of generic 000 -----------
+;------------------------------------
 
 
 
-;------------------------------
-;--------- generic+ 001 -------
-;------------------------------
+;------------------------------------
+;--------- generic+ 001 -------------
+;------------------------------------
 
 rd_sec1:	call	sect_num
 		ret	nz
@@ -725,16 +771,14 @@ p83:		out	(0),a		;write with retries
 		xor	a
 		ret
 
-;------------------------------
-;----- end of generic+ 001 ----
-;------------------------------
+;------------------------------------
+;----- end of generic+ 001 ----------
+;------------------------------------
 
 
-
-
-;------------------------------
-;-------- LBA mode 010 --------
-;------------------------------
+;------------------------------------
+;-------- LBA mode 010 --------------
+;------------------------------------
 
 rd_sec2:	call	sect_num
 		ret	nz
@@ -760,9 +804,14 @@ wr_sec2:	ld	a,(wr_prot+1)
 		call	write1
 		ret
 
-;------------------------------
-;---- end of LBA mode 010 -----
-;------------------------------
+;------------------------------------
+;---- end of LBA mode 010 -----------
+;------------------------------------
+
+
+;------------------------------------
+;------ rest of patch code ----------
+;------------------------------------
 
 error:		cp	255
 		jr	nz,err1
@@ -810,17 +859,17 @@ p85:		in	a,(0)
 		dec	a
 		and	1
 		ret	z
-p2:		 in	a,(0)
+p2:		in	a,(0)
 		ret
 
 rd_512:		ld	(dma_adr1),hl
 		push	hl
 		ld	hl,dma_in
-		ld	bc,((dma_in_end-dma_in)*256)+11
+		ld	bc,((dma_in_end-dma_in)*256)+dma_port
 		otir
-		ld	a,97
+		ld	a,dos_bank
 		ld	b,#87
-		call	dma_strt	; start dma transfer
+		call	dma_start	;start DMA transfer
 		pop	hl
 		ld	bc,512
 		add	hl,bc
@@ -842,12 +891,12 @@ dma_in_end:
 wr_512:		ld	(dma_adr2),hl
 		push	hl
 		ld	hl,dma_out
-		ld	bc,((dma_out_end-dma_out)*256)+11
-		ld	a,97
+		ld	bc,((dma_out_end-dma_out)*256)+dma_port
+		ld	a,dos_bank
 		otir
-		ld	a,97
+		ld	a,dos_bank
 		ld	b,#87
-		call	dma_strt
+		call	dma_start
 		pop	hl
 		ld	bc,512
 		add	hl,bc
@@ -904,7 +953,7 @@ tst_drv:	ld	l,a
 
 mode0:		ld	a,d
 		or	%10100000
-		and	%10110000	;LBA no way
+		and	%10110000		;LBA no way
 		ld	(hea_wr0+1),a
 		ld	(hea_rd0+1),a
 
@@ -914,11 +963,11 @@ mode0:		ld	a,d
 		ld	(set_wrm1+1),bc
 		ld	(set_wrm2+1),bc
 
-		jr	mst_slv		;hl & de contains data!
+		jr	mst_slv			;hl & de contains data!
 
 mode1:		ld	a,d
 		or	%10100000
-		and	%10110000	;LBA no way
+		and	%10110000		;LBA no way
 		ld	(hea_wr1+1),a
 		ld	(hea_rd1+1),a
 
@@ -928,10 +977,10 @@ mode1:		ld	a,d
 		ld	(set_wrm1+1),bc
 		ld	(set_wrm2+1),bc
 
-		jr	mst_slv		;hl & de contains data!
+		jr	mst_slv			;hl & de contains data!
 
 mode2:		ld	a,d
-		or	%11100000	;100% LBA
+		or	%11100000		;100% LBA
 		and	%11110000
 		ld	(hea_wr1+1),a
 		ld	(hea_rd1+1),a
@@ -942,7 +991,7 @@ mode2:		ld	a,d
 		ld	(set_wrm1+1),bc
 		ld	(set_wrm2+1),bc
 
-		jr	lba_mod		;hl & de contains data!
+		jr	lba_mod			;hl & de contains data!
 
 mode3:
 mst_slv:	and	%00010000
@@ -1000,14 +1049,14 @@ div2481:	sll	l
 		rl	c
 		rl	b
 
-		ld	a,d		;adc bcd,bcd
+		ld	a,d			;adc bcd,bcd
 		sbc	a,lx
 		ld	d,a
 		jp	nc,divok1
 		dec	c
 		jp	p,divok1
 		dec	b
-divok1:		jp	p,divok3	;sbc bcd,lx
+divok1:		jp	p,divok3		;sbc bcd,lx
 
 		add	a,lx
 		ld	d,a
@@ -1016,13 +1065,12 @@ divok1:		jp	p,divok3	;sbc bcd,lx
 		jp	nz,divok2
 		inc	b
 divok2:		dec	l
-divok3:		dec	hx		;add bcd,lx
+divok3:		dec	hx			;add bcd,lx
 		jp	nz,div2481
 
 		pop	ix
 		ret
-
-len:		equ	$-144
+patch_90h_end:
 
 		ent
 
