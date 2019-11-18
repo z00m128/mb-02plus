@@ -1,0 +1,1475 @@
+;-------------------------------------;
+;   Virtual Disk Table creator for    ;
+;          HDD patch classic          ;
+;-------------------------------------;
+; (c) 2019 z00m^SinDiKAT
+; formatted for SjASMPlus
+
+; Version: 1.0
+; To do:
+; - code optimisation
+; - support for extended partitions
+; - support for VDT combined from both, master and slave devices
+
+		device	zxspectrum48
+
+; definitions
+
+screen:		equ	#4000
+attrs:		equ	#5800
+ula:		equ	#fe
+
+;ATA ports DRON
+;p_data:	equ	195			;#c3
+;p_error:	equ	199			;#c7
+;p_sec_count:	equ	203			;#cb
+;p_sec_number:	equ	207			;#cf
+;p_cyl_low:	equ	211			;#d3
+;p_cyl_high:	equ	215			;#d7
+;p_device_head:	equ	219			;#db
+;p_command:	equ	223			;#df
+;p_status:	equ	223			;#df
+
+;ATA ports PVL
+p_data:		equ	163			;#a3
+p_error:	equ	167			;#a7
+p_sec_count:	equ	171			;#ab
+p_sec_number:	equ	175			;#af
+p_cyl_low:	equ	179			;#b3
+p_cyl_high:	equ	183			;#b7
+p_device_head:	equ	187			;#bb
+p_command:	equ	191			;#bf
+p_status:	equ	191			;#bf
+
+;ATA ports MB03
+;p_data:		equ	195			;#c3
+;p_error:	equ	167			;#a7
+;p_sec_count:	equ	203			;#cb
+;p_sec_number:	equ	175			;#af
+;p_cyl_low:	equ	211			;#d3
+;p_cyl_high:	equ	183			;#b7
+;p_device_head:	equ	219			;#db
+;p_command:	equ	191			;#bf
+;p_status:	equ	191			;#bf
+
+;ATA commands
+c_identify:	equ 	#ec
+c_readsector:	equ	#20
+
+;ATA variables
+ata_timeout:	equ	0			; timeout for ATA operations, 0 = max
+s_ata_ready:	equ	%01000000		; status ready
+s_ata_drq:	equ	%00001000		; status data request
+
+;other
+print_num:	equ	#1a1b			; ROM routine - prints number in BC
+print_char:	equ	#0010			; ROM routine - prints char in A
+chan_open:	equ	#1601			; ROM routine - open channel in A
+key_scan:	equ	#028e			; ROM routine - keyboard scanning
+scr_ct:		equ	#5c8c			; system variable - count scrolls
+
+;MAIN code
+		org	#6000
+
+start:		ei
+
+		ld	a,#02			; open print channel
+		call	chan_open
+
+
+title_screen:	xor	a
+
+		ld	(scr_ct),a		; "disable" scroll? question
+
+		out	(ula),a			; black border
+
+		call	clear_screen
+
+		call	print_s_a
+		db	#16,0,0			; AT 0,0
+		db	#13,1			; BRIGHT 1
+		db	"--------------------"
+		db	"------------"
+		db	#16,1,0			; AT 1,0
+		db	"VDTCreator for HDD "
+		db	"patch classic"
+		db	#16,2,0			; AT 2,3
+		db	"      (c)2019 z00m/"
+		db	"SinDiKAT     "		
+		db	#16,3,0			; AT 3,0
+		db	"--------------------"
+		db	"------------"		
+		db	#13,0			; BRIGHT 0
+		db	#16,4,0			; AT 4,0
+		db	"Ports: PVL/divIDE"
+;		db	"Ports: Dron"
+;		db	"Ports: MB-03+ Ultimate"
+		db	#0d,#0d+#80		; 2x ENTER
+
+dev_master:	call	print_s_a		; print info about master device
+		db	#14,1			; INVERSE 1
+		db	"Master:"
+		db	#14,0			; INVERSE 0
+		db	#0d+#80			; ENTER
+
+		xor	a			; set master device
+		ld	(master_slave),a	
+
+		ld	hl,mas_id_buffer
+		call	get_identify		; get identify data
+		jr	c,dev_slave		; skip to slave if error
+
+		ld	hl,mas_mbr_buffr
+		call	get_mbr			; get masterboot record
+		jr	c,dev_slave		; skip to slave if error
+
+		ld	hl,mas_id_buffer
+		call	device_name		; print name
+
+		ld	ix,mas_id_buffer	
+		call	device_params		; print parameters
+
+		ld	ix,mas_mbr_buffr
+		call	device_partit		; print partitions
+
+dev_slave:	call	print_s_a		; print info about slave device
+		db	#14,1			; INVERSE 1		
+		db	"Slave:"
+		db	#14,0			; INVERSE 0		
+		db	#0d+#80			; ENTER
+
+		or	a			; clear carry
+
+		ld	a,#10			; set slave device
+		ld	(master_slave),a
+
+		ld	hl,sla_id_buffer
+		call	get_identify		; get identify data
+		jr	c,detect_end		; skip to end if error
+
+		ld	hl,sla_mbr_buffr
+		call	get_mbr			; get masterboot record
+		jr	c,detect_end		; skip to end if error
+
+		ld	hl,sla_id_buffer
+		call	device_name		; print name
+
+		ld	ix,sla_id_buffer
+		call	device_params		; print parameters
+
+		ld	ix,sla_mbr_buffr
+		call	device_partit		; print partitions
+
+detect_end:	call	print_s_a
+		db	#16,20,0		; AT 22,0
+		db	"Press "
+		db	#14,1			; INVERSE 1
+		db	"M"
+		db	#14,0			; INVERSE 0
+		db	" or "
+		db	#14,1			; INVERSE 1
+		db	"S"
+		db	#14,0			; INVERSE 0
+		db	" for partit. info,"
+		db	#16,21,0		; AT 22,0
+		db	#14,1			; INVERSE 1
+		db	"C"
+		db	#14,0			; INVERSE 0
+		db	" to create VDT, "
+		db	#14,1			; INVERSE 1
+		db	"Q"
+		db	#14,0			; INVERSE 0
+		dc	" to quit."
+
+keyscan1:	call	key_scan		; scans for M, S, C or Q key
+		ld	a,e
+		cp	#10	
+		jp	z,part_i_master		; jump to partition info - master
+		cp	#1e
+		jp	z,part_i_slave		; jump to partition info - slave
+		cp	#0f
+		jp	z,create_vdt		; jump to semi automatic VDT creator
+		cp	#25
+		jp	z,basic40		; quit to BASIC
+		jr	keyscan1
+
+;--------------------------------------
+; Semi automatic creation of VDT
+
+create_vdt:	xor	a			; black border
+		out	(ula),a		
+
+		call	clear_screen
+
+		call	print_s_a
+		db	#16,0,0			; AT 0,0
+		db	"Create VDT"
+		db	#16,1,0			; AT 1,0
+		db	"---------------------"
+		db	"-----------"
+		db	#16,3,0			; AT 3,0
+		db	"Select "
+		db	#14,1			; INVERSE 1
+		db	"M"
+		db	#14,0			; INVERSE 0
+		db	"aster or "
+		db	#14,1			; INVERSE 1
+		db	"S"
+		db	#14,0			; INVERSE 0
+		db	"lave device."
+		db	#16,3,0+#80		; AT 3,0
+
+keyscan2:	call	key_scan		; scans for M, or S key
+		ld	a,e
+		cp	#10	
+		jr	z,create_vdt_mas	; jump to VDT creator - master
+		cp	#1e
+		jr	z,create_vdt_sla	; jump to VDT creator - slave
+		jr	keyscan2
+
+;--------------------------------------
+; VDTCreator master info
+
+create_vdt_mas:	xor	a			; select master
+		ld	(master_slave),a
+
+		ld	ix,mas_id_buffer	; simple check if we have detected something
+		ld	l,(ix+#02)		; only in master identify buffer
+		ld	a,(ix+#03)
+		or	l
+		jr	nz,cr_vdt_mas1		; jump to creator
+		jr	cr_vdt_err
+
+cr_vdt_mas1:	ld	a,(master_slave)	; display master device parameters
+		ld	hl,mas_id_buffer
+		call	device_name2		; print name
+
+		ld	ix,mas_id_buffer	
+		call	device_params		; print parameters
+
+		ld	ix,mas_mbr_buffr
+		call	device_partit		; print partitions
+
+		ld	ix,mas_mbr_buffr
+		ld	de,mas_id_buffer
+		jr	cr_vdt_ptype		; call creator with partition type autodetect
+
+;--------------------------------------
+; VDTCreator slave info
+
+create_vdt_sla:	ld	a,#10			; select slave
+		ld	(master_slave),a
+
+		ld	ix,sla_id_buffer	; simple check if we have detected something		
+		ld	l,(ix+#02)		; only in slave identify buffer
+		ld	a,(ix+#03)
+		or	l
+		jr	nz,cr_vdt_sla1		; jump to creator
+		jr	cr_vdt_err
+
+cr_vdt_sla1:	ld	a,(master_slave)	; display slave device parameters
+		ld	hl,sla_id_buffer
+		call	device_name2
+
+		ld	ix,sla_id_buffer
+		call	device_params
+
+		ld	ix,sla_mbr_buffr
+		call	device_partit
+
+		ld	ix,sla_mbr_buffr
+		ld	de,sla_id_buffer
+		jr	cr_vdt_ptype		; call creator with partition type autodetect
+
+cr_vdt_err:	ld	a,#02			; red border
+		out	(ula),a
+		call	device_error		; error message
+		jp	press_enter		; quit to press ENTER message
+
+;--------------------------------------
+; Finds type 47h partition and asks
+; for VDT creation
+; input: IX = buffer with MBR
+;        DE = buffer with identify
+
+cr_vdt_ptype:	call	print_s_a
+		db	#16,9,0			; AT 9,0
+		db	"Looking for "
+		db	"47h partiton..."
+		db	#0d,#0d+#80		; 2x ENTER
+		push	de
+		ld	de,#1be			; set offset to 1st partition entry
+		add	ix,de
+		ld	bc,1			; 1st partition entry
+cr_vdt_ptype1:	push	bc
+		ld	a,(ix+#04)
+		cp	#00			; empty entry
+		jr	z,cr_vdt_nentry
+		cp	#47			; type MB02
+		jr	z,cr_vdt_det47h
+
+cr_vdt_nentry:	pop	bc
+		ld	de,#10
+		add	ix,de			; next partition entry
+		ld	a,#05
+		inc	bc
+		cp	c
+		jr	nz,cr_vdt_ptype1
+		call	print_s_a
+		db	#12,1			; FLASH 1	
+		db	"There was no "
+		db	"partiton type  47h "
+		db	"left on device."
+		db	#12,0			; FLASH 0
+		db	#0d,#0d+#80		; ENTER
+		pop	de
+		jp	press_enter
+
+;--------------------------------------
+; Type 47h handling
+
+cr_vdt_det47h:	call	print_s_a
+		db	"Type 47h found at "
+		db	"partition "
+		db	#13,1+#80		; BRIGHT 1
+		call	print_num		; prints partition number
+		ld	a,#13			; BRIGHT 0
+		rst	#10
+		xor	a
+		rst	#10
+		ld	a,'.'
+		rst	#10
+		ld	a,#0d			; ENTER
+		rst	#10
+		call	print_s_a
+		db	"Create VDT for it "
+		db	"(Y/N)?"
+		db	#0d,#0d+#80		; 2x ENTER
+
+keyscan3:	ld	hl,#8000		; dummy loop for little delay
+ks3_lp1:	dec	hl			; to get rid off long N key press
+		ld	a,h
+		or	l
+		jr	nz,ks3_lp1
+
+ks3_lp2:	call	key_scan		; scans for Y, or N key
+		ld	a,e
+		cp	#02	
+		jp	z,cr_vdt_yes		; jump to main VDT creator body
+		cp	#08
+		jr	z,cr_vdt_no		; quit to next partition entry
+		jr	ks3_lp2
+
+cr_vdt_no:	call	clear_low
+		call	print_s_a
+		db	#16,9,0			; AT 9,0
+		db	#12,1			; FLASH 1
+		db	"VDT was not "
+		db	"created!"
+		db	#12,0			; FLASH 0
+		db	#0d,#0d			; 2x ENTER
+		db	"Looking for other "
+		db	"47h partiton.."
+		db	#0d,#0d+#80		; 2x ENTER
+		jp	cr_vdt_nentry
+
+;--------------------------------------
+; VDT creator body
+
+cr_vdt_yes:	call	clear_low
+		call	print_s_a
+		db	#16,9,0			; AT 9,0
+		db	"Part. size is "
+		db	#13,1+#80		; BRIGHT 1
+
+		push	ix			; save buffer with MBR
+
+		ld	l,(ix+#0c)		; SEC 0
+		ld	h,(ix+#0d)		; SEC 1
+		ld	e,(ix+#0e)		; SEC 2
+		ld	d,(ix+#0f)		; SEC 3
+
+		push	hl			; save DEHL
+		push	de
+
+		ld	c,0			; print only valid numbers
+		ld	b,#0a			; max 10 characters
+		call	DEC32X
+		call	print_s_a
+		db	#13,0			; BRIGHT 0
+		db	" sectors"
+		db	#0d+#80			; ENTER
+		call	print_s_a
+		db	"That would be "
+		db	#13,1+#80		; BRIGHT 1
+
+		pop	hl			; restore HLIX
+		pop	ix
+
+		ld	bc,#1000
+		call	div32_16		; counts how many drives would be from available space, result in HLIX
+						
+		ld	b,xh			; the result will be 16 bit only, so we can truncate HL here
+		ld	c,xl
+		push	bc
+
+		or	a			; clear carry flag
+		
+		ld	hl,#fc
+		sbc	hl,bc			; max 252 drives allowed
+		jr	nc,cr_vdt_y1
+
+		call	print_num
+		call	print_s_a
+		db	#13,0			; BRIGHT 0
+		db	" virtual drives"
+		db	#0d
+		db	"which is too muc"
+		db	"h!"
+		db	#0d
+		db	"Only 252 drives "
+		db	"will be used!"
+		db	#0d+#80
+		pop	bc
+		ld	b,0
+		ld	a,#fc			; limit to 252 drives if partition is bigger
+		ld	c,a
+		push	bc
+		call	print_s_a
+		db	"Drives "
+		db	#13,1			; BRIGHT 1
+		dc	"@3-@"
+		jr	cr_vdt_y2
+
+cr_vdt_y1:	call 	print_num		; prints number of virtual drives
+		call	print_s_a
+		db	#13,0			; BRIGHT 0
+		db	" virtual drives"
+		db	#0d			; ENTER
+		db	"Drives "
+		db	#13,1			; BRIGHT 1
+		dc	"@3-@"
+cr_vdt_y2:	pop	bc
+		ld	a,c
+		ld	hl,num_of_drives
+		ld	(hl),a			; save number of drives for later usage
+		add	a,3			; virtual drives starts from @3
+		ld	c,a
+		call	print_num
+		call	print_s_a
+		db	#13,0			; BRIGHT 0
+		db	" would be occupied"
+		db	#0d			; ENTER
+		db	"Continue? (Y/N)"
+		db	#0d+#80			; ENTER
+
+keyscan4:	ld	hl,#8000		; dummy loop for little delay
+ks4_lp1:	dec	hl			; to get rid off long Y key press
+		ld	a,h
+		or	l
+		jr	nz,ks4_lp1
+
+ks4_lp2:	call	key_scan		; scans for Y, or N key
+		ld	a,e
+		cp	#02	
+		jr	z,cr_cont_yes		; jump to creating VDT
+		cp	#08
+		jr	z,cr_cont_no		; quit to next partition entry
+		jr	ks4_lp2
+
+cr_cont_no:	pop	ix			; restore buffer with MBR
+		jp	cr_vdt_no		; return to next entry
+
+;--------------------------------------
+; VDT filler
+
+cr_cont_yes:	pop	ix			; restore buffer with MBR
+		pop	bc			; restore partition number, not needed anymore
+		pop	de			; restore buffer with identify
+
+		push	ix			; save buffer with MBR
+
+		push	de			; buffer with identify to IX
+		pop	ix
+
+		ld	hl,device_mode
+		xor	a			; bit4=0 > master device
+		ld	(hl),a
+		ld	hl,v_mas_sectors
+
+		ld	a,(master_slave)
+		cp	#10			; decide - master/slave parameters?
+		jr	nz,cr_c_y1
+
+		ld	hl,device_mode
+		ld	a,%00010000		; bit4=1 > slave device
+		ld	(hl),a
+		ld	hl,v_sla_sectors
+
+cr_c_y1:	ld	a,(ix+#0c)		; device geometry: sec
+		ld	(hl),a
+		inc	hl
+		ld	a,(ix+#06)		; device geometry: hea
+		ld	(hl),a
+		inc	hl
+		ld	a,(ix+#02)		; device geometry: cyl low
+		ld	(hl),a
+		inc	hl
+		ld	a,(ix+#03)		; device geometry: cyl high
+		ld	(hl),a
+		ld	a,(ix+#63)
+		bit	1,a			; is LBA supported?
+		jr	z,dev_mode_chs
+
+dev_mode_lba:	call	print_s_a
+		db	#0d
+		db	"Device supports "
+		db	"LBA."
+		db	#0d
+		db	"VDT will be auto-"
+		db	"configured to  "
+		dc	"use LBA mode."
+		ld	e,%01000100		; bit6=1 - LBA mode, bit3-bit1=010 - LBA
+		ld	hl,device_mode
+		ld	a,(hl)
+		or	e
+		ld	(hl),a
+		jr	cr_c_y2
+
+dev_mode_chs:	call	print_s_a
+		db	#0d
+		db	"Device doesn't su"
+		db	"pport LBA."
+		db	#0d
+		db	"VDT will be auto-"
+		dc	"configured to  "
+		dc	"use CHS mode."
+		ld	e,%00000000		; bit6=0 - CHS mode, bit3-bit1=000 - CHS mode 0
+		ld	hl,device_mode
+		ld	a,(hl)
+		or	e
+		ld	(hl),a
+
+cr_c_y2:	pop	ix			; restore buffer with MBR, pointer is set to corresponding partition entry already
+		ld	a,(ix+#08)		; LBA 0
+		ld	(lba0),a
+		ld	a,(ix+#09)		; LBA 1
+		ld	(lba1),a
+		ld	a,(ix+#0a)		; LBA 2
+		ld	(lba2),a
+
+		ld	hl,vdt_lba		; LBA table in VDT
+
+		ld	a,(lba0)		; first entry for first virtual drive
+		ld	(hl),a
+		inc	hl
+		ld	a,(lba1)
+		ld	(hl),a
+		inc	hl
+		ld	a,(lba2)
+		ld	(hl),a
+		inc	hl
+		ld	a,(device_mode)
+		ld	(hl),a
+		inc	hl
+
+		ld	e,#10			; LBA1+LBA2 will be increased with 4096 sectors
+		ld	d,#01
+
+		ld	a,(num_of_drives)
+		dec	a
+		ld	b,a			; loop counter set to number of drives-1
+		
+lba_loop:	ld	a,(lba0)		; now we will generates entries 2 to end
+		ld	(hl),a
+		inc	hl
+
+		ld	a,(lba1)
+		add	a,e			; add 4096 sectors
+		jr	nc,lba_std		; if LBA1 max was not exceeded, continue to LBA2
+		ld	(lba1),a
+		ld	(hl),a
+		inc	hl
+
+		or	a			; reset carry
+		ld	a,(lba2)		; if LBA1 max was exceeded
+		add	a,d			; increase LBA2 and if the LBA2 max was not exceeded
+		jr	c,lba_end
+		jr	lba_inc			; continue to next virtual drive, else end loop
+
+lba_std:	ld	(lba1),a
+		ld	(hl),a
+		inc	hl
+
+		ld	a,(lba2)
+lba_inc:	ld	(lba2),a
+		ld	(hl),a
+		inc	hl
+
+		ld	a,(device_mode)
+		ld	(hl),a
+		inc	hl
+
+		djnz	lba_loop
+lba_end:	or	a			; reset carry
+
+		call	print_s_a
+		db	#0d,#0d
+		db	"VDT was created a"
+		db	"nd will be     "
+		dc	"saved now."
+
+		ld	bc,#14			; jump to line 20 in BASIC
+		ret
+
+master_slave:	db	0
+
+device_mode:	db	%00000000		; bit7=0, bit6=CHS(0)/LBA(1), bit5=0, bit4=master(0)/slave(1)
+						; bit3-bit1= LBA(010)/CHS2(001)/CHS1(000), bit0=write allowed(0)/write protect(1)
+num_of_drives:	db	0
+
+lba0:		db	0
+lba1:		db	0
+lba2:		db	0
+
+;--------------------------------------
+; Shows partitions info
+
+part_i_master:	xor	a			; black border
+		out	(ula),a
+
+		call	clear_screen
+	
+		call	print_s_a
+		db	#16,0,0			; AT 0,0
+		db	"Master  device  parti"
+		db	"tions  info"
+		db	"---------------------"
+		db	"-----------"
+		db	#0d+#80			; ENTER
+		xor	a			; master device
+		jr	part_info
+
+part_i_slave	xor	a			; black border
+		out	(ula),a
+
+		call	clear_screen
+
+		call	print_s_a
+		db	#16,0,0			; AT 0,0
+		db	"Slave  device   parti"
+		db	"tions  info"
+		db	"---------------------"
+		db	"-----------"
+		db	#0d+#80			; ENTER
+		ld	a,#10			; slave device
+part_info:	ld	ix,mas_mbr_buffr	; select buffer for master or slave device
+		cp	#10
+		jr	nz,part_i1
+		ld	ix,sla_mbr_buffr		
+part_i1:	push	ix
+		pop	hl
+		ld	de,#1fe			; set offset to signature
+		add	hl,de
+		ex	hl,de
+		ld	a,(de)
+		ld	l,a
+		inc	de
+		ld	a,(de)
+		ld	h,a
+		ld	bc,#aa55		; signature
+		or	a
+		sbc	hl,bc
+		jr	z,part_i5		; continue if we have good MBR
+		ld	a,#02
+		out	(ula),a
+		call	print_s_a
+		db	#0d			; ENTER
+		db	#12,1			; FLASH 1
+		db	" Bad MBR or device "
+		db	"not present! "
+		db	#12,0			; FLASH 0
+		db	#0d,#0d+#80		; 2x ENTER	
+		jp	press_enter
+
+part_i5:	ld	de,#1be			; set offset to 1st partition entry
+		add	ix,de
+		ld	bc,1
+part_i2:	push	bc
+		ld	a,(ix+#04)		; 1st partition entry
+		cp	#00			; empty entry
+		jp	z,part_i3
+		ld	a,#0d			; ENTER
+		rst	#10
+		call 	print_s_a
+		db	#13,1			; BRIGHT 1
+		dc	"Partition "
+		pop	bc
+		push	bc
+		call	print_num
+		ld	a,':'
+		rst	#10
+		ld	a,#13			; BRIGHT 0
+		rst	#10
+		xor	a
+		rst	#10
+		ld	a,' '
+		rst	#10
+		call	print_s_a
+		dc	"type "
+		ld	a,(ix+#04)		; partition type
+		push	af
+		ld	h,0
+		ld	l,a
+		ld	de,hexstring		; conversion to hexadecimal
+		call	Num2Hex
+		ld	hl,hexstring+2
+		call	print_sa_lp
+		ld	a,','
+		rst	#10
+		ld	a,' '
+		rst	#10
+		pop	af
+		call	part_type		; show type
+		ld	a,#0d			; ENTER
+		rst	#10
+		call	print_s_a
+		dc	"1st sector C/H/S: "
+		ld	a,(ix+#02)		; cyl high + heads
+		and	%11000000		; mask for cyl high
+		rlca
+		rlca				; move bits to the right
+		ld	b,a			; cyl high
+		ld	c,(ix+#03)		; cyl low
+		call	print_num
+		ld	a,'/'
+		rst	#10
+		ld	c,(ix+#01)		; hea
+		ld	b,0
+		call	print_num
+		ld	a,'/'
+		rst	#10
+		ld	a,(ix+#02)		; sec
+		and	%00111111
+		ld	b,0
+		ld	c,a
+		call	print_num
+		ld	a,#0d			; ENTER
+		rst	#10
+		call	print_s_a
+		dc	"1st sector LBA: "
+		ld	l,(ix+#08)		; LBA 0
+		ld	h,(ix+#09)		; LBA 1
+		ld	e,(ix+#0a)		; LBA 2
+		ld	d,(ix+#0b)		; LBA 3
+		ld	c,0			; print only valid numbers
+		ld	b,#0a			; max 10 characters
+		call	DEC32X
+		ld	a,#0d			; ENTER
+		rst	#10
+		call	print_s_a
+		dc	"Number of sectors: "
+		ld	l,(ix+#0c)		; SEC 0
+		ld	h,(ix+#0d)		; SEC 1
+		ld	e,(ix+#0e)		; SEC 2
+		ld	d,(ix+#0f)		; SEC 3
+		ld	c,0			; print only valid numbers
+		ld	b,#0a			; max 10 characters
+		call	DEC32X		
+		ld	a,#0d			; ENTER
+		rst	#10
+
+part_i3:	pop	bc
+		ld	de,#10
+		add	ix,de			; next partition entry
+		inc	bc
+		ld	a,#05
+		cp	c
+		jp	nz,part_i2
+		ld	a,#0d			; ENTER
+		rst	#10
+
+press_enter:	call	print_s_a
+		db	"Press "
+		db	#14,1			; INVERSE 1
+		db	"ENTER"
+		db	#14,0			; INVERSE 0
+		dc	"."
+keyloop:	ld	a,#bf			; wait for ENTER
+	        in	a,(ula)
+        	rra
+        	jr	c,keyloop
+		jp	title_screen
+
+hexstring:	db	"ffff"
+		dc	"h"
+
+;--------------------------------------
+; Print device error message
+; output: c = error
+
+device_error:	call	print_s_a
+		db	#12,1			; FLASH 1
+		db	"  Device error or "
+		db	"not present!  "
+		db	#12,0			; FLASH 0
+		db	#0d,#0d+#80		; 2x ENTER
+		scf
+		ret
+
+;--------------------------------------
+; Print device parameters
+; input: IX = buffer of identify block
+
+device_params:	call	print_s_a
+		dc	"C/H/S: "
+
+		ld	c,(ix+#02)		; buffer pointer to Cyl
+		ld	b,(ix+#03)
+		call	print_num
+		ld	a,'/'
+		rst	#10
+
+		ld	c,(ix+#06)		; buffer pointer to Hea
+		ld	b,(ix+#07)
+		call	print_num
+		ld	a,'/'
+		rst	#10
+
+		ld	c,(ix+#0c)		; buffer pointer to Sec
+		ld	b,(ix+#0d)
+		call	print_num
+		ld	a,#20			; SPACE
+		rst	#10
+
+		call	print_s_a
+		dc	" LBA: "
+		ld	a,(ix+#63)		; LBA support ?
+		bit	1,a
+		ld	hl,msg_yes
+		jr	nz,dp_lba_y
+		ld	hl,msg_no
+dp_lba_y:	call	print_sa_lp
+		ld	a,#0d			; ENTER
+		rst	#10
+
+		call	print_s_a
+		dc	"Capacity: "
+
+		ld	c,(ix+#02)		; bc = cyl
+		ld	b,(ix+#03)
+		ld	h,(ix+#06)		; h = hea		
+		ld	e,(ix+#0c)		; e = sec	
+		call	size_count		; count size in MB from CHS
+		ld	c,0			; only valid numbers will be printed
+		ld	b,#0a			; max 10 characters
+		call	DEC32X			; print size in MB
+		call	print_s_a
+		db	" MB"
+		db	#0d+#80			; ENTER
+		ret
+
+msg_yes:	dc	"Yes"
+msg_no:		dc	"No"		
+
+;--------------------------------------
+; Print device partitions
+; output: c = error, nc = MBR is valid
+
+device_partit:	call	print_s_a
+		db	"Partitions:"
+		db	#0d+#80			; ENTER
+
+		ld	a,(master_slave)	; master/slave test
+		ld	ix,mas_mbr_buffr
+		cp	#10
+		jr	nz,dev_part1
+		ld	ix,sla_mbr_buffr
+dev_part1:	push	ix
+		pop	hl
+		ld	de,#1fe			; set offset to signature
+		add	hl,de
+		ex	hl,de
+		ld	a,(de)
+		ld	l,a
+		inc	de
+		ld	a,(de)
+		ld	h,a
+		ld	bc,#aa55		; signature
+		or	a
+		sbc	hl,bc
+		jr	z,signatr_valid		; go to part detect if it is valid
+		ld	a,#02			; else red border
+		out	(ula),a
+		call	print_s_a		; and error message
+		db	#12,1			; FLASH 1
+		db	"Bad MBR or not valid!"
+		db	#12,0			; FLASH 0
+		db	#0d,#0d+#80		; 2x ENTER
+		scf
+		ret
+
+signatr_valid:	ld	de,#1be			; set offset to 1st partition entry
+		add	ix,de
+		ld	bc,1			; 1st partition entry
+dev_part2:	push	bc
+		call	print_num
+		ld	a,':'
+		rst	#10
+		ld	a,(ix+4)
+		cp	#00			; empty entry
+		jr	z,part_none
+		call	part_type		; detects a few types of partitions
+		jr	next_entry
+
+part_none:	call	print_s_a
+		dc	"none "
+
+next_entry:	pop	bc
+		ld	de,#10
+		add	ix,de			; next partition entry
+		ld	a,#05
+		inc	bc
+		cp	c
+		jr	nz,dev_part2		; quit if we scanned all 4 entries
+		ld	a,#0d
+		rst	#10			; ENTER
+		ld	a,#0d
+		rst	#10			; ENTER
+		ret
+
+part_type:	cp	#04			; FAT16, less than 32MB
+		jp	z,part_fat16
+		cp	#05			; extended CHS
+		jp	z,part_extended
+		cp	#06			; FAT16B (BigFAT)
+		jp	z,part_fat16
+		cp	#07			; HPFS/NTFS/exFAT
+		jp	z,part_ntfs
+		cp	#0b			; FAT32 CHS
+		jp	z,part_fat32
+		cp	#0c			; FAT32 LBA
+		jp	z,part_fat32
+		cp	#0e			; FAT16B LBA
+		jp	z,part_fat16
+		cp	#0f			; extended LBA
+		jp	z,part_extended
+		cp	#47			; MB02+
+		jp	z,part_mb02
+		cp	#48			; SFS
+		jp	z,part_sfs
+		cp	#82			; Linux swap
+		jp	z,part_swap
+		cp	#83			; Linux native
+		jp	z,part_linux
+		cp	#85			; Linux extended
+		jp	z,part_extended	
+		cp	#a5			; BSD slice
+		jp	z,part_bsd
+		cp	#a6			; OpenBSD slice
+		jp	z,part_bsd
+		cp	#a9			; NetBSD slice
+		jp	z,part_bsd
+		call	print_s_a
+		dc	"unknown "
+		ret
+
+part_fat16:	call	print_s_a
+		dc	"FAT16 "
+		ret	
+
+part_fat32:	call	print_s_a
+		dc	"FAT32 "
+		ret
+
+part_ntfs:	call	print_s_a
+		dc	"NTFS "
+		ret
+
+part_mb02:	call	print_s_a
+		db	#13,1		; BRIGHT 1
+		db	"MB02 "
+		db	#13,0+#80	; BRIGHT 0
+		ret
+
+part_sfs:	call	print_s_a
+		dc	"SFS "
+		ret
+
+part_linux:	call	print_s_a
+		dc	"Linux "
+		ret
+
+part_swap:	call	print_s_a
+		dc	"swap "
+		ret
+
+part_bsd	call	print_s_a
+		dc	"BSD "
+		ret
+
+part_extended:	call	print_s_a
+		dc	"extended "
+		ret
+
+;--------------------------------------
+; Print device name
+; input: HL = buffer of identify block
+
+device_name:	ld	de,#36			; device name starts at 54th byte in buffer
+		add	hl,de
+		ld	b,#20			; we will read 32 chars only
+		call	byteswap		; name is in little endian format
+		call	print_s_na		; print name
+		ld	a,#0d			; ENTER
+		rst	#10
+		ret
+
+device_name2:	ld	de,#36			; device name starts at 54th byte in buffer
+		add	hl,de
+		ld	b,#20			; we will read 32 chars only
+		call	print_s_na		; print name
+		ld	a,#0d			; ENTER
+		rst	#10
+		ret
+
+;--------------------------------------
+; Reads Identify block
+; input:  HL = buffer for identify block
+
+get_identify:	ld	a,(master_slave)
+		or	%10100000
+		out	(p_device_head),a	; select master/slave
+	
+		ld	a,c_identify		; send identify command
+		out	(p_command),a
+		call	wait_ata_drq		; check for device ready and drq
+		jp	c,device_error		; quit to error handling if not
+
+		ld	bc,p_data		; load identify data
+		inir
+		inir
+		call	wait_ata_ready		; check for device ready
+		jp	c,device_error		; quit to error handling if not
+
+		ret
+
+;-------------------------------------
+; Reads MBR
+; input: HL = buffer for MBR
+
+get_mbr:	ld	a,(master_slave)
+		or	%10100000
+		out	(p_device_head),a	; select master/slave
+
+		ld	de,#0000		; cyl = 0
+		ld	bc,#0001		; hea = 0, sec = 1
+		ld	a,#01			; num of secs = 1
+		out	(p_sec_count),a		; set sector count
+		ld	a,c
+		out	(p_sec_number),a	; set sector number
+		ld	a,e
+		out	(p_cyl_low),a		; set cyl low value
+		ld	a,d
+		out	(p_cyl_high),a		; set cyl high value
+		ld	a,c_readsector		; read sector command
+		out	(p_command),a
+		call	wait_ata_drq		; wait if device is ready and drq
+		jp	c,device_error		; quit to error handling if not
+
+		ld	bc,p_data		; load sector data
+		inir
+		inir
+		call	wait_ata_ready		; wait if device is ready
+		jp	c,device_error		; quit to error handling if not
+
+		ret
+
+;--------------------------------------
+; Wait for device status:
+; busy = 0 and ready = 1
+; with timeout
+; output: c  = timeout
+;         nc = drive ready
+
+wait_ata_ready:	ld	de,ata_timeout
+w_a_rd1:	in	a,(p_status)		; read device status
+		and	%11000000		; busy (#80) + ready (#40)
+		cp	s_ata_ready		; #40 = ready
+		ret	z
+		dec	de
+		nop				; some delay
+		ld	a,d
+		or	e
+		jr	nz,w_a_rd1
+		scf				; timeout occured
+		ret
+
+;--------------------------------------
+; Wait for device status:
+; busy = 0 and data request = 1
+; with timeout
+; output: c  = timeout
+;         nc = drive ready
+
+wait_ata_drq:	ld	de,ata_timeout
+w_a_drq1:	in	a,(p_status)		; read device status
+		and	%10001000		; busy (#80) + (drq) #08
+		cp	s_ata_drq		; #08 = data request
+		ret	z
+		dec	de
+		nop				; some delay
+		ld	a,d
+		or	e
+		jr	nz,w_a_drq1
+		scf				; timeout occured
+		ret
+
+;--------------------------------------
+; Return to BASIC
+
+basic40:	ld	bc,#28			; jump to line 40 in BASIC
+		exx
+
+basic:		di                     
+		ld	iy,#5c3a         
+		ld	hl,#2758          
+		exx                    
+		im	1                 
+		ei                     
+		ret 
+
+;--------------------------------------
+; Clears screen
+
+clear_screen:	ld	hl,screen		; clear screen
+		ld	de,screen+1
+		ld	bc,#17ff
+		xor	a
+		ld	(hl),a
+		ldir
+
+		ld	hl,attrs
+		ld	de,attrs+1
+		ld	bc,#2ff
+		ld	a,#07
+		ld	(hl),a
+		ldir
+		ret
+
+;--------------------------------------
+; Clears lower two thirds of screen
+
+clear_low:	ld	hl,screen+#800
+		ld	de,screen+#800+1
+		ld	bc,#fff
+		xor	a
+		ld	(hl),a
+		ldir
+		ret	
+
+;--------------------------------------
+; Print routine, string end autodetect
+; prints through #02 / #1601
+; usage: ld   a,#02
+;        call #1601
+;        call print
+;        dc   "text" 
+;    (or byte "tex",'t'|128)
+;    (or db   "tex",'t'+128)
+
+print_s_a:	pop	hl
+		call	print_sa_lp
+		push	hl
+		ret		
+
+print_sa_lp:	ld	a,(hl)
+		bit	7,a
+		push	af
+		and	%01111111
+		push	hl
+		rst	#10
+		pop	hl
+		inc	hl
+		pop	af
+		jr	z,print_sa_lp
+		ret
+
+;--------------------------------------
+; Print routine
+; prints through #02 / #1601
+; input: HL = text adress
+;        B = number of characters
+
+print_s_na:	ld	a,(hl)
+		push	hl
+		push	bc
+		rst	#10
+		pop	bc
+		pop	hl
+		inc	hl
+		djnz	print_s_na
+		ret			
+
+;--------------------------------------
+; Byteswap - coverts big endian to
+; little endian and vice versa
+; input: HL = address
+;        B = how many bytes
+
+byteswap:	push	af
+		push	hl
+		push	bc
+		rrc	b
+byteswap1:	ld	a,(hl)
+		inc	hl
+		ld	c,(hl)
+		dec	hl
+		ld	(hl),c
+		inc	hl
+		ld	(hl),a
+		inc	hl
+		djnz	byteswap1
+		pop	bc
+		pop	hl
+		pop	af
+		ret
+
+;--------------------------------------
+; Counts medium size from CHS
+; input: BC = cyl, H = hea, E = sec
+; output DEHL = size in MB
+
+size_count:	push	bc		; save cyl
+		call	mul8_8		; HL = hea * sec
+		ld	d,h
+		ld	e,l		; DE = hea * sec
+		ld	bc,#200		; 512 bytes per sec
+		ld	hl,0
+		call	mul16_16	; DEHL = hea * sec * 512
+		ld	bc,#400
+		push	hl		; move DEHL to HLIX
+		pop	ix
+		ex	de,hl		; so here will be HLIX = hea * sec * 512
+		call	div32_16	; HLIX = HLIX / 1024, result can be 16 bits in max,
+		ld	d,hx		; so we can truncate HL here
+		ld	e,lx		; DE = (hea*sec*512)/1024
+		pop	bc		; restore cyl
+		ld	hl,0
+		call	mul16_16	; DEHL = ((hea*sec*512)/1024)*cyl
+		ld	bc,#400
+		push	hl		; move DEHL to HLIX
+		pop	ix
+		ex	de,hl		; so here will be HLIX = ((hea*sec*512)/1024)*cyl
+		call	div32_16	; HLIX = HLIX / 1024 = size in MB
+		ex	de,hl		; move HLIX to DEHL
+		push	ix
+		pop	hl
+		ret			; DEHL = size in MB
+
+;--------------------------------------
+; Z80 bits by Baze
+; 16 bit integer to ASCII (hex)
+; input: HL = number to convert, DE = location of ASCII string
+; output: ASCII string at (DE)
+
+Num2Hex:	ld	a,h
+		call	Num1
+		ld	a,h
+		call	Num2
+		ld	a,l
+		call	Num1
+		ld	a,l
+		jr	Num2
+
+Num1:		rra
+		rra
+		rra
+		rra
+Num2:		or	#f0
+		daa
+		add	a,#a0
+		adc	a,#40
+
+		ld	(de),a
+		inc	de
+		ret
+
+;--------------------------------------
+; HLIX / BC
+; input: HLIX = numerator, BC = denominator
+; Output: HLIX = result
+;           DE = remainder
+
+div32_16:	ld	de,0
+		ld	a,32
+div32_16loop:	add	ix,ix
+		adc	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		or	a
+		sbc	hl,bc
+		inc	ix
+		jr	nc,cansub
+		add	hl,bc
+		dec	ix
+cansub:		ex	de,hl
+		dec	a
+		jr	nz,div32_16loop
+		ret
+
+;--------------------------------------
+; H * E
+; input: H = multiplier, E = multiplicand
+; output: HL = Product
+
+mul8_8:		ld	d,0
+		ld	l,d
+		ld	b,8
+m8_8_lp1:	add	hl,hl
+		jr	nc,m8_8_jp1
+		add	hl,de
+m8_8_jp1:	djnz	m8_8_lp1
+		ret
+
+;--------------------------------------
+; DE * BC
+; input: DE = multiplier, BC = multiplicand
+; output: DEHL = product
+
+mul16_16:	ld	hl,0
+		ld	a,16
+m16_16_lp1:	add	hl,hl
+		rl	e
+		rl	d
+		jr	nc,m16_16_jp1
+		add	hl,bc
+		jr	nc,m16_16_jp1
+		inc	de
+m16_16_jp1:	dec	a
+		jr	nz,m16_16_lp1
+		ret
+
+;--------------------------------------
+; Print 32-bit number
+; by Busy Soft, taken from BSDOS 308
+; input: DEHL = 32bit number
+;           C = char for leading zeroes (0 = only valid numbers, #20 = justify to right)
+;           B = max len (10)
+
+DEC32X:		push	hl
+		push	de
+		push	bc
+		xor	a
+		ld	de,DATA
+		ld	b,#0A
+DCC1:		ld	(de),a
+		inc	de
+		djnz	DCC1
+		pop	bc
+		pop	de
+		push	de
+		push	bc
+		ld	b,#20
+DCC2:		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		ex	de,hl
+		push	bc
+		push	de
+		ld	bc,#0A0A
+		ld	de,DATA
+DCC3:		ld	a,(de)
+		adc	a,a
+		cp	c
+		jr	c,DCC4
+		sub	c
+DCC4:		ld	(de),a
+		ccf
+		inc	de
+		djnz	DCC3
+		pop	de
+		pop	bc
+		djnz	DCC2
+		ld	d,b
+		pop	bc
+		push	bc
+		ld	e,b
+		ld	hl,DATA-1
+		add	hl,de
+		dec	b
+		jr	z,DCC8
+DCC5:		ld	a,(hl)
+		or	a
+		jr	nz,DCC6
+		ld	a,c
+		db	#11
+DCC6:		ld	c,'0'
+DCC7:		or	c
+		dec	hl
+		or	a
+		call	nz,print_char		; ROM - print character in A
+		djnz	DCC5
+DCC8:		ld	a,(hl)
+		or	'0'
+		rst	#10
+		pop	bc
+		pop	de
+		pop	hl
+		ret		
+
+DATA:		ds	11
+
+;--------------------------------------
+; Buffers
+
+mas_id_buffer:	ds	#200			; buffer for master device identify block
+sla_id_buffer:	ds	#200			; buffer for slave device identify block
+mas_mbr_buffr:	ds	#200			; buffer for master MBR
+sla_mbr_buffr:	ds	#200			; buffer for slave MBR
+
+vdt_cr8tor_end:
+
+;--------------------------------------
+; HDD Patch
+
+;		org	#8000
+;		include "hdd-patch-classic.a80"
+
+
+;--------------------------------------
+; Virtual disk table
+
+		org	#8003
+		
+v_mas_sectors:	db	0		;master: sectors
+v_mas_heads:	db	0		;master: heads
+v_mas_cyl_low:	db	0		;master: cylinders low
+v_mas_cyl_high:	db	0		;master: cylinders high
+
+v_sla_sectors:	db	0		;slave: sectors
+v_sla_heads:	db	0		;slave:	heads
+v_sla_cyl_low:	db	0		;slave: cylinders low
+v_sla_cyl_high	db	0		;slave: cylinders high
+
+		db	0, 0, 0 ,0	;@0 - tape, don't change
+
+		db	0, 0, 0, 0	;@1 - floppy 1, don't change for MB-02+
+		db	0, 0, 0, 0	;@2 - floppy 2, don't change if two fdds are connected
+
+vdt_lba:	ds	1012		;table of virtual drives @3-@255
+					;the format is: lba0,lba1,lba2,device_mode
+
+		db	p_data		;ATA ports
+		db	p_error
+		db	p_sec_count
+		db	p_sec_number
+		db	p_cyl_low
+		db	p_cyl_high
+		db	p_device_head
+		db	p_command		
+
+		savebin "vdtcreator.bin",start,vdt_cr8tor_end-start
+		
+		
+		

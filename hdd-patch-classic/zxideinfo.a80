@@ -51,7 +51,7 @@
 ;ATA ports pvl
 RDATA		equ	163	;#a3
 RPARAM		equ	167	;#a7
-RSECPOC	equ	171	;#ab
+RSECPOC		equ	171	;#ab
 RSEC		equ	175	;#af
 RCYLL		equ	179	;#b3
 RCYLH		equ	183	;#b7
