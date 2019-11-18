@@ -140,8 +140,8 @@ install:	di
 		ld	bc,patch_90h_end-patch_90h
 		ldir			;patch body part2 moved to patch_bank
 
-		ld	hl,201*256+251
-		ld	(56),hl
+		ld	hl,#c9fb	; ? ret:ei ? should not be #fbc9 > ei:ret ?
+		ld	(#38),hl
 
 		ld	a,(p_dat)	;set ATA ports in patch code
 		ld	(p1),a
@@ -1070,9 +1070,8 @@ divok3:		dec	hx			;add bcd,lx
 
 		pop	ix
 		ret
-patch_90h_end:
 
 		ent
-
+patch_90h_end:
 		savebin "hdp163.bin",begin,$-begin
 		
