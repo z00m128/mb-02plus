@@ -1073,5 +1073,5 @@ divok3:		dec	hx			;add bcd,lx
 
 		ent
 patch_90h_end:
-		savebin "hdp163.bin",begin,$-begin
+		savebin "hdpclassic.bin",begin,$-begin
 		
