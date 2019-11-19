@@ -1,9 +1,9 @@
-;HDD patch classic v1.63
+;HDD patch classic v1.64
 ;--------------------------------------
 ;based on HDD 2 MB02 v1.62 by  dr0n_K3L
 ;forked and sjasmized by  z00m^SinDiKAT
 ;--------------------------------------
-
+;
 ; mode 000 - reads 2x one sector
 ; mode 001 - reads 2 sectors
 ; mode 010 - LBA mode reads 2 sectors
@@ -17,8 +17,9 @@
 ;--------------------------------------
 ;changelog
 ;--------------------------------------
-;v1.63 - fixed DMA sequence, sjasmized,
-;        works with MB-03+ Ultimate now
+;v1.64 - fixed no verify patch
+;
+;v1.63 - fixed DMA sequence, sjasmized
 
 ;--------------------------------------
 
@@ -122,10 +123,10 @@ install:	di
 		ld	bc,dos_90h_end-dos_90h
 		ldir			;patch mods part4 moved to dos_bank
 
-		ld	a,205
+		ld	a,#21
 		ld	(#13ca),a
-		ld	hl,62
-		ld	(#13ca+1),hl	;set no_verify patch
+		ld	a,#c3
+		ld	(#1447),a	;set no_verify patch
 
 		ld	a,patch_bank
 		out	(mem_port),a	;patch_bank page in
@@ -140,7 +141,7 @@ install:	di
 		ld	bc,patch_90h_end-patch_90h
 		ldir			;patch body part2 moved to patch_bank
 
-		ld	hl,#c9fb	; ? ret:ei ? should not be #fbc9 > ei:ret ?
+		ld	hl,#c9fb	; ei:ret to address #38 in patch_bank
 		ld	(#38),hl
 
 		ld	a,(p_dat)	;set ATA ports in patch code
