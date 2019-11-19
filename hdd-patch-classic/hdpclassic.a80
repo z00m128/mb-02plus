@@ -1,4 +1,4 @@
-;HDD patch classic v1.64
+;HDD patch classic v1.65
 ;--------------------------------------
 ;based on HDD 2 MB02 v1.62 by  dr0n_K3L
 ;forked and sjasmized by  z00m^SinDiKAT
@@ -11,12 +11,16 @@
 ;DMA transfers
 ;Zilog DMA compatible
 ;diskimage capacity - 2MB
-;diskimage format   - 128x8x2
+;diskimage format - standard 128x8x2
+;                 - custom, e.g. 93x11x2                  
 ;supports master & slave devices
 
 ;--------------------------------------
 ;changelog
 ;--------------------------------------
+;v1.65 - improved sector number counting
+;        (by Busy)
+;
 ;v1.64 - fixed no verify patch
 ;
 ;v1.63 - fixed DMA sequence, sjasmized
@@ -112,6 +116,11 @@ install:	di
 		ld	de,#23
 		ld	bc,dos_23h_end-dos_23h
 		ldir			;patch mods part2 moved to dos_bank
+
+		ld	hl,dos_2bh
+		ld	de,#2b
+		ld	bc,dos_2bh_end-dos_2bh
+		ldir			;patch mods part5 moved to dos_bank
 
 		ld	hl,dos_3eh
 		ld	de,#3e
@@ -222,11 +231,24 @@ dos_23h:
 		disp	#23
 
 		out	(c),b		;start DMA transfer
-		inc	a
+dos_25h:	inc	a
 		out	(mem_port),a	;patch_bank page in
 
 		ent
 dos_23h_end:
+
+;------------------------------------
+;------------------------------------
+;mod at #2b in dos_bank
+
+dos_2bh:
+		disp	#2b
+
+		ld	b,(hl)
+		jr	dos_25h
+
+		ent
+dos_2bh_end:
 
 ;-----------------------------------
 ;-----------------------------------
@@ -371,6 +393,10 @@ dma_start:	out	(mem_port),a	;#21 - route to dma_start, input must be: a=dos_bank
 		out	(mem_port),a
 		ret
 
+patch_29h:	out	(mem_port),a
+read_byte:	ld	a,dos_bank
+		jr	patch_29h
+
 		ent
 patch_00h_end:
 
@@ -429,7 +455,7 @@ info1:		ld	a,e
 		call	tst_drv
 		ld	a,255
 		ret	z
-		ld	de,128*256+3
+		ld	de,#ff09	;#ff = num of trk, #09=ATA,HD
 		xor	a
 		ret
 
@@ -474,25 +500,32 @@ set_wrm2:	call	wr_sec0
 
 ;------------------------------------
 ;counts logical number of sector
-;hl is preserved
-;result is passed directly to prepoc
+;HL is preserved, result is passed directly to prepoc
+;input: DE=physical sector number from BSDOS
 
 sect_num:	push	hl
-		ld	l,d
-		ld	h,0
-		add	hl,hl
-		add	hl,hl
-		add	hl,hl
-		add	hl,hl		;*16
+		ld	hl,#2306
+		call	read_byte
+		ld	a,b
+		ld	(sctrk+1),a
+		xor	a
+		ld	b,a
+		ld	c,d
+		ld	l,b
+		ld	h,b
+		ld	d,b
 		ld	a,e
+		add	a,e
+		rl	c
+		rl	b		;BC=2*track+side
+sctrk:		ld	a,#55		;A=sectrk
+nasob:		add	hl,bc
 		dec	a
-		and	%00000111
-		bit	7,e
-		jr	z,rds1
-		or	%00001000
-rds1:		or	l
-		ld	l,a		;hl = log. number of sector, counts from 0
-		add	hl,hl		;*2 - sector is 512 bytes long, we need two sectors
+		jr	nz,nasob	;hl=sectrk*(2*track+side)
+		res	7,e
+		dec	e		;e=sector-1
+		add 	hl,de		;hl=sectrk*(2*track+side)+(sector-1)
+		add	hl,hl		;hl=2*(sectrk*(2*track+side)+(sector-1))
 		ld	(prepoc+1),hl
 		ld	a,h
 		pop	hl
