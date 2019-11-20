@@ -424,7 +424,7 @@ m_hea2:		db	0
 m_cyl2:		dw	0
 
 
-tab_drv:	ds	1024
+tab_drv:	ds	1026
 
 preskoc:	push	hl
 		ld	hl,rett
