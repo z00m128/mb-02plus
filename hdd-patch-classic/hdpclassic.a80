@@ -99,9 +99,9 @@ p_status:	equ	191			;#bf
 
 install:	di
 
-		ld	hl,15616
-		ld	de,40000
-		ld	bc,768
+		ld	hl,#3d00
+		ld	de,font_buffer
+		ld	bc,#300
 		ldir			;font copied to memory
 
 		ld	hl,vdt
@@ -197,9 +197,9 @@ install:	di
 		ld	(p85+1),a
 
 
-		ld	hl,40000
-		ld	de,15616
-		ld	bc,768
+		ld	hl,font_buffer
+		ld	de,#3d00
+		ld	bc,#300
 		ldir			;font copied to patch_bank
 
 		ld	a,rom_bank	;rom_bank page in
@@ -1109,7 +1109,7 @@ patch_90h_end:
 ;--------------------------------------
 ; workspace
 
-font_buffer:	ds	#300
+font_buffer:	db	0
 
 		savebin "hdpclassic.bin",begin,$-begin
 		
