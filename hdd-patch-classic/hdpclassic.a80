@@ -203,7 +203,6 @@ install:	di
 		ret
 
 ;------------------------------------
-;------------------------------------
 ;mod at #14 in dos_bank
 ;input: a=dos_bank
 
@@ -223,7 +222,6 @@ dos_1bh:	ld	a,patch_bank	;route to patch_bank
 dos_14h_end:
 
 ;------------------------------------
-;------------------------------------
 ;mod at #23 in dos_bank
 ;input: a=dos_bank
 
@@ -238,19 +236,18 @@ dos_25h:	inc	a
 dos_23h_end:
 
 ;------------------------------------
-;------------------------------------
 ;mod at #2b in dos_bank
+;input: HL=address in dos_bank
 
 dos_2bh:
 		disp	#2b
 
-		ld	b,(hl)
+		ld	b,(hl)		;gets byte from dos_bank, and pages out back to patch_bank
 		jr	dos_25h
 
 		ent
 dos_2bh_end:
 
-;-----------------------------------
 ;-----------------------------------
 ;mod at #3e in dos_bank
 dos_3eh:
@@ -266,7 +263,6 @@ dos_3eh:
 		ent
 dos_3eh_end:
 
-;------------------------------------
 ;------------------------------------
 ;mod at #90 in dos_bank
 
@@ -304,7 +300,6 @@ loop12:		cp	7
 		xor	a
 		ret
 
-
 rdwrsec:	push	hl
 		push	de
 		ld	b,a
@@ -319,14 +314,12 @@ rut:		call	nic
 		pop	hl
 nic:		ret
 
-
 setmlt:		ld	a,h
 		or	l
 		jr	nz,loop14
 		ld	hl,nic
 loop14:		ld	(rut+1),hl
 		ret
-
 
 sluz1214:	push	de
 		push	hl
@@ -362,7 +355,6 @@ a1_254:		ld	a,#55
 		ent
 dos_90h_end:
 
-;------------------------------------
 ;------------------------------------
 ;hooks at #0 in patch_bank
 
@@ -400,7 +392,6 @@ read_byte:	ld	a,dos_bank
 		ent
 patch_00h_end:
 
-;------------------------------------
 ;------------------------------------
 ;patch body at #90 in patch_bank
 
@@ -503,8 +494,10 @@ set_wrm2:	call	wr_sec0
 ;HL is preserved, result is passed directly to prepoc
 ;input: DE=physical sector number from BSDOS
 
+numsec:		equ	#2306
+
 sect_num:	push	hl
-		ld	hl,#2306
+		ld	hl,numsec	;reads numsec variable from dos_bank
 		call	read_byte
 		ld	a,b
 		ld	(sctrk+1),a
@@ -1107,5 +1100,11 @@ divok3:		dec	hx			;add bcd,lx
 
 		ent
 patch_90h_end:
+
+;--------------------------------------
+; workspace
+
+font_buffer:	ds	#300
+
 		savebin "hdpclassic.bin",begin,$-begin
 		
