@@ -62,46 +62,41 @@ vdt:		db	0		;master: sectors
 		ds	1012		;table of virtual drives @3-@255
 vdt_end:
 
-
 ;ATA ports DRON
-;p_data:	equ	195			;#c3
-;p_error:	equ	199			;#c7
-;p_sec_count:	equ	203			;#cb
-;p_sec_number:	equ	207			;#cf
-;p_cyl_low:	equ	211			;#d3
-;p_cyl_high:	equ	215			;#d7
-;p_device_head:	equ	219			;#db
-;p_command:	equ	223			;#df
-;p_status:	equ	223			;#df
+;p_dat:		db	195		;#c3
+;p_err:		db	199		;#c7
+;p_hse:		db	203		;#cb
+;p_nse:		db	207		;#cf
+;p_cyl:		db	211		;#d3
+;p_cyh:		db	215		;#d7
+;p_hea:		db	219		;#db
+;p_com:		db	223		;#df
 
 ;ATA ports PVL
-p_data:		equ	163			;#a3
-p_error:	equ	167			;#a7
-p_sec_count:	equ	171			;#ab
-p_sec_number:	equ	175			;#af
-p_cyl_low:	equ	179			;#b3
-p_cyl_high:	equ	183			;#b7
-p_device_head:	equ	187			;#bb
-p_command:	equ	191			;#bf
-p_status:	equ	191			;#bf
+p_dat:		db	163		;#a3
+p_err:		db	167		;#a7
+p_hse:		db	171		;#ab
+p_nse:		db	175		;#af
+p_cyl:		db	179		;#b3
+p_cyh:		db	183		;#b7
+p_hea:		db	187		;#bb
+p_com:		db	191		;#bf
 
 ;ATA ports MB03
-;p_data:	equ	195			;#c3
-;p_error:	equ	167			;#a7
-;p_sec_count:	equ	203			;#cb
-;p_sec_number:	equ	175			;#af
-;p_cyl_low:	equ	211			;#d3
-;p_cyl_high:	equ	183			;#b7
-;p_device_head:	equ	219			;#db
-;p_command:	equ	191			;#bf
-;p_status:	equ	191			;#bf
-
+;p_dat:		db	195		;#c3
+;p_err:		db	167		;#a7
+;p_hse:		db	203		;#cb
+;p_nse:		db	175		;#af
+;p_cyl:		db	211		;#d3
+;p_cyh:		db	183		;#b7
+;p_hea:		db	219		;#db
+;p_com:		db	191		;#bf
 
 install:	di
 
-		ld	hl,#3d00
-		ld	de,font_buffer
-		ld	bc,#300
+		ld	hl,15616
+		ld	de,40000
+		ld	bc,768
 		ldir			;font copied to memory
 
 		ld	hl,vdt
@@ -158,37 +153,37 @@ install:	di
 		ld	hl,#c9fb	; ei:ret to address #38 in patch_bank
 		ld	(#38),hl
 
-		ld	a,(p_data)	;set ATA ports in patch code
+		ld	a,(p_dat)	;set ATA ports in patch code
 		ld	(p1),a
 		ld	(p11),a
-		ld	a,(p_error)
+		ld	a,(p_err)
 		ld	(p2+1),a
-		ld	a,(p_sec_count)
+		ld	a,(p_hse)
 		ld	(p3+1),a
 		ld	(p31+1),a
 		ld	(p32+1),a
 		ld	(p33+1),a
-		ld	a,(p_sec_number)
+		ld	a,(p_nse)
 		ld	(p4+1),a
 		ld	(p41+1),a
 		ld	(p42+1),a
 		ld	(p43+1),a
-		ld	a,(p_cyl_low)
+		ld	a,(p_cyl)
 		ld	(p5+1),a
 		ld	(p51+1),a
 		ld	(p52+1),a
 		ld	(p53+1),a
-		ld	a,(p_cyl_high)
+		ld	a,(p_cyh)
 		ld	(p6+1),a
 		ld	(p61+1),a
 		ld	(p62+1),a
 		ld	(p63+1),a
-		ld	a,(p_device_head)
+		ld	a,(p_hea)
 		ld	(p7+1),a
 		ld	(p71+1),a
 		ld	(p72+1),a
 		ld	(p73+1),a
-		ld	a,(p_command)
+		ld	a,(p_com)
 		ld	(p8+1),a
 		ld	(p81+1),a
 		ld	(p82+1),a
@@ -197,9 +192,9 @@ install:	di
 		ld	(p85+1),a
 
 
-		ld	hl,font_buffer
-		ld	de,#3d00
-		ld	bc,#300
+		ld	hl,40000
+		ld	de,15616
+		ld	bc,768
 		ldir			;font copied to patch_bank
 
 		ld	a,rom_bank	;rom_bank page in
@@ -576,9 +571,9 @@ prep_lba:	ld	hl,(prepoc+1)
 		jr	nc,prep2
 		inc	de
 
-;b - head (p_device_head)
-;c - sector (p_sec_number)
-;de - cylinder	(e - p_cyl_low, d - p_cyl_high)
+;b - head (p_hea)
+;c - sector (p_nse)
+;de - cylinder	(e - p_cyl, d - p_cyh)
 
 prep2:		ld	b,d
 		ld	d,e
@@ -1105,11 +1100,6 @@ divok3:		dec	hx			;add bcd,lx
 
 		ent
 patch_90h_end:
-
-;--------------------------------------
-; workspace
-
-font_buffer:	db	0
 
 		savebin "hdpclassic.bin",begin,$-begin
 		
