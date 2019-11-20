@@ -104,6 +104,8 @@ title_screen:	xor	a
 		db	"Ports: PVL/divIDE"
 ;		db	"Ports: Dron"
 ;		db	"Ports: MB-03+ Ultimate"
+		db	#16,4,28
+		db	"v1.0"
 		db	#0d,#0d+#80		; 2x ENTER
 
 dev_master:	call	print_s_a		; print info about master device
@@ -453,7 +455,7 @@ cr_vdt_y2:	pop	bc
 		ld	a,c
 		ld	hl,num_of_drives
 		ld	(hl),a			; save number of drives for later usage
-		add	a,3			; virtual drives starts from @3
+		add	a,2			; virtual drives starts from @3
 		ld	c,a
 		call	print_num
 		call	print_s_a
