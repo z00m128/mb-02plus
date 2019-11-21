@@ -3,15 +3,17 @@
 ;; mrs2a80 1.00 convertor by Busy       ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;	OUTPUT	nul
+;	output	nul
 ;*s
 ;==============================================================;
 ;== Verzia 17 == Formatovac 02 ==  10.03.1994 Busy software ==;
 ;==============================================================;
 ;*s
-verzia	=	30                  ;; "# form **"
-add	=	#e000
-mem	=	#6000
+;z00m 20.11.2019: v31 - pridana podpora HDD patchu, posunuty napis "Track:"
+
+verzia	equ	31                  ;; "# form **"
+add	equ	#e000
+mem	equ	#6000
 
 	org	mem
 fat	ds	#1080
@@ -19,7 +21,7 @@ mapa	ds	#80
 stopa
 
 	org	add
-	OUTPUT	"ff17.bin"
+	output	"ff17.bin"
 z
 boot	jr	nic                 ;; skok
 	db	#80
@@ -37,13 +39,13 @@ hhxor	dw	-1                  ;; xor parita 32 bajtov ident+heslo
 	dw	verzia              ;; verzia formatovaca
 fatnxt	dw	-1,-1,-1            ;; [dalsie sektory fatky !nenorma!]
 
-stend	=	boot
+stend	equ	boot
 
-aa1	=	verzia/10
-aa2	=	aa1*10
-aa3	=	verzia-aa2
-vv1	=	aa1+'0'
-vv2	=	aa3+'0'
+aa1	equ	verzia/10
+aa2	equ	aa1*10
+aa3	equ	verzia-aa2
+vv1	equ	aa1+'0'
+vv2	equ	aa3+'0'
 
 meno	db	#00                 ;; info bajt
 drv	db	#01                 ;; [disk 1=3.5 2=5.25]
@@ -619,6 +621,8 @@ run	di
 	ld	(oldsp+1),sp
 znovu	ld	sp,#5c00
 	call	#3c9e
+	ld	a,(numsec)          ;; z00m: podpora HDD patchu
+	ld	(#2306),a
 	ld	a,#1e               ;; killx
 	rst	#20
 	ld	a,#07
@@ -677,12 +681,12 @@ oldsp	ld	sp,#5555
 	exx
 	ret
 
-trksid	=	#0a00
+trksid	equ	#0a00
 prnts	push	af
 	push	ix
 	push	de
 	call	setcur
-	dw	trksid+#0e
+	dw	trksid+#0d          ;; z00m: pridana medzera kvoli trojznakovemu poctu stop
 	ld	e,d                 ;; stopa
 	ld	c,#00
 	ld	a,#05               ;; dec8x
@@ -802,8 +806,8 @@ keci	call	text
 	db	'Format version: '
 	db	'F02-V',vv1,vv2,0
 	call	text
-	dw	trksid+#08
-	db	'Track:   '
+	dw	trksid+#07          ;; z00m: pridana medzera kvoli trojznakovemu poctu stop
+	db	'Track:    '
 	db	'Head:',0
 	call	text
 	dw	#0c04
@@ -838,22 +842,22 @@ tabmsg	db	'Disk succesfuly '  ;; #ff
 	db	'Parameter error'   ;; 11
 	dw	#c900
 k
-l	=	k-z
+l	equ	k-z
 
-status	=	#01
-rest	=	#02
-seek	=	#03
-rdsec	=	#04
-wrsec	=	#05
-rdtrk	=	#06
-wrtrk	=	#07
-rdadd	=	#08
-rezim	=	#09
-settrk	=	#0a
-gettrk	=	#0b
-aktive	=	#0c
-pasive	=	#0d
-dinfo	=	#0e
-setmax	=	#0f
-setmlt	=	#10
-setoff	=	#11
+status	equ	#01
+rest	equ	#02
+seek	equ	#03
+rdsec	equ	#04
+wrsec	equ	#05
+rdtrk	equ	#06
+wrtrk	equ	#07
+rdadd	equ	#08
+rezim	equ	#09
+settrk	equ	#0a
+gettrk	equ	#0b
+aktive	equ	#0c
+pasive	equ	#0d
+dinfo	equ	#0e
+setmax	equ	#0f
+setmlt	equ	#10
+setoff	equ	#11

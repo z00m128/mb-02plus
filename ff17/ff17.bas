@@ -1,5 +1,6 @@
 10 REM Busy soft 10.03.1994
-20 REM Format version F02-V30
+20 REM Format version F02-V31
+25 REM with HDD patch support
 30 GO TO 60
 40 CLEAR VAL "24575"
 50 LOAD "ff17"CODE : STOP
@@ -8,7 +9,8 @@
 80 REM Set parameters:
 90 REM drv:1..255
 100 REM hdd:0=DD,1=HD
-110 REM trk:1..80 (for drive)
+110 REM trk:1..82 (for FDD)
+115 REM trk:1..255 (for HDD)
 120 REM sec:2..12 (for DD/HD)
 130 REM Name:10 characters
 140 REM
