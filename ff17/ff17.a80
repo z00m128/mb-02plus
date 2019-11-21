@@ -9,9 +9,10 @@
 ;== Verzia 17 == Formatovac 02 ==  10.03.1994 Busy software ==;
 ;==============================================================;
 ;*s
+;z00m 21.11.2019: v32 - pridany unattended rezim = nova premenna 'unattd', cely kod sa o jeden byte posunul!!!
 ;z00m 20.11.2019: v31 - pridana podpora HDD patchu, posunuty napis "Track:"
 
-verzia	equ	31                  ;; "# form **"
+verzia	equ	32                  ;; "# form **"
 add	equ	#e000
 mem	equ	#6000
 
@@ -26,6 +27,7 @@ z
 boot	jr	nic                 ;; skok
 	db	#80
 	db	#02                 ;; verzia
+unattd	db	#00                 ;; z00m: ak je nenulove, potlaci dialogy	
 numtrk	dw	82                  ;; stopy/disk      (1-80)
 numsec	dw	5                   ;; sektory/stopa   (2-11)
 numsur	dw	#02                 ;; pocet povrchov  (1-02)
@@ -643,11 +645,14 @@ znovu	ld	sp,#5c00
 	ld	(hl),#7e
 	ldir
 	call	clstot
+	ld	a,(unattd)          ;; z00m: test nastavenia novej premennej unattd
+	cp	0                   ;; ak je nenulova
+	jr	nz,skpins           ;; preskoci sa hlaska 'insert disk...'
 	ld	hl,insert
 	ld	a,#34               ;; messx
 	rst	#20
 	jr	nc,exit
-	ld	b,#0b
+skpins	ld	b,#0b
 	ld	a,(numsec)          ;; min:2 max:12 sec/trk !
 	cp	#02
 	jr	c,error
@@ -661,7 +666,13 @@ error	ld	sp,#5c00
 	ld	a,pasive
 	rst	#18
 	pop	bc
-	ld	hl,tabmsg
+	ld	a,b                 ;; z00m: kvoli unattended rezimu musime zistit ci format
+	cp	#ff                 ;; skoncil bez chyby este pred povodnym ostetrenim chyb
+	jr	nz,skpnot           ;; ak nie, pokracuje sa normalne na osetrenie error kodu
+	ld	a,(unattd)          ;; ak ano, pozrieme sa ci je unattended rezim nastaveny
+	cp	0                   ;; ak nie je, tak sa pokracuje na osetrene error kodu
+	jr	nz,exit             ;; ak je nastaveny, tak vyskok do basicu
+skpnot	ld	hl,tabmsg
 	inc	b
 	jr	z,prnmsg
 tok1	bit	7,(hl)
@@ -670,10 +681,11 @@ tok1	bit	7,(hl)
 	djnz	tok1
 prnmsg	ld	a,#34               ;; messx
 	rst	#20
+	jr	nc,exit
 	ld	hl,anothe
 	ld	a,#34
 	rst	#20
-	jr	c,znovu
+	jp	c,znovu
 exit	call	#3c98
 oldsp	ld	sp,#5555
 	ld	iy,#5c3a
