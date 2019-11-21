@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Format F02-V31 builder
+# Format F02-V3x builder
 # Requirements:
 # sjasmplus
 # bin2tap
 # dirtap
-# bas2tap
+# zmakebas
 
 ASM="sjasmplus"
 FILE="ff17"
