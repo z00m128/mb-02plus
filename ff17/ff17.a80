@@ -1,0 +1,859 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Converted from MRS:                  ;;
+;; mrs2a80 1.00 convertor by Busy       ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;	OUTPUT	nul
+;*s
+;==============================================================;
+;== Verzia 17 == Formatovac 02 ==  10.03.1994 Busy software ==;
+;==============================================================;
+;*s
+verzia	=	30                  ;; "# form **"
+add	=	#e000
+mem	=	#6000
+
+	org	mem
+fat	ds	#1080
+mapa	ds	#80
+stopa
+
+	org	add
+	OUTPUT	"ff17.bin"
+z
+boot	jr	nic                 ;; skok
+	db	#80
+	db	#02                 ;; verzia
+numtrk	dw	82                  ;; stopy/disk      (1-80)
+numsec	dw	5                   ;; sektory/stopa   (2-11)
+numsur	dw	#02                 ;; pocet povrchov  (1-02)
+numclu	dw	#01                 ;; sektory/cluster (1-16)
+numdir	dw	#55                 ;; prvy adresar
+secfat	dw	#55                 ;; dlzka FAT (v sektoroch)
+lenfat	dw	#55                 ;; dlzka FAT (v bajtoch !)
+fat1	dw	#55                 ;; 1.sektor 1.fatky
+fat2	dw	#55                 ;; 1.sektor 2.fatky
+hhxor	dw	-1                  ;; xor parita 32 bajtov ident+heslo
+	dw	verzia              ;; verzia formatovaca
+fatnxt	dw	-1,-1,-1            ;; [dalsie sektory fatky !nenorma!]
+
+stend	=	boot
+
+aa1	=	verzia/10
+aa2	=	aa1*10
+aa3	=	verzia-aa2
+vv1	=	aa1+'0'
+vv2	=	aa3+'0'
+
+meno	db	#00                 ;; info bajt
+drv	db	#01                 ;; [disk 1=3.5 2=5.25]
+hddd	db	#00                 ;; [density 0=DD 1=HD]
+	dw	#00                 ;; datum a cas
+	db	#00                 ;; atributy (bit 6=!)
+	db	'NameOfDisk',0      ;; meno disku
+	db	'F02-V',vv1,vv2     ;; ###
+	dw	0,0,0,0             ;; rozsirenie mena
+ident	dw	0,0,0,0             ;; 8 rnd bajtov identifikacia disku
+	dw	0,0,0,0             ;; 8 rnd -> 16 bajtov na xor hesla
+pass	dw	0,0,0,0,0,0,0,0     ;; 16 bajtov heslo [xor ident]
+	db	#00
+	db	'MB-02 with BS DOS'
+	db	' by BUSY SOFT',0
+
+nic	xor	a
+	out	(#fe),a
+	ld	a,#03
+	ld	hl,#4000
+	ld	de,#4001
+nn1	ld	bc,#0100
+	ld	(hl),l
+	ldir
+	ld	b,#06
+	ld	(hl),#7e
+	ldir
+	inc	b
+	ld	(hl),l
+	ldir
+	dec	a
+	jr	nz,nn1
+nn2	ld	b,h
+	ld	c,l
+	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	add	hl,bc
+	ld	bc,12
+	add	hl,bc
+	ld	a,h
+	and	#03
+	or	#58
+	ld	h,a
+	ex	de,hl
+	ldi
+	ex	de,hl
+	ld	b,#20
+	djnz	$
+	jr	nn2
+p
+	jp	run
+
+mksys	ld	hl,fat              ;; > Updating the system area <
+	ld	bc,#0400            ;; spocita dlzku fatky
+	ld	e,#ff               ;; v sektoroch
+howlen	ld	a,(hl)
+	add	hl,bc
+	inc	e
+	inc	a
+	jr	nz,howlen
+	ld	a,e                 ;; (iba pre tento formatovac!)
+	cp	#05
+	ld	b,#06               ;; moc dlha fatka
+	jp	nc,error            ;; (max. 12)
+	ld	(secfat),a
+	add	a,a
+	add	a,a
+	ld	h,a
+	ld	l,c
+	ld	(lenfat),hl         ;; dlzka fatky v bajtoch
+
+	xor	a                   ;; urcenie sektorov pre sys-area
+	ld	bc,#7777
+	call	poke                ;; boot sektor
+	inc	a
+	ld	bc,#ff00            ;; zalohovaci sektor +++
+	call	poke
+	call	upfat
+	ld	(fat1),bc
+	call	upfat
+	ld	(fat2),bc
+	xor	a
+	call	nextss
+	ld	bc,#8400            ;; prvy zoznam adresarov +++
+	call	poke
+	ld	(numdir),a          ;; Zapis sys-area
+	ld	hl,stopa
+	ld	de,stopa+1
+	ld	bc,#0400
+	ld	(hl),c
+	push	hl
+	ldir
+	pop	hl                  ;; dirs
+	call	wrsec8
+	ld	a,(fat1)
+	call	wrfat
+	ld	a,(fat2)
+	call	wrfat
+	call	setnxt              ;; [!nenorma! nastavenie fatnxt]
+
+xorpas	ld	ix,pass             ;; boot
+	ld	b,#10
+xxpp	ld	a,' '               ;; heslo = 16 medzier
+	xor	#55
+	xor	(ix-#10)
+	ld	(ix+#00),a
+	inc	xl
+	djnz	xxpp
+	ld	hl,ident
+	ld	b,#20
+	xor	a
+ppxx	xor	(hl)
+	inc	l
+	djnz	ppxx
+	ld	(hhxor),a
+
+	ld	hl,boot
+	ld	de,stopa
+	ld	bc,p-boot
+	ldir
+	ld	hl,stopa
+	xor	a
+	jp	wrsec8
+
+upfat	ld	de,(secfat)         ;; dimenzuje miesto
+	ld	d,e                 ;; pre jednu fatku
+	xor	a
+upf1	call	thisss
+	push	af
+	ld	bc,#5555
+	call	poke
+	dec	d
+	jr	nz,upf1
+	ld	bc,#8400            ;; +++ koniec fatky
+upf2	pop	af
+	call	poke
+	ld	c,a
+	ld	b,#c0               ;; +++ retaz fatky
+	dec	e
+	jr	nz,upf2
+	ld	b,e
+	ret
+
+nxtlll	pop	af
+nextss	inc	a                   ;; dalsi volny sektor
+	ld	b,#02
+	jp	z,error             ;; "prilis malo dobrych sektorov"
+thisss	call	peek                ;; kontrola sektora
+	push	af
+	ld	a,b
+	or	c
+	jr	nz,nxtlll
+	pop	af
+	ret
+
+wrfat	ld	hl,fat+2            ;; Zapis fatky: ix=sektory
+	ld	bc,#0ffe
+	push	af
+	xor	a                   ;; vyrata paritu fatky
+	push	hl
+addfat	add	a,(hl)
+	cpi
+	jp	pe,addfat
+	pop	hl
+	dec	hl
+	ld	(hl),a
+	dec	hl
+	ld	(hl),c
+	pop	af                  ;; a = 1.sektor fatky
+
+	ld	hl,fat              ;; samotny zapis fatky
+wrloop	push	af                  ;; podla retaze
+	call	wrsec8
+	ld	bc,#0400
+	add	hl,bc
+	pop	af
+	call	peek
+	bit	6,b                 ;; koniec ?
+	ret	z
+	ld	a,c
+	jr	wrloop
+
+setnxt	ld	a,(fat1)            ;; Napokovanie max. 4 sektorov
+	ld	de,fatnxt           ;; fatky do bootu
+	call	setn1               ;; pre rychlejsie nacitanie fatky
+	ld	a,(fat2)            ;; !nenorma!
+	ld	de,fatnxt+1
+setn1	ex	af,af
+	ld	a,(secfat)
+	or	a
+	ret	z
+	dec	a
+	ret	z
+	ld	b,a
+	ex	af,af
+setn2	push	bc
+	call	peek
+	ld	a,c
+	ld	(de),a
+	inc	de
+	inc	de
+	pop	bc
+	djnz	setn2
+	ret
+
+wrsec8	ld	c,a                 ;; Zapis sektora a=cislo,hl=adresa
+	ld	b,#00
+	push	hl
+	ld	h,b
+	ld	l,c
+	call	prevod
+	call	pokrnd
+	pop	hl
+	ld	a,wrsec
+	rst	#18
+	or	a
+	ret	z
+	call	brejk
+	ld	c,a
+	ld	b,#00               ;; chyba pri zapise sektora
+	jp	error
+
+peek	push	hl                  ;; Nacita a-tu polozku z fatky
+	push	af                  ;; bc=polozka
+	add	a,a
+	ld	l,a
+	ld	h,high fat
+	jr	nc,$+2+#01
+	inc	h
+	ld	c,(hl)
+	inc	l
+	ld	b,(hl)
+	pop	af
+	pop	hl
+	ret
+
+poke	push	hl                  ;; Zapise a-tu polozku do fatky
+	push	af                  ;; bc=polozka
+	add	a,a
+	ld	l,a
+	ld	h,high fat
+	jr	nc,$+2+#01
+	inc	h
+	ld	(hl),c
+	inc	l
+	ld	(hl),b
+	pop	af
+	pop	hl
+	ret
+
+prevod	ld	a,(numsec)          ;; hl = logicky sektor
+	ld	b,#00               ;;  -> trk,side,sec
+	ld	d,#ff
+	add	a,a
+	ld	c,a                 ;; c=22
+pr1	sbc	hl,bc
+	inc	d                   ;; d=stopa
+	jr	nc,pr1
+	add	hl,bc
+	ld	a,l
+	add	a,a
+	cp	c
+	jr	c,pr2
+	sub	c
+pr2	ccf
+	rra
+	inc	a                   ;; Vystup:
+	ld	e,a
+	ld	l,a                 ;; l=sektor, bit 7,l=strana
+	ld	h,d                 ;; h=stopa
+	ret	                    ;; to iste aj v de
+
+pokrnd	push	hl                  ;; vytvori
+	push	af                  ;; identifikaciu
+	db	#21
+pokadd	dw	ident
+	ld	a,r
+	or	#80
+	xor	(hl)
+	rrca
+	ld	(hl),a
+	ld	a,l
+	inc	a
+	and	#0f
+	or	low ident
+	ld	(pokadd),a
+	pop	af
+	pop	hl
+ret	ret
+		                    ;; --------------
+ff	call	#3c9e               ;; Hlavny start
+	xor	a
+	rst	#18
+	ld	bc,stend-stopa
+	ld	a,setmax
+	rst	#18
+	ld	hl,#00              ;; !!!
+	ld	a,setmlt
+	rst	#18
+
+	ld	de,(drv)
+	ld	a,aktive
+	rst	#18
+	or	a
+	ld	b,#01               ;; "unknown disk"
+	jp	z,error
+	dec	a
+	ld	b,#03               ;; "disk not ready"
+	jp	z,error
+
+	ld	de,(hddd)
+	ld	a,rezim
+	rst	#18
+	or	a
+	ld	b,#09
+	jp	nz,error            ;; "zly rezim"
+
+	ld	a,rest
+	rst	#18
+	bit	6,a
+	ld	b,#04
+	jp	nz,error            ;; write protect
+
+	call	keci
+
+	ld	hl,ident            ;; id-meno disku
+	ld	(pokadd),hl
+	call	pokrnd
+
+	ld	hl,fat              ;; vymazanie fatky
+	ld	de,fat+1
+	ld	bc,#1001
+	ld	(hl),#ff            ;; +++ (fyzicky koniec fat)
+	ldir
+
+ff0	xor	a                   ;; Format nultej stopy
+ffl1	call	clstot
+	ld	ix,fat
+	ld	de,#00
+	call	fftrk               ;; t:0  s:0
+	call	pokrnd
+	ld	e,a
+	ld	hl,fat
+	ld	a,(hl)              ;; +++ #00 = sektor OK
+	inc	l
+	or	(hl)
+	inc	l
+	or	(hl)
+	inc	l
+	or	(hl)
+	ld	a,e
+	jr	z,tr0ok
+	call	modinc              ;; prve dva sektory nie su dobre
+	or	a
+	jr	nz,ffl1
+	ld	b,#07
+	jp	error               ;; "Track 00 bad !!!"
+
+tr0ok	ld	de,#01
+	call	fftrk
+
+	ld	d,#01
+ffloop	ld	e,#00               ;; Hlavna slucka formatovaca
+	dec	a
+	jp	p,ff1
+	ld	a,(numsec)
+	dec	a
+ff1	call	fftrk               ;; side 0
+	inc	e
+	call	fftrk               ;; side 1
+	ld	e,a
+	ld	a,#7f               ;; space ?
+	in	a,(#fe)
+	rrca
+	jr	nc,final
+	inc	d
+	ld	a,(numtrk)
+	dec	a
+	cp	d
+	ld	a,e
+	jr	nc,ffloop
+final	call	setcur
+	dw	trksid+#01
+	ld	a,#02               ;; enter
+	rst	#20
+	ld	a,#0d
+	rst	#20                 ;; beep
+	call	mksys               ;; vytvori system-area
+	ld	b,#ff
+	jp	error               ;; "format ok"
+
+fftrk	push	af
+	push	de
+	push	ix
+	call	prnts               ;; Format stopy ako ffsid
+	call	ffsid               ;; ale s napokovanim do FAT
+	pop	ix                  ;; ix=ukazovatel do fat
+	ld	hl,mapa
+	ld	bc,(numsec-1)
+fftll	xor	a
+	xor	(hl)
+	ld	e,a                 ;; +++
+	ld	d,a                 ;; #0000 bez chyby
+	jr	z,fatpok
+	cp	#66
+	ld	de,#fffe            ;; +++
+	jr	z,fatpok            ;; jednostranny disk
+	cp	#08
+	ld	de,#fffc            ;; +++
+	jr	z,fatpok            ;; crc error
+	cp	#10
+	ld	de,#fffd            ;; +++
+	jr	z,fatpok            ;; record not found
+	inc	a
+	ld	de,#fff8            ;; +++
+	jr	z,fatpok            ;; chyba v teste
+	ld	de,#fff9            ;; +++ neidentifikovatelna chyba
+fatpok	ld	(ix+#00),e
+	ld	(ix+#01),d
+	inc	ix
+	inc	ix
+	inc	hl
+	push	hl
+	ld	hl,(sectot+1)
+	inc	hl
+	ld	(sectot+1),hl
+	pop	hl
+	djnz	fftll
+	ld	a,xh
+	cp	high stopa
+	ld	b,#06               ;; prilis dlha fatka
+	jp	nc,error
+	call	prntot
+	pop	de
+	pop	af
+	ret
+
+ffsid	ld	hl,mapa             ;; Format stopy D strany E=[0/1]
+ffcls	ld	(hl),#66            ;; od sektora A
+	inc	l
+	jr	nz,ffcls
+	bit	0,e
+side	nop	                    ;; #c0=jedno / #00=obojstranny disk
+	call	modulo
+	call	mktrk
+	call	pokrnd
+	rrc	e
+	push	de
+	ld	hl,stopa
+	ld	a,wrtrk
+	rst	#18
+	call	brejk
+	and	#c0                 ;; not ready alebo write protect
+	ld	b,#05               ;; error pri zapise stopy
+	jp	nz,error
+	call	pokrnd
+	pop	de
+	ld	hl,mapa
+ffclr	ld	(hl),#ff
+	inc	l
+	jr	nz,ffclr
+
+	ld	ix,mapa             ;; zbezna kontrola sektorov
+ffsll	ld	hl,(numsec)         ;; (iba ich skusi precitat)
+	ld	a,e
+	and	#7f
+	cp	l
+	ret	nc
+	inc	e
+	push	de
+	ld	hl,stopa
+	ld	a,rdsec
+	rst	#18
+	call	brejk
+	ld	b,#03
+	bit	1,a
+	jp	nz,error
+	pop	de
+	and	#18
+	ld	(ix+#00),a
+	call	nz,prnerr
+	inc	xl
+	call	break
+	jr	ffsll
+
+brejk	bit	5,a
+	ret	z
+	ld	b,#0a               ;; "Break v biose"
+	jp	error
+
+break	ld	a,#fe
+	in	a,(#fe)
+	rrca
+	ret	c
+	ld	a,#7f
+	in	a,(#fe)
+	rrca
+	ret	c
+	ld	b,#08               ;; "Break"
+	jp	error
+
+modinc	inc	a
+modulo	push	bc
+	ld	bc,(numsec)
+modloo	cp	c
+	jr	c,modok
+	sub	c
+	jr	modloo
+modok	pop	bc
+	ret
+
+mktrk	ld	hl,stopa            ;; e=strana,d=stopa,a=start sektor
+	ld	bc,#324e            ;; (#32)
+	call	fill
+	ld	ix,(numsec)
+mt1	call	modulo
+	call	sync
+	inc	a                   ;; sektory sa pocitaju od 1
+	ld	(hl),#fe            ;; znacka id
+	inc	hl
+	ld	(hl),d              ;; stopa  [0..(numtrk-1)]
+	inc	hl
+	ld	(hl),e              ;; strana [#00/#01]
+	inc	hl
+	ld	(hl),a              ;; sektor [1..(numsec)]
+	inc	hl
+	ld	(hl),#03            ;; dlzka  [1 kB]
+	inc	hl
+	ld	(hl),#f7            ;; crc
+	inc	hl
+	dec	a
+	ld	bc,#164e
+	call	fill
+	call	sync
+	ld	(hl),#fb            ;; znacka dat
+	inc	hl
+	ld	c,#55               ;; data
+	call	fill
+	call	fill
+	call	fill
+	call	fill
+	ld	(hl),#f7            ;; crc
+	inc	hl
+	ld	bc,#2c4e            ;; (#36)
+	call	fill
+	call	modinc
+	dec	xl
+	jr	nz,mt1
+flll	ld	(hl),#ee
+	inc	hl
+	ld	a,h
+	cp	high stend
+	jr	c,flll
+	ret
+
+sync	ld	bc,#0c00
+	call	fill
+	ld	bc,#03f5
+fill	ld	(hl),c
+	inc	hl
+	djnz	fill
+	ret
+		                    ;; ----------
+insert	db	'Insert disk in '
+	db	'drive ',#1c
+	dw	drv,#c900
+
+anothe	db	'Format another ?'
+	dw	#c900
+
+run	di
+	ld	(oldsp+1),sp
+znovu	ld	sp,#5c00
+	call	#3c9e
+	ld	a,#1e               ;; killx
+	rst	#20
+	ld	a,#07
+	ld	(#03e2),a
+	ld	hl,#4000
+	ld	de,#4001
+	ld	bc,#1800
+	ld	(hl),l
+	ldir
+	ld	bc,#02ff
+	ld	(hl),a
+	ldir
+	ld	a,#08
+	out	(#fe),a
+	ld	hl,#5100
+	ld	de,#5101
+	ld	bc,#05ff
+	ld	(hl),#7e
+	ldir
+	call	clstot
+	ld	hl,insert
+	ld	a,#34               ;; messx
+	rst	#20
+	jr	nc,exit
+	ld	b,#0b
+	ld	a,(numsec)          ;; min:2 max:12 sec/trk !
+	cp	#02
+	jr	c,error
+	cp	#0d
+	call	c,ff
+error	ld	sp,#5c00
+	push	bc
+	ld	a,setoff
+	ld	e,#00
+	rst	#18
+	ld	a,pasive
+	rst	#18
+	pop	bc
+	ld	hl,tabmsg
+	inc	b
+	jr	z,prnmsg
+tok1	bit	7,(hl)
+	inc	hl
+	jr	z,tok1
+	djnz	tok1
+prnmsg	ld	a,#34               ;; messx
+	rst	#20
+	ld	hl,anothe
+	ld	a,#34
+	rst	#20
+	jr	c,znovu
+exit	call	#3c98
+oldsp	ld	sp,#5555
+	ld	iy,#5c3a
+	ld	hl,#2758
+	exx
+	ret
+
+trksid	=	#0a00
+prnts	push	af
+	push	ix
+	push	de
+	call	setcur
+	dw	trksid+#0e
+	ld	e,d                 ;; stopa
+	ld	c,#00
+	ld	a,#05               ;; dec8x
+	rst	#20
+	call	setcur
+	dw	trksid+#16
+	pop	de
+	push	de
+	ld	a,e                 ;; hlava
+	and	#01
+	or	'0'
+	ld	e,a
+	ld	a,#01               ;; disp
+	rst	#20
+	pop	de
+	pop	ix
+	pop	af
+	ret
+
+clstot	ld	hl,#5a00
+fcls	ld	(hl),#01
+	inc	l
+	jr	nz,fcls
+	ld	(addtot+1),hl
+	ld	h,l
+	ld	(sectot+1),hl       ;; indikator stop
+	ld	(secerr+1),hl       ;; indikator chyb
+	ret
+
+prntot	push	hl                  ;; ukazovatel stop
+	push	af
+	call	setcur
+	dw	#0d0b
+sectot	ld	hl,#5555
+	call	cislo
+addtot	ld	hl,#5555
+typtot	ld	(hl),#05            ;; #05/#42
+	ld	hl,addtot+1
+	inc	(hl)
+	ld	a,#05
+	ld	(typtot+1),a
+	pop	af
+	pop	hl
+	ret
+
+prnerr	push	af                  ;; ukazovatel chyb
+	push	bc
+	push	de
+	push	hl
+	push	ix
+	ld	a,#42
+	ld	(typtot+1),a
+	call	text
+	dw	#0e04
+	db	'Error: ',0
+secerr	ld	hl,#5555
+	inc	hl
+	ld	(secerr+1),hl
+	call	cislo
+	ld	a,gettrk
+	rst	#18                 ;; Pri chybe
+	xor	#01                 ;; to stepne
+	ld	d,a
+	ld	a,seek
+	rst	#18
+	pop	ix
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ret
+
+cislo	push	hl
+	ld	c,'0'
+	ld	a,#06               ;; dec16x
+	rst	#20
+	ld	e,'/'
+	ld	a,#01               ;; disp
+	rst	#20
+	pop	hl
+	ld	d,#00
+	add	hl,hl
+	rl	d
+	add	hl,hl
+	rl	d
+	ld	e,h
+	ld	h,l
+	ld	l,#00
+	ld	bc,#0a30
+	ld	a,#07               ;; dec32x
+	rst	#20
+	ret
+
+pokcur	push	de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	(#03e0),de
+	pop	de
+	ret
+
+setcur	ex	(sp),hl
+	call	pokcur
+	ex	(sp),hl
+	ret
+
+text	ex	(sp),hl
+	call	pokcur
+	ld	a,#04               ;; txxt
+	rst	#20
+	ex	(sp),hl
+	ret
+
+keci	call	text
+	dw	#0804
+	db	'Format version: '
+	db	'F02-V',vv1,vv2,0
+	call	text
+	dw	trksid+#08
+	db	'Track:   '
+	db	'Head:',0
+	call	text
+	dw	#0c04
+	db	'Space  [sec]    '
+	db	'[bytes]',0
+	call	text
+	dw	#0d04
+	db	'Total:',0
+	ret
+
+tabmsg	db	'Disk succesfuly '  ;; #ff
+	db	'formatted',0,#c9
+	db	'Sector write '     ;; 0
+	db	'error',0,#c9
+	db	'Unknown disk'      ;; 1
+	db	0,#c9
+	db	'Too many bad '     ;; 2
+	db	'sectors',0,#c9
+	db	'Disk not ready'    ;; 3
+	db	0,#c9
+	db	'Write protect'     ;; 4
+	db	0,#c9
+	db	'Track write '      ;; 5
+	db	'error',0,#c9
+	db	'FAT too length'    ;; 6
+	db	0,#c9
+	db	'Track 0 bad',0,#c9 ;; 7
+	db	'User break',0,#c9  ;; 8
+	db	'Density not '
+	db	'support',0,#c9     ;; 9
+	db	'Bios break',0,#c9  ;; 10
+	db	'Parameter error'   ;; 11
+	dw	#c900
+k
+l	=	k-z
+
+status	=	#01
+rest	=	#02
+seek	=	#03
+rdsec	=	#04
+wrsec	=	#05
+rdtrk	=	#06
+wrtrk	=	#07
+rdadd	=	#08
+rezim	=	#09
+settrk	=	#0a
+gettrk	=	#0b
+aktive	=	#0c
+pasive	=	#0d
+dinfo	=	#0e
+setmax	=	#0f
+setmlt	=	#10
+setoff	=	#11
