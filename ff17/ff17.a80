@@ -9,11 +9,12 @@
 ;== Verzia 17 == Formatovac 02 ==  10.03.1994 Busy software ==;
 ;==============================================================;
 ;*s
+;z00m 22.11.2019: v33 - kod posunuty co najvyssie a pocet sektorov na stopu rozsireny na 16 (kvoli HDD/CF)
 ;z00m 21.11.2019: v32 - pridany unattended rezim = nova premenna 'unattd', cely kod sa o jeden byte posunul!!!
 ;z00m 20.11.2019: v31 - pridana podpora HDD patchu, posunuty napis "Track:"
 
-verzia	equ	32                  ;; "# form **"
-add	equ	#e000
+verzia	equ	33                  ;; "# form **"
+add	equ	#f800               ;; z00m: kod posunuty co najvyssie, aby sa vosla do pamate 16sec sekvencia
 mem	equ	#6000
 
 	org	mem
@@ -26,8 +27,7 @@ stopa
 z
 boot	jr	nic                 ;; skok
 	db	#80
-	db	#02                 ;; verzia
-unattd	db	#00                 ;; z00m: ak je nenulove, potlaci dialogy	
+	db	#02                 ;; verzia	
 numtrk	dw	82                  ;; stopy/disk      (1-80)
 numsec	dw	5                   ;; sektory/stopa   (2-11)
 numsur	dw	#02                 ;; pocet povrchov  (1-02)
@@ -50,7 +50,7 @@ vv1	equ	aa1+'0'
 vv2	equ	aa3+'0'
 
 meno	db	#00                 ;; info bajt
-drv	db	#01                 ;; [disk 1=3.5 2=5.25]
+drv	db	#01                 ;; [cislo mechaniky]
 hddd	db	#00                 ;; [density 0=DD 1=HD]
 	dw	#00                 ;; datum a cas
 	db	#00                 ;; atributy (bit 6=!)
@@ -646,7 +646,7 @@ znovu	ld	sp,#5c00
 	ldir
 	call	clstot
 	ld	a,(unattd)          ;; z00m: test nastavenia novej premennej unattd
-	cp	0                   ;; ak je nenulova
+	or	a                   ;; ak je nenulova
 	jr	nz,skpins           ;; preskoci sa hlaska 'insert disk...'
 	ld	hl,insert
 	ld	a,#34               ;; messx
@@ -656,7 +656,7 @@ skpins	ld	b,#0b
 	ld	a,(numsec)          ;; min:2 max:12 sec/trk !
 	cp	#02
 	jr	c,error
-	cp	#0d
+	cp	#11                 ;; z00m: rozsirene - maximalne 16 sec/trk (kvoli hdd/cf)
 	call	c,ff
 error	ld	sp,#5c00
 	push	bc
@@ -670,7 +670,7 @@ error	ld	sp,#5c00
 	cp	#ff                 ;; skoncil bez chyby este pred povodnym ostetrenim chyb
 	jr	nz,skpnot           ;; ak nie, pokracuje sa normalne na osetrenie error kodu
 	ld	a,(unattd)          ;; ak ano, pozrieme sa ci je unattended rezim nastaveny
-	cp	0                   ;; ak nie je, tak sa pokracuje na osetrene error kodu
+	or 	a                   ;; ak nie je, tak sa pokracuje na osetrene error kodu
 	jr	nz,exit             ;; ak je nastaveny, tak vyskok do basicu
 skpnot	ld	hl,tabmsg
 	inc	b
@@ -853,6 +853,8 @@ tabmsg	db	'Disk succesfuly '  ;; #ff
 	db	'Bios break',0,#c9  ;; 10
 	db	'Parameter error'   ;; 11
 	dw	#c900
+
+unattd	db	#00                 ;; z00m: ak je nenulove, potlaci dialogy	
 k
 l	equ	k-z
 
