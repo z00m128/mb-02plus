@@ -94,61 +94,59 @@ p_com:		db	191		;#bf
 
 install:	di
 
-		ld	hl,15616
+		ld	hl,15616	;copy font to memory
 		ld	de,40000
 		ld	bc,768
-		ldir			;font copied to memory
+		ldir
 
-		ld	hl,vdt
+		ld	hl,vdt		;move VDT into patch body
 		ld	de,tab
 		ld	bc,vdt_end-vdt
-		ldir			;move VDT into patch
+		ldir
 
-		ld	a,dos_bank
-		out	(mem_port),a	;dos_bank page in
+		ld	a,dos_bank	;dos_bank page in
+		out	(mem_port),a
 
-		ld	hl,dos_14h
+		ld	hl,dos_14h	;write byte in dos_bank and jump to patch_bank
 		ld	de,#14
 		ld	bc,dos_14h_end-dos_14h
-		ldir			;patch mods part1 moved to dos_bank
+		ldir
 
-		ld	hl,dos_23h
+		ld	hl,dos_23h	;start DMA transfer
 		ld	de,#23
 		ld	bc,dos_23h_end-dos_23h
-		ldir			;patch mods part2 moved to dos_bank
+		ldir
 
-		ld	hl,dos_2bh
+		ld	hl,dos_2bh	;get byte from dos_bank and jump to patch_bank
 		ld	de,#2b
 		ld	bc,dos_2bh_end-dos_2bh
-		ldir			;patch mods part5 moved to dos_bank
+		ldir
 
-		ld	hl,dos_3eh
+		ld	hl,dos_3eh	;no verify for drives @5 and higher
 		ld	de,#3e
 		ld	bc,dos_3eh_end-dos_3eh
-		ldir			;patch mods part3 moved to dos_bank
+		ldir
 
-		ld	hl,dos_90h		
+		ld	hl,dos_90h	;hdd patch driver
 		ld	de,#90
 		ld	bc,dos_90h_end-dos_90h
-		ldir			;patch mods part4 moved to dos_bank
+		ldir
 
-		ld	a,#21
-		ld	(#13ca),a
-		ld	a,#c3
-		ld	(#1447),a	;set no_verify patch
+		ld	hl,dos_3eh	;no verify for drives @5 and higher
+		ld	(#13cb),hl
 
-		ld	a,patch_bank
-		out	(mem_port),a	;patch_bank page in
+		ld	a,patch_bank	;patch_bank page in
+		out	(mem_port),a
 
-		ld	hl,patch_00h
+		ld	hl,patch_00h	;routes from patch_bank to dos_bank
 		ld	de,0
 		ld	bc,patch_00h_end-patch_00h
-		ldir			;patch body part1 moved to patch_bank
+		ldir
 
-		ld	hl,patch_90h
+		ld	hl,patch_90h	;hdd patch body
 		ld	de,#90
 		ld	bc,patch_90h_end-patch_90h
-		ldir			;patch body part2 moved to patch_bank
+		ldir
 
 		ld	hl,#c9fb	; ei:ret to address #38 in patch_bank
 		ld	(#38),hl
@@ -192,10 +190,10 @@ install:	di
 		ld	(p85+1),a
 
 
-		ld	hl,40000
+		ld	hl,40000	;copy font to patch_bank
 		ld	de,15616
 		ld	bc,768
-		ldir			;font copied to patch_bank
+		ldir
 
 		ld	a,rom_bank	;rom_bank page in
 		out	(mem_port),a
@@ -250,6 +248,9 @@ dos_2bh_end:
 
 ;-----------------------------------
 ;mod at #3e in dos_bank
+
+lssecs:		equ	#1463
+
 dos_3eh:
 		disp	#3e
 
@@ -258,7 +259,7 @@ dos_3eh:
 		cp	5
 		ld	a,c
 		ret	nc
-		jp	#1463
+		jp	lssecs
 
 		ent
 dos_3eh_end:
@@ -385,7 +386,7 @@ dma_start:	out	(mem_port),a	;#21 - route to dma_start, input must be: a=dos_bank
 		out	(mem_port),a
 		ret
 
-patch_29h:	out	(mem_port),a
+patch_29h:	out	(mem_port),a	;#29 - second route to dos_bank
 read_byte:	ld	a,dos_bank
 		jr	patch_29h
 

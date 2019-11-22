@@ -337,7 +337,7 @@ pokadd	dw	ident
 	ld	(pokadd),a
 	pop	af
 	pop	hl
-ret	ret
+rett	ret
 		                    ;; --------------
 ff	call	#3c9e               ;; Hlavny start
 	xor	a
