@@ -1,28 +1,23 @@
 10 REM Busy soft 10.03.1994
 20 REM Format version F02-V33
-25 REM with HDD patch support
 30 GO TO 60
 40 CLEAR VAL "24575"
 50 LOAD "ff17"CODE : STOP
 60 DIM m$(10)
-70 REM
 80 REM Set parameters:
 90 REM drv:1..255
 100 REM hdd:0=DD,1=HD
-110 REM trk:1..82 (for FDD)
-115 REM trk:1..255 (for HDD)
-120 REM sec:2..12 (for DD/HD)
+110 REM trk:1..255
+120 REM sec:2..16
 125 REM una:0=normal
 126 REM     1=unattended
 130 REM Name:10 characters
-140 REM
 145 LET una=0
 150 LET m$="NameOfDisk"
 160 LET drv=1
 170 LET hdd=1
 180 LET trk=82
 190 LET sec=11
-200 REM
 205 POKE 65295,una
 210 POKE 63492;trk
 220 POKE 63494;sec

@@ -10,7 +10,7 @@
 ;==============================================================;
 ;*s
 ;z00m 22.11.2019: v33 - kod posunuty co najvyssie a pocet sektorov na stopu rozsireny na 16 (kvoli HDD/CF)
-;z00m 21.11.2019: v32 - pridany unattended rezim = nova premenna 'unattd', cely kod sa o jeden byte posunul!!!
+;z00m 21.11.2019: v32 - pridany unattended rezim = nova premenna 'unattd'
 ;z00m 20.11.2019: v31 - pridana podpora HDD patchu, posunuty napis "Track:"
 
 verzia	equ	33                  ;; "# form **"
@@ -653,7 +653,7 @@ znovu	ld	sp,#5c00
 	rst	#20
 	jr	nc,exit
 skpins	ld	b,#0b
-	ld	a,(numsec)          ;; min:2 max:12 sec/trk !
+	ld	a,(numsec)          ;; min:2 max:16 sec/trk !
 	cp	#02
 	jr	c,error
 	cp	#11                 ;; z00m: rozsirene - maximalne 16 sec/trk (kvoli hdd/cf)
@@ -854,7 +854,8 @@ tabmsg	db	'Disk succesfuly '  ;; #ff
 	db	'Parameter error'   ;; 11
 	dw	#c900
 
-unattd	db	#00                 ;; z00m: ak je nenulove, potlaci dialogy	
+unattd	db	#00                 ;; z00m: ak je nenulove, potlaci dialogy
+
 k
 l	equ	k-z
 
