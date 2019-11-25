@@ -1,7 +1,7 @@
 ;====================================
 ;EPROM/EEPROM/FLASH booter for MB-02+
 ;      with fixed DMA sequence
-;    by z00m^TCG^SinDiKAT 02/2019
+;    by z00m^TCG^SinDiKAT 11/2019
 ;      formatted for SjASMPlus
 ;====================================
 
@@ -192,7 +192,7 @@ MsgStartup1:	dc	"           MB-02+ Bootloader"
 MsgStartup2:	dc	"              version: 04"
 MsgStartup3:	dc	"           -----------------"		
 MsgStartup4:	dc	"Please insert the boot disk into drive 1!"
-MsgStartup5:	dc	"      (c)2018 z00m / TCG / SinDiKAT"
+MsgStartup5:	dc	"      (c)2019 z00m / TCG / SinDiKAT"
 
 MsgBootEnd0:	dc	"Booting...                               "				
 
