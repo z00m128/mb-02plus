@@ -32,13 +32,7 @@ VideoRAM:	equ	#4000
 
 		org	#0000
 
-Start:		ei
-		ld	a,#D0			; FDC command - ForceInterrupt
-		out	(FDC),a			; reset FDC
-		ld	a,#C3			; DMA command - R6: Reset
-		out	(DMA),a			; reset DMA
-		xor	a
-		out	(MOT),a			; stop all floppy motors and unselect any floppy drive
+Start:		di
 
 		out	(ULA),a			; border 0
 
@@ -53,6 +47,13 @@ Start:		ei
 		ld	bc,#2FF
 		ld	(hl),%00000111		; paper 0, ink 7
 		ldir
+
+		ld	a,#D0			; FDC command - ForceInterrupt
+		out	(FDC),a			; reset FDC
+		ld	a,#C3			; DMA command - R6: Reset
+		out	(DMA),a			; reset DMA
+		xor	a
+		out	(MOT),a			; stop all floppy motors and unselect any floppy drive
 
 		ld	sp,#5FFF		; stack to RAM
 
@@ -80,10 +81,10 @@ StartupMessage: ld	hl,MsgStartup0		; print informations
 		ld	de,VideoRAM+#10*#100+#E0
 		call	Print		
 
-		;call	TestRTC
-		;jr 	nz,Boot
+		call	TestRTC
+		jr 	nz,Boot
 		
-		;call	RTCim2
+		call	RTCim2
 		
 Boot:		ld	e,%00000100
 		ld	a,#D0			; FDC command - ForceInterrupt
@@ -106,7 +107,6 @@ FloppyReady:	in	a,(MOT)			; is floppy drive ready?
 		in	a,(FDC)			; FDC command - read byte
 		and	e
 		jr	z,Boot			; if head head is not on Track0 try again
-
 		ld	a,1
 		out	(FDS),a			; FDC set sector reg to 1
 
@@ -127,7 +127,9 @@ FloppyReady2:	in	a,(MOT)			; is floppy drive ready?
 		cp	#18			; check	BSDOS boot sector ID byte
 		jr	nz,Boot			; try again if it's wrong
 
-BootEnd:	ld	a,#D0			; FDC command - ForceInterrupt
+
+BootEnd:	di
+		ld	a,#D0			; FDC command - ForceInterrupt
 		out	(FDC),a			; reset FDC
 		ld	a,#C3			; DMA command - WR6: Reset
 		out	(DMA),a			; reset DMA
@@ -143,6 +145,11 @@ DummyLoop:	dec	de
 		ld	a,d
 		or	e
 		jr	nz,DummyLoop
+
+		ld	a,#3F			; im1
+		ld	i,a
+		im	1
+		ei
 
 		jp	BootSector		; Jump to the boot sector
 
@@ -189,43 +196,46 @@ MsgStartup5:	dc	"      (c)2018 z00m / TCG / SinDiKAT"
 
 MsgBootEnd0:	dc	"Booting...                               "				
 
-RTCim2:		ret
-
-		ld	a,#3B
-		ld	i,a
-		im	2
-		ld	a,#18
-		ld	(#FFFF),a
-		ld	a,#C3
-		ld	(#FFF4),a
+RTCim2:		di				; move clock to the right place
 		ld	hl,ShowTime
-		ld	(#FFF5),hl
+		ld	de,#c1c1
+		ld	bc,ShowTimeEnd-ShowTime
+		ldir
+
+		ld	hl,Im2Table		; prepare im2 table
+		ld	de,Im2Table+1
+		ld	bc,#101
+		ld	(hl),#c1
+
+		ld	a, h			; route interrupt to table
+		ld	i, a
+		im	2
+
+		ldir
+
 		ei
 		ret
 
-ShowTime:	call	ReadRTC
+ShowTime:	di
+		push	hl
+		push	de
+		push	bc
+		push	af
+		push	ix
+		push	iy
+		call	ReadRTC			; read clock from RTC
 		ld	hl,TimeString
 		ld	de,VideoRAM+#10*#100+#AC
 		call	Print
-		reti
-
-;------------------------------------
-; Test if RTC is present by Busy Soft
-
-TestRTC:	ld	bc,#0e*#100+RTC
-		ld	e,#50
-tstrtc:		out     (c),e
-		in      a,(c)
-		ld      d,a
-		and     #0f
-		or      #50
-		xor     e
-		ret	nz
-		inc     e
-		ld      a,e
-		and     #0f
-		jr      nz,tstrtc
-		ret
+		pop	iy
+		pop	ix
+		pop	af
+		pop	bc
+		pop	de
+		pop	hl
+		ei
+		reti		
+ShowTimeEnd:		
 
 ;-------------------------------
 ; Read time from RTC
@@ -277,7 +287,24 @@ ReadRTC		ld	hl,TimeString		; buffer for string
 		or	%10110000
 		ld	(hl),a			; ones of seconds
 		ret
-		
+
+;------------------------------------
+; Test if RTC is present by Busy Soft
+
+TestRTC:	ld	bc,#0e*#100+RTC
+		ld	e,#50
+tstrtc:		out     (c),e
+		in      a,(c)
+		ld      d,a
+		and     #0f
+		or      #50
+		xor     e
+		ret	nz
+		inc     e
+		ld      a,e
+		and     #0f
+		jr      nz,tstrtc
+		ret
 
 ;---------------------------------------------------------
 ;6-bit text print (42 columns) by MTB (c)1994 @ ZXM 5/1994
@@ -514,11 +541,18 @@ MsgFont:	db	#00, #00, #00, #00, #00, #00, #00, #00
 		db	#00, #28, #50, #00, #00, #00, #00, #00
 		db	#00, #78, #84, #B4, #B4, #84, #78, #00
 
-		disp	#6000
+		disp	#5B00
 		
 pos:		ds	#02
 roll:		ds	#01
 TimeString	ds	#08
+
+		ent
+
+
+		disp	#A000
+
+Im2Table:	ds	#101
 
 		ent
 
