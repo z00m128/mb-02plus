@@ -32,7 +32,7 @@ VideoRAM:	equ	#4000
 
 		org	#0000
 
-Start:		di
+Start:		ei
 		ld	a,#D0			; FDC command - ForceInterrupt
 		out	(FDC),a			; reset FDC
 		ld	a,#C3			; DMA command - R6: Reset
@@ -80,16 +80,12 @@ StartupMessage: ld	hl,MsgStartup0		; print informations
 		ld	de,VideoRAM+#10*#100+#E0
 		call	Print		
 
-Boot:		;call	TestRTC
-		;jr 	nz,NoRTC
+		;call	TestRTC
+		;jr 	nz,Boot
 		
-		call	ReadRTC
+		;call	RTCim2
 		
-		ld	hl,TimeString
-		ld	de,VideoRAM+#10*#100+#AC
-		call	Print
-		
-NoRTC:		ld	e,%00000100
+Boot:		ld	e,%00000100
 		ld	a,#D0			; FDC command - ForceInterrupt
 		out	(FDC),a			; reset FDC
 		ld	(BootSector),a		; clear BSDOS boot sector ID byte
@@ -192,6 +188,26 @@ MsgStartup4:	dc	"Please insert the boot disk into drive 1!"
 MsgStartup5:	dc	"      (c)2018 z00m / TCG / SinDiKAT"
 
 MsgBootEnd0:	dc	"Booting...                               "				
+
+RTCim2:		ret
+
+		ld	a,#3B
+		ld	i,a
+		im	2
+		ld	a,#18
+		ld	(#FFFF),a
+		ld	a,#C3
+		ld	(#FFF4),a
+		ld	hl,ShowTime
+		ld	(#FFF5),hl
+		ei
+		ret
+
+ShowTime:	call	ReadRTC
+		ld	hl,TimeString
+		ld	de,VideoRAM+#10*#100+#AC
+		call	Print
+		reti
 
 ;------------------------------------
 ; Test if RTC is present by Busy Soft
@@ -498,7 +514,7 @@ MsgFont:	db	#00, #00, #00, #00, #00, #00, #00, #00
 		db	#00, #28, #50, #00, #00, #00, #00, #00
 		db	#00, #78, #84, #B4, #B4, #84, #78, #00
 
-		disp	#5B00
+		disp	#6000
 		
 pos:		ds	#02
 roll:		ds	#01
