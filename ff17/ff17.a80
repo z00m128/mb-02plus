@@ -9,11 +9,12 @@
 ;== Verzia 17 == Formatovac 02 ==  10.03.1994 Busy software ==;
 ;==============================================================;
 ;*s
-;z00m 22.11.2019: v33 - kod posunuty co najvyssie a pocet sektorov na stopu rozsireny na 16 (kvoli HDD/CF)
+;z00m 26.11.2019: v34 - posledna polozka vo FAT bude vzdy #ffff, kvoli plnym 2048sec formatom (vymyslel Busy)
+;z00m 22.11.2019: v33 - kod posunuty co najvyssie a pocet sektorov na stopu rozsireny na 16 (vymyslel Busy)
 ;z00m 21.11.2019: v32 - pridany unattended rezim = nova premenna 'unattd'
 ;z00m 20.11.2019: v31 - pridana podpora HDD patchu, posunuty napis "Track:"
 
-verzia	equ	33                  ;; "# form **"
+verzia	equ	34                  ;; "# form **"
 add	equ	#f800               ;; z00m: kod posunuty co najvyssie, aby sa vosla do pamate 16sec sekvencia
 mem	equ	#6000
 
@@ -101,7 +102,9 @@ nn2	ld	b,h
 p
 	jp	run
 
-mksys	ld	hl,fat              ;; > Updating the system area <
+mksys	ld	hl,#ffff            ;; posledna polozka vo FAT bude natvrdo #FFFF, kvoli plnym 2048sec formatom
+	ld	(fat+#ffe),hl
+	ld	hl,fat              ;; > Updating the system area <
 	ld	bc,#0400            ;; spocita dlzku fatky
 	ld	e,#ff               ;; v sektoroch
 howlen	ld	a,(hl)

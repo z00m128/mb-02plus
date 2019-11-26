@@ -1,0 +1,65 @@
+######################################
+### HDD patch classic & VDTCreator ###
+######################################
+
+This is HDD patch classic for MB-02+ (or MB-03+ Ultimate), based on Dron's
+HDD patch v1.62. The purpose is to keep the patch alive for people who do not
+like EasyHDD.
+
+
+=== Features ===
+
+- supports master & slave devices
+- support CHS & LBA access
+- DMA transfers (Zilog DMA compatible)
+- diskimage capacity: 2MB (2,097,152 bytes)
+- diskimage format: trk = 1..255
+                    sec = 2..16
+- extended partitions are NOT, and will not be supported
+- VDT combined from both master and slave devices is NOT supported yet in
+  VDTCreator, but it is planned in future versions.
+
+
+=== How to ===
+
+With linux 'fdisk' or 'cfdisk' create partition type 47h on your CF card
+or HDD. It should be not bigger than ~503MB. You can use also 'zxfdisk' for
+this operation, which you can also find in distribution.
+
+Place all tools to the same directory. Then run 'VDTCreator', and follow
+onscreen instructions. The VDT will be created automatically, and then it
+will be saved on disk. After that you can quit VDTCreator.
+
+Now simply run 'HDPclassic', which installs HDD patch automatically. Safe
+option is to make .KILL command and reset the computer with NMI+E.
+
+If you need to start it automatically, put the 'HDPclassic' to 'autoexe'.
+
+Then the new virtual drives have to be formatted. Use attached ff17 (F02-V34)
+formatter tool, as the old ff17 (F02-V30) is not compatible with hdd patch.
+You can combine 'trk' and 'sec' parameters freely, to give you result close
+to 2MB. The widely used standard is 127x8, but you can use other formats,
+e.g. 93x11, 64x16, 128x8, 113x9 etc. The recommended formats are 127x8 or
+93x11. Standard floppy formats are supported too, but the unformatted space
+will be not used.
+
+There are both versions of all tools attached, with PVL ports, and Dron ports.
+ff17 (F02-V34) is port independent, and can be used also for floppy drives as
+usual.
+
+
+=== Disclaimers ===
+
+The HDD patch classic and VDTCreator are pure hobbyist's projects and not
+a professional design. There may well be bugs, glitches or other unforeseen
+issues. All tools have been tested quite extensively but no guarantees are
+offered. Also, they are used at user's own risk. Authors are not responsible
+for any data loss.
+
+The original HDD patch remain the copyright of Dron^K3L (Jiri Slezka).
+The VDTCreator remain the copyright of z00m^SinDiKAT (Branislav Bekes).
+The zxfdisk remain the copyright of PVL & Tritol. (Pavel Riha, Lubomir Blaha)
+The ff17 formatter remain the copyright of Busy Software (Slavomir Labsky).
+
+(c)2019 Dron, Busy, PVL, Tritol, z00m
+https://github.com/z00m128/mb-02plus/tree/master/hdd-patch-classic
