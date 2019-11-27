@@ -1,4 +1,4 @@
-;HDD patch classic v1.66
+;HDD patch classic v1.67
 ;--------------------------------------
 ;based on HDD 2 MB02 v1.62 by  dr0n_K3L
 ;forked and sjasmized by  z00m^SinDiKAT
@@ -18,6 +18,13 @@
 ;--------------------------------------
 ;changelog
 ;--------------------------------------
+;v1.67 - reversed the changes in free
+;        space routine. Found better
+;        solution where no DOS mods are
+;        needed. Also reversed noverify
+;        method, as someone still uses
+;        floppies. Fixed font address.
+;
 ;v1.66 - improved free space routine,
 ;        now shows correct number when
 ;        disk geometry is 128x8, 64x16,
@@ -44,6 +51,10 @@ patch_bank:	equ	#62
 dma_port:	equ	#0b
 
 mem_port:	equ	#17
+
+font:		equ	#3cf0
+font_size:	equ	#310
+font_buffer:	equ	#9c40
 
 ;HDD patch starts here
 begin:		jp	install
@@ -99,9 +110,9 @@ p_com:		db	191		;#bf
 
 install:	di
 
-		ld	hl,15616	;copy font to memory
-		ld	de,40000
-		ld	bc,768
+		ld	hl,font		;copy font to memory
+		ld	de,font_buffer
+		ld	bc,font_size
 		ldir
 
 		ld	hl,vdt		;move VDT into patch body
@@ -138,16 +149,6 @@ install:	di
 		ld	hl,dos_90h	;hdd patch driver
 		ld	de,#90
 		ld	bc,dos_90h_end-dos_90h
-		ldir
-
-		ld	hl,dos_1b7ah	;simplification of DD/HD detection, rest of free space fix
-		ld	de,#1b7a
-		ld	bc,dos_1b7ah_end-dos_1b7ah
-		ldir
-
-		ld	hl,dos_1ceah	;free space info fix
-		ld	de,#1cea
-		ld	bc,dos_1ceah_end-dos_1ceah
 		ldir
 
 		ld	a,patch_bank	;patch_bank page in
@@ -205,9 +206,9 @@ install:	di
 		ld	(p85+1),a
 
 
-		ld	hl,40000	;copy font to patch_bank
-		ld	de,15616
-		ld	bc,768
+		ld	hl,font_buffer	;copy font to patch_bank
+		ld	de,font
+		ld	bc,font_size
 		ldir
 
 		ld	a,rom_bank	;rom_bank page in
@@ -370,71 +371,6 @@ a1_254:		ld	a,#55
 
 		ent
 dos_90h_end:
-
-;------------------------------------
-;patch at #1b7a in dos_bank
-;free space info fix
-
-dos_1b7ah:
-
-		disp 	#1b7a
-
-fre1:		equ	#1b73
-
-fre2:		jp	fre5
-fre3:		jr	nz,fre1
-fre4:		ld	h,b
-		ld	l,c
-		add	hl,hl
-		add	hl,hl
-		ld	d,a
-		ld	e,h
-		ld	h,l
-		ld	l,a
-		scf
-		ret
-
-		ent
-dos_1b7ah_end:
-
-;------------------------------------
-;patch at #1cea in dos_bank
-;simplification of DD/HD detection,
-;rest of free space routine
-
-dos_1ceah:
-
-		disp	#1cea
-
-bootrd:		equ	#1d2d
-
-		ld	e,#01
-		call	bootrd
-		or	a
-		ret	z
-		ld	e,#00
-		call	bootrd
-		or	a
-		ret	z
-		jp	cant
-
-fre5:		inc	hl
-		push	af
-		ld	a,h
-		cp	#34
-		jr	nc,fre6
-		pop	af
-		and	e
-		inc	a
-		jp	fre3
-fre6:		pop	af
-		jp	fre4
-
-		db	0,0,0,0
-
-cant:
-		ent
-dos_1ceah_end:
 
 ;------------------------------------
 ;hooks at #0 in patch_bank
