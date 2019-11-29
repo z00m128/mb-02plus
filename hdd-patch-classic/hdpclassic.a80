@@ -1,4 +1,4 @@
-;HDD patch classic v1.67
+;HDD patch classic v1.68
 ;--------------------------------------
 ;based on HDD 2 MB02 v1.62 by  dr0n_K3L
 ;forked and sjasmized by  z00m^SinDiKAT
@@ -18,6 +18,11 @@
 ;--------------------------------------
 ;changelog
 ;--------------------------------------
+;v1.68 - Dron's noverify causes troubles,
+;        used Busy's method again.
+;        rom_bank pageout at the end
+;        changed from RW to RO.
+;
 ;v1.67 - reversed the changes in free
 ;        space routine. Found better
 ;        solution where no DOS mods are
@@ -45,6 +50,7 @@
 
 ;definitions
 rom_bank:	equ	#60
+rom_bank_ro:	equ	#40
 dos_bank:	equ	#61
 patch_bank:	equ	#62
 
@@ -138,13 +144,18 @@ install:	di
 		ld	bc,dos_2bh_end-dos_2bh
 		ldir
 
-		ld	hl,dos_3eh	;no verify for drives @5 and higher
-		ld	de,#3e
-		ld	bc,dos_3eh_end-dos_3eh
-		ldir
+;		ld	hl,dos_3eh	;no verify for drives @5 and higher
+;		ld	de,#3e
+;		ld	bc,dos_3eh_end-dos_3eh
+;		ldir
+;
+;		ld	hl,dos_3eh	;no verify for drives @5 and higher
+;		ld	(#13cb),hl
 
-		ld	hl,dos_3eh	;no verify for drives @5 and higher
-		ld	(#13cb),hl
+		ld	a,#21		;set no_verify patch
+		ld	(#13ca),a
+		ld	a,#c3
+		ld	(#1447),a
 
 		ld	hl,dos_90h	;hdd patch driver
 		ld	de,#90
@@ -211,7 +222,7 @@ install:	di
 		ld	bc,font_size
 		ldir
 
-		ld	a,rom_bank	;rom_bank page in
+		ld	a,rom_bank_ro	;rom_bank page in
 		out	(mem_port),a
 		ei
 		ret
@@ -265,20 +276,20 @@ dos_2bh_end:
 ;-----------------------------------
 ;mod at #3e in dos_bank
 
-lssecs:		equ	#1463
+;lssecs:		equ	#1463
+;
+;dos_3eh:
+;		disp	#3e
+;
+;		ld	c,a		;is verify needed?
+;		ld	a,(#03ef)
+;		cp	5
+;		ld	a,c
+;		ret	nc
+;		jp	lssecs
 
-dos_3eh:
-		disp	#3e
-
-		ld	c,a		;is verify needed?
-		ld	a,(#03ef)
-		cp	5
-		ld	a,c
-		ret	nc
-		jp	lssecs
-
-		ent
-dos_3eh_end:
+;		ent
+;dos_3eh_end:
 
 ;------------------------------------
 ;mod at #90 in dos_bank
