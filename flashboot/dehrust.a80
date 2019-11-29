@@ -1,0 +1,189 @@
+; hrust decompressor
+; Copyright (c) 1999 Dmitry Pyankov
+
+dehrust	ld a,(hl)
+	inc hl
+	cp 0x68
+	ret nz
+	ld a,(hl)
+	inc hl
+	cp 0x72
+	ret nz
+	ld a,(hl)
+	inc hl
+	cp 0x32
+	ret nz
+	ld a,(hl)
+	inc hl
+	rla
+	ex af,af'
+	push de
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	inc hl
+	dec bc
+	ex de,hl
+	add hl,bc
+	ex de,hl
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	add hl,bc
+	sbc hl,de
+	add hl,de
+	jr c,dehrust_27
+	ld d,h
+	ld e,l
+dehrust_27	push bc
+	lddr
+	pop bc
+	ex de,hl
+	ex af,af'
+	jr nc,dehrust_34
+	pop de
+	inc hl
+	ldir
+	ret
+dehrust_34	ld de,0x0007
+	add hl,de
+	push hl
+	exx
+	pop hl
+	pop de
+	ld a,0x03
+dehrust_3e	dec hl
+	ld b,(hl)
+	dec hl
+	ld c,(hl)
+	push bc
+	dec a
+	jr nz,dehrust_3e
+	ld b,a
+	exx
+	ld de,0x1003
+	ld c,0x80
+dehrust_4d	ld a,(hl)
+	inc hl
+	exx
+	ld (de),a
+	inc de
+dehrust_52	exx
+dehrust_53	sla c
+	jr nz,dehrust_5b
+	ld c,(hl)
+	inc hl
+	rl c
+dehrust_5b	jr c,dehrust_4d
+	ld b,0x01
+dehrust_5f	ld a,0x40
+dehrust_61	sla c
+	jr nz,dehrust_69
+	ld c,(hl)
+	inc hl
+	rl c
+dehrust_69	rla
+	jr nc,dehrust_61
+	cp e
+	jr c,dehrust_74
+	add a,b
+	ld b,a
+	xor d
+	jr nz,dehrust_5f
+dehrust_74	add a,b
+	cp 0x04
+	jr z,dehrust_c6
+	adc a,0xff
+dehrust_7b	cp 0x02
+dehrust_7d	exx
+	ld c,a
+	ld h,0xff
+	exx
+	jr c,dehrust_e0
+	jr z,dehrust_af
+	sla c
+	jr nz,dehrust_8e
+	ld c,(hl)
+	inc hl
+	rl c
+dehrust_8e	jr c,dehrust_af
+	ld a,0x7f
+	ld b,e
+	djnz dehrust_e2
+dehrust_95	djnz dehrust_b8
+	ld b,a
+	sbc a,a
+dehrust_99	sla c
+	jr nz,dehrust_a1
+	ld c,(hl)
+	inc hl
+	rl c
+dehrust_a1	rla
+	dec a
+	inc b
+	jr nz,dehrust_99
+	cp 0xe1
+	jr nz,dehrust_ac
+	ld a,(hl)
+	inc hl
+dehrust_ac	exx
+	ld h,a
+	exx
+dehrust_af	ld a,(hl)
+	inc hl
+dehrust_b1	exx
+	ld l,a
+	add hl,de
+	ldir
+	jr dehrust_52
+dehrust_b8	add a,0x06
+	rla
+	ld b,a
+dehrust_bc	ld a,(hl)
+	inc hl
+	exx
+	ld (de),a
+	inc de
+	exx
+	djnz dehrust_bc
+	jr dehrust_53
+dehrust_c6	sla c
+	jr nz,dehrust_ce
+	ld c,(hl)
+	inc hl
+	rl c
+dehrust_ce	ld a,d
+	jr nc,dehrust_e2
+	ld a,(hl)
+	inc hl
+	cp d
+	jr nc,dehrust_7b
+	or a
+	jr z,dehrust_f1
+	exx
+	ld b,a
+	exx
+	ld a,(hl)
+	inc hl
+	jr dehrust_7d
+dehrust_e0	ld a,0x3f
+dehrust_e2	sla c
+	jr nz,dehrust_ea
+	ld c,(hl)
+	inc hl
+	rl c
+dehrust_ea	rla
+	jr nc,dehrust_e2
+	djnz dehrust_95
+	jr dehrust_b1
+dehrust_f1	ld hl,0x2758
+	exx
+	ld b,0x03
+	ex de,hl
+dehrust_f8	pop de
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	djnz dehrust_f8
+	ret

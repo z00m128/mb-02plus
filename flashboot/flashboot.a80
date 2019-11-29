@@ -1,0 +1,563 @@
+;Flashboot for MB-02+
+;(c) 11/2019 z00m^SinDiKAT
+
+		output	"flashboot.bin"
+
+ula:		equ	#fe
+dma:		equ	#0b
+fdc:		equ	#0f
+mot:		equ	#13
+fdt:		equ	#2f
+rez:		equ	#33
+fds:		equ	#4f
+fdd:		equ	#6f
+
+mem_port:	equ	#17
+flash_bank0	equ	#80
+flash_bank1	equ	#81
+rom_bank:	equ	#60
+dos_bank:	equ	#61
+rom_bank_ro:	equ	#40
+dos_ena:	equ	#3c9e
+killx:		equ	#1e
+setdrv:		equ	#13
+startdos:	equ	#30
+
+BootSector:	equ	#8000
+VideoRAM:	equ	#4000
+
+		org	#0000
+
+begin:		di
+
+		ld	hl,#ffff		;pause after reset
+		call	dummyloop
+
+		ld	a,#d0			;FDC - ForceInterrupt
+		out	(fdc),a			;reset FDC
+		ld	a,#c3			;DMA - R6: Reset
+		out	(dma),a			;reset DMA
+
+		xor	a			;interrupt and border
+		ld	i,a
+		ld	(ula),a
+		out	(mot),a			;stop motors
+		
+		ld	hl,#4000		;clear screen
+		ld	de,#4001
+		ld	bc,#1aff
+		ld	(hl),a
+		ldir
+		
+		ld	hl,#5800
+		ld	de,#5801
+		ld	bc,#2ff
+		ld	(hl),#07
+		ldir
+		
+StartupMessage: ld	hl,MsgStartup0		;print informations
+		ld	de,VideoRAM
+		call	Print
+
+		ld	hl,MsgStartup1
+		ld	de,VideoRAM+#20
+		call	Print
+
+		ld	hl,MsgStartup2
+		ld	de,VideoRAM+#40
+		call	Print
+
+		ld	hl,MsgStartup3
+		ld	de,VideoRAM+#60
+		call	Print
+
+		ld	hl,MsgStartup4
+		ld	de,VideoRAM+#8*#100+#40
+		call	Print
+
+		ld	hl,MsgStartup5
+		ld	de,VideoRAM+#10*#100+#E0
+		call	Print	
+
+		ld	a,#01			;blue border while waiting for space
+		out	(ula),a
+		
+testspace:	ld	hl,#ffff		;timeout for fdd boot
+tst_spc_lp:	ld	a,#7f			;test for space
+		in	a,(ula)
+		and	%00011111
+		cp	%00011110
+		jr	z,FDDBoot		;if space was pressed, boot from fdd
+		dec	hl
+		ld	a,h
+		or	l
+		jr	nz,tst_spc_lp		;waits for space about one sec
+
+		xor	a			;if space was not pressed
+		out	(ula),a			;black border
+
+		jp	FlashBoot		;and boot from flashrom
+
+FDDBoot:	ld	sp,#5fff		;stack to RAM
+		ld	hl,MsgBootEnd0		;print "Booting from floppy..." message
+		ld	de,VideoRAM+#8*#100+#40
+		call	Print
+		ld	hl,#ffff
+		call	dummyloop
+FDDBoot1:	ld	e,%00000100
+		ld	a,#d0			;FDC command - ForceInterrupt
+		out	(fdc),a			;reset FDC
+		ld	(BootSector),a		;clear BSDOS boot sector ID byte
+		ld	a,#c3			;DMA command - R6: Reset
+		out	(dma),a			;reset DMA
+
+HDorDD:		ld	a,0			;default if HD
+		xor	1			;toggle HDD/DD
+		ld	(HDorDD+1),a
+		out	(rez),a			;set HD or DD
+		ld	a,3			;select drive0 and start motor0
+		out	(mot),a
+		out	(fdc),a			;FDC command - track0
+
+FloppyReady:	in	a,(mot)			;is floppy drive ready?
+		and	e
+		jr	z,FloppyReady
+		in	a,(fdc)			;FDC command - read byte
+		and	e
+		jr	z,FDDBoot1		;if head head is not on Track0 try again
+		ld	a,1
+		out	(fds),a			;FDC set sector reg to 1
+
+		ld	bc,DMASeqLen+dma	;DMA sequence - b:length, c:DMA port address
+		ld	hl,DMASequence
+		otir				;initialise DMA
+
+		ld	a,#88
+		out	(fdc),a			; FDC command - read sector
+
+FloppyReady2:	in	a,(mot)			; is floppy drive ready?
+		and	e
+		jr	z,FloppyReady2
+		in	a,(fdc)			; FDC command - read byte
+		and	#1c
+		jr	nz,FDDBoot1		; try again if some read error occured
+		ld	a,(BootSector)
+		cp	#18			; check	BSDOS boot sector ID byte
+		jr	nz,FDDBoot1		; try again if it's wrong
+
+
+BootEnd:	di
+		ld	a,#d0			; FDC command - ForceInterrupt
+		out	(fdc),a			; reset FDC
+		ld	a,#c3			; DMA command - WR6: Reset
+		out	(dma),a			; reset DMA
+		xor	a
+		out	(mot),a			; stop all motors and unselect any floppy drive
+
+		ld	a,#3f			; im1
+		ld	i,a
+		im	1
+		ei
+
+		jp	BootSector		; Jump to the boot sector
+
+DMASequence:	db	#C3			; R6: reset DMA
+		db	#79			; R0: DMA transfer PortB->PortA
+		dw	BootSector		; destination address
+		dw 	#3FF			; size of data buffer
+		db	#14			; R1: PortA - memory, incremented, default timing
+		db	#28			; R2: PortB - I/O, fixed, default timing
+		db	#80			; R3: disable DMA, no interrupt
+		db	#8D			; R4: byte mode, no interrupt, no pulse control
+		dw	fdd			; source port address (FDD)
+		db	#92			; R5: ready active LOW, CE/WAIT, stop on end of block
+		db	#CF			; R6: load
+		db	#01			; R0: DMA transfer rd:PortB->PortA, wr:PortA->PortB
+		db	#CF			; R6: load
+		db	#87			; R6: enable DMA
+
+DMASeqCount:	equ	$-DMASequence
+DMASeqLen:	equ	DMASeqCount*#100
+
+FlashBoot:	ld	sp,#5fff		;stack to RAM
+
+		ld	hl,MsgBootEnd1		;print "Booting from flash ROM..." message
+		ld	de,VideoRAM+#8*#100+#40
+		call	Print
+
+		ld	hl,RAMcode		;move main code to RAM
+		ld	de,#6000
+		ld	bc,RAMcode_end-RAMcode
+		ldir
+		
+		jp	#6000
+
+dummyloop:	dec	hl
+		ld	a,h
+		or	l
+		jr	nz,dummyloop
+		ret
+
+MsgStartup0:	dc	"           -----------------"
+MsgStartup1:	dc	"            MB-02+ FlasBoot"
+MsgStartup2:	dc	"              version: 01"
+MsgStartup3:	dc	"           -----------------"
+MsgStartup4:	dc	"     Press space to boot from floppy!"
+MsgStartup5:	dc	"      (c)2019 z00m / TCG / SinDiKAT"
+
+MsgBootEnd0:	dc	"Booting from floppy...                    "
+MsgBootEnd1:	dc	"Booting from flash ROM...                 "
+
+;---------------------------------------------------------
+;6-bit text print (42 columns) by MTB (c)1994 @ ZXM 5/1994
+;simplification, bugfix and sjasmplus formatting by z00m/SinDiKAT (c)2016
+;input: hl=text address, de=print position
+
+Print:		ld	(pos),de
+		xor	a
+		ld	(roll),a	
+
+print1:		push	hl
+		ld	a,(hl)
+		and	127
+		call	ascii
+		ld	a,(roll)
+		inc	a
+		cp	1
+		call	z,print2
+		cp	2
+		call	z,print2
+		cp	4
+		jr	nz,print3
+		ld	a,0
+		call	print2
+print3:		ld	(roll),a
+		pop	hl
+		bit	7,(hl)
+		inc	hl
+		ret	nz
+		jr	print1
+
+print2:		ld	hl,(pos)
+		inc	hl
+		ld	(pos),hl
+		ret
+
+ascii:		ld	bc,MsgFont
+		push	bc
+		sub	32
+		ld	e,a
+		ld	d,0
+		ld	b,8
+		ld	hl,0
+x8:		add	hl,de
+		djnz	x8
+		pop	bc
+		add	hl,bc
+		ld	de,(pos)
+		ex	de,hl
+asci0:		ld	a,(roll)
+		cp	3
+		jr	z,roll3
+		cp	2
+		jr	z,roll2
+		cp	1
+		jr	z,roll1
+roll0:		call	asci1
+		ret
+ 
+roll1:		ld	b,8
+rol1_1:		ld	a,(de)
+		sla	a
+		ld	c,0
+		rl	c
+		sla	a
+		rl	c
+		push	bc
+		call	asci2
+		pop	bc
+		inc	de
+		djnz	rol1_1
+		ret
+ 
+roll2:		ld	b,8
+rol2_1:		ld	a,(de)
+		sla	a
+		ld	c,0
+		rl	c
+		sla	a
+		rl	c
+		sla	a
+		rl	c
+		sla	a
+		rl	c
+		push	bc
+		call	asci2
+		pop	bc
+		inc	de
+		djnz	rol2_1
+		ret
+ 
+roll3:		ld	b,8
+rol3_1:		ld	a,(de)
+		srl	a
+		srl	a
+		push	bc
+		call	asci3
+		pop	bc
+		inc	de
+		djnz	rol3_1
+		ret
+ 
+asci1:		ld	b,8
+asc1:		ld	a,(de)
+		ld	(hl),a
+		inc	de
+		call	downhl
+		djnz	asc1
+		ret
+ 
+asci2:		ld	(hl),a
+		ld	a,c
+		dec	hl
+		or	(hl)
+		ld	(hl),a
+		inc	hl
+		call	downhl
+		ret
+ 
+asci3:		or	(hl)
+		ld	(hl),a
+ 
+downhl:		inc	h
+		ld	a,h
+		and	7
+		ret	nz
+		ld	a,l
+		add	a,32
+		ld	l,a
+		ld	a,h
+		jr	c,down2
+		sub	8
+		ld	h,a
+down2:		cp	88
+		ret	c
+		ld	hl,64
+		ret
+
+;5-bit font for messages
+MsgFont:	db	#00, #00, #00, #00, #00, #00, #00, #00
+		db	#00, #20, #20, #20, #20, #00, #20, #00
+		db	#00, #50, #50, #00, #00, #00, #00, #00
+		db	#00, #50, #F8, #50, #50, #F8, #50, #00
+		db	#00, #20, #F8, #A0, #F8, #28, #F8, #20
+		db	#00, #40, #A8, #50, #20, #50, #A8, #10
+		db	#00, #20, #50, #20, #68, #90, #68, #00
+		db	#00, #10, #20, #00, #00, #00, #00, #00
+		db	#00, #08, #10, #10, #10, #10, #08, #00
+		db	#00, #40, #20, #20, #20, #20, #40, #00
+		db	#00, #00, #50, #20, #F8, #20, #50, #00
+		db	#00, #00, #20, #20, #F8, #20, #20, #00
+		db	#00, #00, #00, #00, #00, #10, #10, #20
+		db	#00, #00, #00, #00, #78, #00, #00, #00
+		db	#00, #00, #00, #00, #00, #30, #30, #00
+		db	#00, #00, #08, #10, #20, #40, #80, #00
+		db	#00, #70, #98, #A8, #A8, #C8, #70, #00
+		db	#00, #60, #A0, #20, #20, #20, #F8, #00
+		db	#00, #70, #88, #08, #70, #80, #F8, #00
+		db	#00, #70, #88, #30, #08, #88, #70, #00
+		db	#00, #10, #30, #50, #90, #F8, #10, #00
+		db	#00, #F8, #80, #F0, #08, #88, #70, #00
+		db	#00, #70, #80, #F0, #88, #88, #70, #00
+		db	#00, #F8, #08, #10, #20, #40, #40, #00
+		db	#00, #70, #88, #70, #88, #88, #70, #00
+		db	#00, #70, #88, #88, #78, #08, #70, #00
+		db	#00, #00, #00, #20, #00, #00, #20, #00
+		db	#00, #00, #20, #00, #00, #20, #20, #40
+		db	#00, #00, #08, #10, #20, #10, #08, #00
+		db	#00, #00, #00, #78, #00, #78, #00, #00
+		db	#00, #00, #20, #10, #08, #10, #20, #00
+		db	#00, #70, #88, #10, #20, #00, #20, #00
+		db	#00, #70, #08, #68, #A8, #A8, #70, #00
+		db	#00, #70, #88, #88, #F8, #88, #88, #00
+		db	#00, #F0, #88, #F0, #88, #88, #F0, #00
+		db	#00, #70, #88, #80, #80, #88, #70, #00
+		db	#00, #E0, #90, #88, #88, #90, #E0, #00
+		db	#00, #F8, #80, #F0, #80, #80, #F8, #00
+		db	#00, #F8, #80, #F0, #80, #80, #80, #00
+		db	#00, #70, #88, #80, #B8, #88, #70, #00
+		db	#00, #88, #88, #F8, #88, #88, #88, #00
+		db	#00, #F8, #20, #20, #20, #20, #F8, #00
+		db	#00, #08, #08, #08, #88, #88, #70, #00
+		db	#00, #90, #A0, #C0, #A0, #90, #88, #00
+		db	#00, #80, #80, #80, #80, #80, #F8, #00
+		db	#00, #88, #D8, #A8, #88, #88, #88, #00
+		db	#00, #88, #C8, #A8, #98, #88, #88, #00
+		db	#00, #70, #88, #88, #88, #88, #70, #00
+		db	#00, #F0, #88, #88, #F0, #80, #80, #00
+		db	#00, #70, #88, #88, #A8, #98, #70, #00
+		db	#00, #F0, #88, #88, #F0, #90, #88, #00
+		db	#00, #70, #80, #70, #08, #88, #70, #00
+		db	#00, #F8, #20, #20, #20, #20, #20, #00
+		db	#00, #88, #88, #88, #88, #88, #70, #00
+		db	#00, #88, #88, #88, #88, #50, #20, #00
+		db	#00, #88, #88, #88, #88, #A8, #50, #00
+		db	#00, #88, #50, #20, #20, #50, #88, #00
+		db	#00, #88, #50, #20, #20, #20, #20, #00
+		db	#00, #F8, #08, #30, #40, #80, #F8, #00
+		db	#00, #38, #20, #20, #20, #20, #38, #00
+		db	#00, #00, #80, #40, #20, #10, #08, #00
+		db	#00, #70, #10, #10, #10, #10, #70, #00
+		db	#00, #20, #70, #A8, #20, #20, #20, #00
+		db	#00, #00, #00, #00, #00, #00, #00, #FC
+		db	#00, #30, #48, #E0, #40, #40, #F8, #00
+		db	#00, #00, #70, #08, #78, #88, #78, #00
+		db	#00, #80, #80, #F0, #88, #88, #F0, #00
+		db	#00, #00, #38, #40, #40, #40, #38, #00
+		db	#00, #08, #08, #78, #88, #88, #78, #00
+		db	#00, #00, #70, #88, #F0, #80, #78, #00
+		db	#00, #30, #40, #60, #40, #40, #40, #00
+		db	#00, #00, #78, #88, #88, #78, #08, #70
+		db	#00, #80, #80, #F0, #88, #88, #88, #00
+		db	#00, #20, #00, #60, #20, #20, #70, #00
+		db	#00, #08, #00, #08, #08, #08, #48, #30
+		db	#00, #40, #50, #60, #60, #50, #48, #00
+		db	#00, #40, #40, #40, #40, #40, #30, #00
+		db	#00, #00, #D0, #A8, #A8, #A8, #A8, #00
+		db	#00, #00, #F0, #88, #88, #88, #88, #00
+		db	#00, #00, #70, #88, #88, #88, #70, #00
+		db	#00, #00, #F0, #88, #88, #F0, #80, #80
+		db	#00, #00, #78, #88, #88, #78, #08, #08
+		db	#00, #00, #38, #40, #40, #40, #40, #00
+		db	#00, #00, #70, #80, #70, #08, #F0, #00
+		db	#00, #20, #70, #20, #20, #20, #18, #00
+		db	#00, #00, #88, #88, #88, #88, #70, #00
+		db	#00, #00, #88, #88, #50, #50, #20, #00
+		db	#00, #00, #88, #A8, #A8, #A8, #50, #00
+		db	#00, #00, #88, #50, #20, #50, #88, #00
+		db	#00, #00, #88, #88, #88, #78, #08, #70
+		db	#00, #00, #F8, #10, #20, #40, #F8, #00
+		db	#00, #38, #20, #C0, #20, #20, #38, #00
+		db	#00, #10, #10, #10, #10, #10, #10, #00
+		db	#00, #E0, #20, #18, #20, #20, #E0, #00
+		db	#00, #28, #50, #00, #00, #00, #00, #00
+		db	#00, #78, #84, #B4, #B4, #84, #78, #00		
+
+RAMcode:
+		disp	#6000
+
+		ld	a,flash_bank1		;FlashROM BANK1
+		out	(mem_port),a
+
+		ld	hl,BSROMBin		;move BSROM to RAM
+		ld	de,#8000
+		call	dehrust
+
+		ld	a,flash_bank0		;FlashROM BANK0
+		out	(mem_port),a
+
+		ld	hl,BSDOSBin		;move BSDOS to RAM
+		ld	de,#c000
+		call	dehrust
+
+
+		ld	a,dos_bank		;SRAM DOS BANK
+		out	(mem_port),a
+		
+		ld	hl,#c000		;move BSDOS to SRAM
+		ld	de,#0000
+		ld	bc,#4000
+		ldir
+		
+		ld	hl,fddsetup		;move floppies setup to BSDOS
+		ld	de,#80
+		ld	bc,#10
+		ldir
+
+		ld	a,#c3			;start FDC bios
+		ld      hl,#0100
+ 		ld      (#18),a
+ 		ld      (#19),hl
+ 		ld      a,#0d			;pasive
+ 		rst     #18
+
+		ld	a,rom_bank		;SRAM ROM BANK
+		out	(mem_port),a
+
+		ld	hl,#8000		;move BSROM to SRAM
+		ld	de,#0000
+		ld	bc,#4000
+		ldir
+		
+		ld	a,flash_bank0		;FlashROM BANK0
+		out	(mem_port),a
+		
+		ld	hl,HDDpatchBin		;move HDD patch to RAM
+		ld	de,#8000
+		call	dehrust
+
+		ld	hl,VDT			;move VDT to its place
+		ld	de,#8003
+		call	dehrust
+
+		ld	a,rom_bank_ro		;ROM BANK read only
+		out	(mem_port),a
+
+		call	#8000			;run HDD patch
+
+		call	dos_ena			;DOS BANK
+		
+		ld	a,killx			;clear cache
+		rst	#20
+		ld	e,#03			;drive @3 active
+		ld	a,setdrv
+		rst	#20
+		ld	a,startdos		;start operating system
+		rst	#20
+		rst	#28			;jump to ROM BIOS
+		dw      #3906			;with BSROM 128k reset
+ 		rst     #00			;if not, jump to 0
+		ld	a,#02			;still here? 
+		out	(ula),a			;red border
+dihalt:		di				;and neverending loop
+		halt
+		jr 	dihalt
+
+		include "dehrust.a80"
+
+fddsetup:	db	#03                 	;drive @1: DD,HD (e.g. standard floppy)
+		db	80			;80 tracks
+		db	#00			;3ms stepping
+		db	#80			;positive disk change
+
+		db	#03			;drive @2: DD,HD (e.g. gotek)
+		db	80			;80 tracks
+		db	#00			;3ms stepping
+		db	#01			;negative ready
+		
+		dw	0,0,0,0			;drives @3 & @4 not connected
+
+pos:		dw	#5555
+roll:		db	#55
+
+		ent
+
+RAMcode_end:		
+
+HDDpatchBin:	incbin	"hdpc167.hru"
+
+VDT:		incbin	"vdt.hru"
+
+BSDOSBin:	incbin	"bsdos.hru"
+
+		dup #4000-$
+		db	#ff
+		edup
+
+		disp	#0000
+BSROMBin:	incbin	"bsrom.hru"
+		ent
+
+		dup #8000-$
+		db	#ff
+		edup
