@@ -1,4 +1,4 @@
-;Flashboot for MB-02+
+;Flashboot v01 for MB-02+
 ;(c) 11/2019 z00m^SinDiKAT
 
 		output	"flashboot.bin"
@@ -29,6 +29,8 @@ VideoRAM:	equ	#4000
 		org	#0000
 
 begin:		di
+
+		ld	sp,#5fff		;stack to RAM
 
 		ld	hl,#ffff		;pause after reset
 		call	dummyloop
@@ -98,8 +100,7 @@ tst_spc_lp:	ld	a,#7f			;test for space
 
 		jp	FlashBoot		;and boot from flashrom
 
-FDDBoot:	ld	sp,#5fff		;stack to RAM
-		ld	hl,MsgBootEnd0		;print "Booting from floppy..." message
+FDDBoot:	ld	hl,MsgBootEnd0		;print "Booting from floppy..." message
 		ld	de,VideoRAM+#8*#100+#40
 		call	Print
 		ld	hl,#ffff
@@ -179,9 +180,7 @@ DMASequence:	db	#C3			; R6: reset DMA
 DMASeqCount:	equ	$-DMASequence
 DMASeqLen:	equ	DMASeqCount*#100
 
-FlashBoot:	ld	sp,#5fff		;stack to RAM
-
-		ld	hl,MsgBootEnd1		;print "Booting from flash ROM..." message
+FlashBoot:	ld	hl,MsgBootEnd1		;print "Booting from flash ROM..." message
 		ld	de,VideoRAM+#8*#100+#40
 		call	Print
 
