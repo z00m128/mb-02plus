@@ -251,7 +251,8 @@ TKN_TABLE:	DC	"?"
 		DC	"DRAW"
 		DC	"CLEAR"
 		DC	"RETURN"
-		DC	"COPY"
+		DC	"DIR"			; BSROM - COPY changed to DIR
+		DB	#FF
 
 ; maps for the standard 40-key ZX Spectrum keyboard
 ; SHIFT (#27) is read directly.
