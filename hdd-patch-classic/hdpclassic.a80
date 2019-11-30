@@ -1,4 +1,4 @@
-;HDD patch classic v1.68
+;HDD patch classic v1.69
 ;--------------------------------------
 ;based on HDD 2 MB02 v1.62 by  dr0n_K3L
 ;forked and sjasmized by  z00m^SinDiKAT
@@ -18,6 +18,10 @@
 ;--------------------------------------
 ;changelog
 ;--------------------------------------
+;v1.69 - Fixed Dron's no verify. It was
+;        bad label handling, introduced
+;        by me during source tidy up.
+;
 ;v1.68 - Dron's noverify causes troubles,
 ;        used Busy's method again.
 ;        rom_bank pageout at the end
@@ -58,7 +62,7 @@ dma_port:	equ	#0b
 
 mem_port:	equ	#17
 
-font:		equ	#3cf0
+font_addr:	equ	#3cf0
 font_size:	equ	#310
 font_buffer:	equ	#9c40
 
@@ -116,7 +120,7 @@ p_com:		db	191		;#bf
 
 install:	di
 
-		ld	hl,font		;copy font to memory
+		ld	hl,font_addr	;copy font to memory
 		ld	de,font_buffer
 		ld	bc,font_size
 		ldir
@@ -144,18 +148,13 @@ install:	di
 		ld	bc,dos_2bh_end-dos_2bh
 		ldir
 
-;		ld	hl,dos_3eh	;no verify for drives @5 and higher
-;		ld	de,#3e
-;		ld	bc,dos_3eh_end-dos_3eh
-;		ldir
-;
-;		ld	hl,dos_3eh	;no verify for drives @5 and higher
-;		ld	(#13cb),hl
+		ld	hl,dos_3eh	;no verify for drives @5 and higher
+		ld	de,#3e
+		ld	bc,dos_3eh_end-dos_3eh
+		ldir
 
-		ld	a,#21		;set no_verify patch
-		ld	(#13ca),a
-		ld	a,#c3
-		ld	(#1447),a
+		ld	hl,noverify	;no verify for drives @5 and higher
+		ld	(#13cb),hl
 
 		ld	hl,dos_90h	;hdd patch driver
 		ld	de,#90
@@ -216,9 +215,8 @@ install:	di
 		ld	(p84+1),a
 		ld	(p85+1),a
 
-
 		ld	hl,font_buffer	;copy font to patch_bank
-		ld	de,font
+		ld	de,font_addr
 		ld	bc,font_size
 		ldir
 
@@ -276,20 +274,20 @@ dos_2bh_end:
 ;-----------------------------------
 ;mod at #3e in dos_bank
 
-;lssecs:		equ	#1463
-;
-;dos_3eh:
-;		disp	#3e
-;
-;		ld	c,a		;is verify needed?
-;		ld	a,(#03ef)
-;		cp	5
-;		ld	a,c
-;		ret	nc
-;		jp	lssecs
+lssecs:		equ	#1463
 
-;		ent
-;dos_3eh_end:
+dos_3eh:
+		disp	#3e
+
+noverify:	ld	c,a		;is verify needed?
+		ld	a,(#03ef)
+		cp	5
+		ld	a,c
+		ret	nc
+		jp	lssecs
+
+		ent
+dos_3eh_end:
 
 ;------------------------------------
 ;mod at #90 in dos_bank

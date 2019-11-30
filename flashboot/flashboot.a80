@@ -543,7 +543,7 @@ roll:		db	#55
 
 RAMcode_end:		
 
-HDDpatchBin:	incbin	"hdpc168.hru"
+HDDpatchBin:	incbin	"hdpc.hru"
 
 VDT:		incbin	"vdt.hru"
 
