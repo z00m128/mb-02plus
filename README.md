@@ -20,3 +20,4 @@ A set of sources for MB-02+ and/or MB-03+ Ultimate (formatted for SjASMPlus):
 - _samtracker2mb:_ Sample Tracker 2 with simple MB-02+ extension.
 - _ff17:_ Formatter for FDD and CF/HDD.
 - _hdd-patch-classic:_ Driver and tools for using CF/HDD in MB-02+.
+- _flashboot:_ New full clean boot from 28c256/29c256.
