@@ -37,11 +37,11 @@ If you need to start it automatically, put the 'HDPclassic' to 'autoexe'.
 
 Then the new virtual drives have to be formatted. Use attached ff17 (F02-V34)
 formatter tool, as the old ff17 (F02-V30) is not compatible with hdd patch.
-You can combine 'trk' and 'sec' parameters freely, to give you result close
-to 2MB. The widely used standard is 127x8, but you can use other formats,
-e.g. 93x11, 64x16, 128x8, 113x9 etc. The recommended formats are 127x8 or
-93x11. Standard floppy formats are supported too, but the unformatted space
-will be not used.
+You can combine 'trk' and 'sec' parameters freely, but the result of geometry
+must be 2048 sectors in maximum. The widely used standard is 127x8, but you
+can use other formats, e.g. 93x11, 64x16, 128x8, 113x9 etc. The recommended
+formats are 127x8 or 93x11. Standard floppy formats are supported too, but
+the unformatted space will be not used.
 
 There are both versions of all tools attached, with PVL ports, and Dron ports.
 ff17 (F02-V34) is port independent, and can be used also for floppy drives as
