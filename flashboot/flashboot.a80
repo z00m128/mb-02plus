@@ -197,10 +197,10 @@ dummyloop:	dec	hl
 		jr	nz,dummyloop
 		ret
 
-MsgStartup0:	dc	"           -----------------"
-MsgStartup1:	dc	"            MB-02+ FlasBoot"
+MsgStartup0:	dc	"          ------------------"
+MsgStartup1:	dc	"           MB-02+ FlashBoot"
 MsgStartup2:	dc	"              version: 01"
-MsgStartup3:	dc	"           -----------------"
+MsgStartup3:	dc	"          ------------------"
 MsgStartup4:	dc	"     Press space to boot from floppy!"
 MsgStartup5:	dc	"      (c)2019 z00m / TCG / SinDiKAT"
 
