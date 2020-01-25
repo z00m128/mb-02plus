@@ -786,7 +786,7 @@ found_47h:	pop	bc			; restore partition entry, not needed anymore
 		push	bc			; store number of drives
 
 		ld	de,msg_pmb03_dnum	; print number of drives
-		call	Num2Dec2
+		call	Num2Dec1
 
 		or	a			; clear carry flag
 
@@ -2057,10 +2057,12 @@ msg_part_mb03:	db	"Dedicated "
 msg_pmb03_size:	ds	#0B,#20
 		db	"sectors."
 		ds	#11,#20
-		db	"Drives count: "
+		db	"Possible n"
+		db	"umber of d"
+		db	"rives: "
 msg_pmb03_dnum:	ds	#03,#20
 		db	"."
-		ds	#18,#20
+		ds	#0b,#20
 		db	"Occupied drives:"
 		db	" @003 - @"
 msg_pmb03_odrv:	ds	#03,#20
