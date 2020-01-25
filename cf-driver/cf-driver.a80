@@ -1,3 +1,11 @@
+;-------------------------------------;
+;    CF Driver for MB-03+ Ultimate    ;
+;-------------------------------------;
+; (c) 2020 z00m^SinDiKAT
+; formatted for SjASMPlus
+
+; Version: 1.1
+
 		device	zxspectrum48
 
 ; Definitions
