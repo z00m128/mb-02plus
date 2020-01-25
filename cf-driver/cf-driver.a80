@@ -1,23 +1,15 @@
-;-------------------------------------;
-;    CF Driver for MB-03+ Ultimate    ;
-;-------------------------------------;
-; (c) 2020 z00m^SinDiKAT
-; formatted for SjASMPlus
-
-; Version: 1.0
-
 		device	zxspectrum48
 
-; definitions
-
+; Definitions
 screen:		equ	#4000
 attrs:		equ	#5800
 ula:		equ	#fe
 
-rom_bank:	equ	#60
-rom_bank_ro:	equ	#40
 dos_bank:	equ	#61
 patch_bank:	equ	#62
+rom_bank_ro:	equ	#40
+
+pasive:		equ	#0d
 
 dma_port:	equ	#0b
 
@@ -26,7 +18,7 @@ mem_port:	equ	#17
 font_addr:	equ	#3cf0
 font_size:	equ	#310
 
-;ATA ports MB03
+; ATA ports MB03
 p_data:		equ	195			;#c3
 p_error:	equ	167			;#a7
 p_sec_count:	equ	203			;#cb
@@ -37,7 +29,7 @@ p_device_head:	equ	219			;#db
 p_command:	equ	191			;#bf
 p_status:	equ	191			;#bf
 
-;ATA ports PVL
+; ATA ports PVL
 ;p_data:		equ	163			;#a3
 ;p_error:	equ	167			;#a7
 ;p_sec_count:	equ	171			;#ab
@@ -48,90 +40,115 @@ p_status:	equ	191			;#bf
 ;p_command:	equ	191			;#bf
 ;p_status:	equ	191			;#bf
 
-;ATA commands
+; ATA commands
 c_identify:	equ 	#ec
 c_readsector:	equ	#20
 
-;ATA variables
+; ATA variables
 ata_timeout:	equ	0			; timeout for ATA operations, 0 = max
 s_ata_ready:	equ	%01000000		; status ready
 s_ata_drq:	equ	%00001000		; status data request
 
-;other
-print_num:	equ	#1a1b			; ROM routine - prints number in BC
-print_char:	equ	#0010			; ROM routine - prints char in A
-chan_open:	equ	#1601			; ROM routine - open channel in A
-key_scan:	equ	#028e			; ROM routine - keyboard scanning
-scr_ct:		equ	#5c8c			; system variable - count scrolls
-
-;MAIN code
+; Main code
 		org	#8000
 
-start:		ei
+start:		di
+
+		ld	(sp_store),sp
+		ld	sp,#dfff
+
+		push	af
+		push	hl
+		push	de
+		push	bc
+		exx
+		ex	af,af'
+		push	af
+		push	hl
+		push	de
+		push	bc
+		push	ix
+		push	iy
+
+		ld	a,dos_bank		; dos_bank page in
+		out	(mem_port),a		
+
+		ld	hl,fddsetup		; move floppies setup to BSDOS
+		ld	de,#80
+		ld	bc,#10
+		ldir
+
+		ld	a,#c3			; start FDC bios
+		ld	hl,#0100
+		ld	(#18),a
+		ld	(#19),hl
+		ld	a,pasive
+		rst	#18
 
 		ld	a,rom_bank_ro		; rom_bank page in
 		out	(mem_port),a
 
-		ld	a,#02			; open print channel
-		call	chan_open
-
-
-title_screen:	xor	a
-
-		ld	(scr_ct),a		; "disable" scroll? question
-
-		out	(ula),a			; black border
-
+		xor	a
+		out	(ula),a
 		call	clear_screen
 
-		call	print_s_a
-		db	#16,0,0			; AT 0,0
-		db	#11,0			; PAPER 0
-		db	#10,4			; INK 4
-		db	#13,0			; BRIGHT 1
-		db	"+------------------------------+"
-		db	"|   "
-		db	#10,6			; INK 6
-		db	"MB-03+ Ultimate CF Driver"
-		db	#10,4			; INK 4
-		db	"  |"
-		db	"+------------------------------+"
-		db	"v1.0         "
-		db	#7f
-		db	"2020 z00m^SinDiKAT"
-		db	#13,0			; BRIGHT 0
-		db	#10,5			; INK 5
-		db	#0d,#0d			; 2x ENTER
-		dc	"CF Card: "
+		call	draw_frame
 
-		or	a			; clear carry
+		ld	hl,#0202		; title label
+		ld	(xy42.cursor),hl
+		ld	hl,msg_title_lbl
+		call	print42
+
+		ld	hl,#A602
+		ld	(xy42.cursor),hl
+		ld	hl,msg_copyright	; copyright
+		call	print42
 
 		ld	hl,mas_id_buffer
-		call	get_identify		; get identify data
-		jp	c,basic
+		call	get_identify		; get identify sector
+		jp	c,quit2
 
 		ld	hl,mas_mbr_buffr
 		call	get_mbr			; get MBR
-		jp	c,basic
+		jr	c,quit2
 
-		ld	hl,mas_id_buffer
-		call	device_name		; print name
+		ld	hl,mas_id_buffer	; read device name
+		call	device_name
 
-		ld	ix,mas_id_buffer	
-		call	device_params		; print parameters
+		ld	ix,mas_id_buffer	; read device parameters
+		call	device_params
+
+		ld	hl,#1002		; show device info
+		ld	(xy42.cursor),hl
+		ld	hl,msg_device_inf
+		call	print42
+
+		ld	ix,mas_mbr_buffr	; read device partitions
+		call	device_partit
+		jr	c,quit2
+
+		ld	hl,#3c02		; show partitions
+		ld	(xy42.cursor),hl
+		ld	hl,msg_part_inf
+		call	print42
 
 		ld	ix,mas_mbr_buffr
-		call	device_partit		; print partitions
-		jp	c,basic
+		call	detect_47h		; detects 47h partition and returns with entry in IX
+		jr	c,quit2
 
-		ld	ix,mas_mbr_buffr
-		call	detect_47h		; find parition type 47h, returns with partition entry position in IX
-		jp	c,basic
+		push	ix
+
+		ld	hl,#5202		; print preinstall info
+		ld	(xy42.cursor),hl
+		ld	hl,msg_part_mb03
+		call	print42
+
+		pop	ix
 
 		ld	hl,mas_id_buffer
 		call	make_vdt		; create VDT
 
-		call	cfdriver		; install driver
+		call	cfdriver		; initialize driver
 
 		ld	a,patch_bank		; patch_bank page in
 		out	(mem_port),a
@@ -151,130 +168,439 @@ cfdrv_test:	ld	hl,patch_08h		; simple test if driver was installed
 
 cfdrv_ok:	ld	a,rom_bank_ro		; rom_bank page in
 		out	(mem_port),a
-		call	print_s_a
-		db	#0d,#0d
-		db	#10,3			; INK 3
-		db	"CF Driver installed."
-		db	#10,7			; INK 7
-		db	#0d,#0d+#80		; 2x ENTER
-		jp	basic
+
+		ld	hl,#8902
+		ld	(xy42.cursor),hl
+		ld	hl,msg_drv_instld	; driver installed message
+		call	print42
+
+quit:		ld	hl,#B402
+		ld	(xy42.cursor),hl
+		ld	hl,msg_any_key		; any key message
+		call	print42
+
+		call	wait_key
+
+		pop	iy
+		pop	ix
+		pop	bc
+		pop	de
+		pop	hl
+		pop	af
+		exx
+		ex	af,af'
+		pop	bc
+		pop	de
+		pop	hl
+		pop	af
+
+		ld	sp,(sp_store)
+
+		ei
+		ret
 
 cfdrv_not_ok:	ld	a,rom_bank_ro		; rom_bank page in
 		out	(mem_port),a
-		call	print_s_a
-		db	#0d,#0d
-		db	#10,2			; INK 2
-		db	#12,1			; FLASH 1
-		db	"CF Driver not installed!"
-		db	#12,0			; FLASH 0
-		db	#10,7			; INK 7
-		db	#0d,#0d+#80		; 2x ENTER
-		jp	basic
 
-;--------------------------------------
+		ld	a,#02			; red border
+		out	(ula),a
+
+		ld	hl,#8902
+		ld	(xy42.cursor),hl
+		ld	hl,msg_drv_not_i	; print error message
+		call	print42
+		jr	quit
+
+quit2:		ld	hl,#B402
+		ld	(xy42.cursor),hl
+		ld	hl,msg_any_key		; any key message
+		call	print42
+
+		call	wait_key
+
+		ld	a,dos_bank		; dos_bank page in
+		ld	(mem_port),a
+
+		jp	#3906			; jump BSROM 128k reset
+		
+dihalt:		di				; still here?
+		halt				; endless loop
+		jp	dihalt
+
+; 42-6x7 char print
+print42:	ld	a,(hl)
+		call	xy42.xy
+		inc	hl
+		jr	nz,print42
+		ret
+
+; waits for any key
+wait_key:	xor	a
+		in	a,(254)
+		cpl
+		and	31
+		jr	z,wait_key
+		ret
+
+; Clears screen
+clear_screen:	ld	hl,screen
+		ld	de,screen+1
+		ld	bc,#17ff
+		xor	a
+		ld	(hl),a
+		ldir
+
+		ld	hl,attrs
+		ld	de,attrs+1
+		ld	bc,#2ff
+		ld	a,#07
+		ld	(hl),a
+		ldir
+		ret
+
+; Draws frame
+draw_frame	call	draw.mkbod
+		xor	a
+		call	draw.over
+		ld	bc,#0000
+		ld	de,#00ff
+		call	draw.line
+		ld	bc,#00ff
+		ld	de,#afff
+		call	draw.line
+		ld	bc,#afff
+		ld	de,#af00
+		call	draw.line
+		ld	bc,#af00
+		ld	de,#0000
+		call	draw.line
+		ld	bc,#0b00
+		ld	de,#0bff
+		call	draw.line
+		ld	bc,#0d00
+		ld	de,#0dff
+		call	draw.line
+		ld	bc,#1a00
+		ld	de,#1aff
+		call	draw.line
+		ld	bc,#3800
+		ld	de,#38ff
+		call	draw.line
+		ld	bc,#4e00
+		ld	de,#4eff
+		call	draw.line
+		ld	bc,#7200
+		ld	de,#72ff
+		call	draw.line
+		ld	bc,#7402
+		ld	de,#74fd
+		call	draw.line
+		ld	bc,#74fd
+		ld	de,#a5fd
+		call	draw.line
+		ld	bc,#a5fd
+		ld	de,#a502
+		call	draw.line
+		ld	bc,#a502
+		ld	de,#7402
+		call	draw.line
+		ret
+
+; Byteswap - coverts big endian to
+; little endian and vice versa
+; input: HL = address
+;        B = how many bytes
+byteswap:	push	af
+		push	hl
+		push	bc
+		rrc	b
+byteswap1:	ld	a,(hl)
+		inc	hl
+		ld	c,(hl)
+		dec	hl
+		ld	(hl),c
+		inc	hl
+		ld	(hl),a
+		inc	hl
+		djnz	byteswap1
+		pop	bc
+		pop	hl
+		pop	af
+		ret
+
+; 16-bit Integer to ASCII (decimal)
+; Input: HL = number to convert, DE = location of ASCII string
+; Output: ASCII string at (DE)
+Num2Dec:	ld	bc,-10000
+		call	Num1
+Num2Dec1:	ld	bc,-1000
+		call	Num1
+Num2Dec2:	ld	bc,-100
+		call	Num1
+		ld	c,-10
+		call	Num1
+		ld	c,b
+
+Num1:		ld	a,'0'-1
+Num2:		inc	a
+		add	hl,bc
+		jr	c,Num2
+		sbc	hl,bc
+
+		ld	(de),a
+		inc	de
+		ret
+
+; 32-bit long to ASCII
+; Input: HLDE = number to convert, BC = location of ASCII string
+; Output: ASCII string at BC
+
+Long2Dec:	push	de
+		exx
+		pop	hl
+		exx
+
+		ld	e,c
+		ld	d,b
+
+		ld	bc,-1000000000/#10000-1
+		exx
+		ld	bc,-1000000000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-100000000/#10000-1
+		exx
+		ld	bc,-100000000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-10000000/#10000-1
+		exx
+		ld	bc,-10000000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-1000000/#10000-1
+		exx
+		ld	bc,-1000000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-100000/#10000-1
+		exx
+		ld	bc,-100000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-10000/#10000-1
+		exx
+		ld	bc,-10000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-1000/#10000-1
+		exx
+		ld	bc,-1000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-100/#10000-1
+		exx
+		ld	bc,-100&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-10/#10000-1
+		exx
+		ld 	bc,-10&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-1/#10000-1
+		exx
+		ld 	bc,-1&#ffff
+		exx
+		call    LNum1
+		ret
+
+LNum1:		ld 	a,'0'-1
+
+LNum2:		inc	a
+		exx
+		add	hl,bc
+		exx
+		adc	hl,bc
+		jp 	c,LNum2
+
+		exx
+		sbc	hl,bc
+		exx
+		sbc	hl,bc
+
+		ld	(de),a
+		inc	de
+		ret
+
+; Counts medium size from CHS
+; input: BC = cyl, H = hea, E = sec
+; output DEHL = size in MB
+size_count:	push	bc		; save cyl
+		call	mul8_8		; HL = hea * sec
+		ld	d,h
+		ld	e,l		; DE = hea * sec
+		ld	bc,#200		; 512 bytes per sec
+		ld	hl,0
+		call	mul16_16	; DEHL = hea * sec * 512
+		ld	bc,#400
+		push	hl		; move DEHL to HLIX
+		pop	ix
+		ex	de,hl		; so here will be HLIX = hea * sec * 512
+		call	div32_16	; HLIX = HLIX / 1024, result can be 16 bits in max,
+		ld	d,hx		; so we can truncate HL here
+		ld	e,lx		; DE = (hea*sec*512)/1024
+		pop	bc		; restore cyl
+		ld	hl,0
+		call	mul16_16	; DEHL = ((hea*sec*512)/1024)*cyl
+		ld	bc,#400
+		push	hl		; move DEHL to HLIX
+		pop	ix
+		ex	de,hl		; so here will be HLIX = ((hea*sec*512)/1024)*cyl
+		call	div32_16	; HLIX = HLIX / 1024 = size in MB
+		ex	de,hl		; move HLIX to DEHL
+		push	ix
+		pop	hl
+		ret			; DEHL = size in MB
+
+; H * E
+; input: H = multiplier, E = multiplicand
+; output: HL = Product
+mul8_8:		ld	d,0
+		ld	l,d
+		ld	b,8
+m8_8_lp1:	add	hl,hl
+		jr	nc,m8_8_jp1
+		add	hl,de
+m8_8_jp1:	djnz	m8_8_lp1
+		ret
+
+; DE * BC
+; input: DE = multiplier, BC = multiplicand
+; output: DEHL = product
+mul16_16:	ld	hl,0
+		ld	a,16
+m16_16_lp1:	add	hl,hl
+		rl	e
+		rl	d
+		jr	nc,m16_16_jp1
+		add	hl,bc
+		jr	nc,m16_16_jp1
+		inc	de
+m16_16_jp1:	dec	a
+		jr	nz,m16_16_lp1
+		ret
+
+; HLIX / BC
+; input: HLIX = numerator, BC = denominator
+; output: HLIX = result, DE = remainder
+div32_16:	ld	de,0
+		ld	a,32
+div32_16loop:	add	ix,ix
+		adc	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		or	a
+		sbc	hl,bc
+		inc	ix
+		jr	nc,cansub
+		add	hl,bc
+		dec	ix
+cansub:		ex	de,hl
+		dec	a
+		jr	nz,div32_16loop
+		ret
+
 ; Print device error message
 ; output: c = error
-
 device_error:	ld	a,#02			; red border
 		out	(ula),a
 
-		or	a			; carry
+		ld	hl,#8902		; error message
+		ld	(xy42.cursor),hl
+		ld	hl,msg_device_err
+		call	print42
 
-		call	print_s_a
-		db	#0d,#0d
-		db	#10,2			; INK 2
-		db	#12,1			; FLASH 1
-		db	"Device error or "
-		db	"not present!"
-		db	#12,0			; FLASH 0
-		db	#10,7			; INK 7
-		db	#0d,#0d+#80		; 2x ENTER
+		or	a			; carry
 		scf
 		ret
 
-;--------------------------------------
 ; Print device name
 ; input: HL = buffer of identify block
-
 device_name:	ld	de,#36			; device name starts at 54th byte in buffer
 		add	hl,de
-		ld	b,#16			; we will read 22 chars only
+		ld	b,#21			; model name is 40 chars long
 		call	byteswap		; name is in little endian format
-		call	print_s_na		; print name
-		ld	a,#0d			; ENTER
-		rst	#10
-		ret		
-
-;--------------------------------------
-; Print device parameters
-; input: IX = buffer of identify block
-
-device_params:	call	print_s_a
-		db	"C/H/S: "
-		db	#10,7+#80		; INK 7
-
-		ld	c,(ix+#02)		; buffer pointer to Cyl
-		ld	b,(ix+#03)
-		call	print_num
-		ld	a,'/'
-		rst	#10
-
-		ld	c,(ix+#06)		; buffer pointer to Hea
-		ld	b,(ix+#07)
-		call	print_num
-		ld	a,'/'
-		rst	#10
-
-		ld	c,(ix+#0c)		; buffer pointer to Sec
-		ld	b,(ix+#0d)
-		call	print_num
-		ld	a,#20			; SPACE
-		rst	#10
-
-		call	print_s_a
-		db	#10,5			; INK 5
-		db	" LBA: "
-		db	#10,7+#80		; INK 7
-		ld	a,(ix+#63)		; LBA support ?
-		bit	1,a
-		ld	hl,msg_yes
-		jr	nz,dp_lba_y
-		ld	hl,msg_no
-dp_lba_y:	call	print_sa_lp
-		ld	a,#0d			; ENTER
-		rst	#10
-
-		call	print_s_a
-		db	#10,5			; INK 5
-		db	"Capacity: "
-		db	#10,7+#80		; INK 7
-
-		ld	c,(ix+#02)		; bc = cyl
-		ld	b,(ix+#03)
-		ld	h,(ix+#06)		; h = hea		
-		ld	e,(ix+#0c)		; e = sec	
-		call	size_count		; count size in MB from CHS
-		ld	c,0			; only valid numbers will be printed
-		ld	b,#0a			; max 10 characters
-		call	DEC32X			; print size in MB
-		call	print_s_a
-		db	" MB"
-		db	#0d+#80			; ENTER
+		ld	de,msg_device_nam
+device_name_1:	ld	a,(hl)
+		ld	(de),a
+		inc	hl
+		inc	de
+		djnz	device_name_1
 		ret
 
-msg_yes:	dc	"Yes"
-msg_no:		dc	"No"
+; Print device parameters
+; input: IX = buffer of identify block
+device_params:	ld	l,(ix+#02)		; buffer pointer to Cyl
+		ld	h,(ix+#03)
+		ld	de,msg_device_cyl
+		call	Num2Dec
 
-;--------------------------------------
+		ld	l,(ix+#06)		; buffer pointer to Hea
+		ld	h,(ix+#07)
+		ld	de,msg_device_hea
+		call	Num2Dec2
+
+		ld	l,(ix+#0c)		; buffer pointer to Sec
+		ld	h,(ix+#0d)
+		ld	de,msg_device_sec
+		call	Num2Dec2
+
+		ld	a,(ix+#63)		; LBA support ?
+		bit	1,a
+		ld	de,msg_device_lba
+		jr	nz,dp_lba_y
+		ld	a,'Y'
+		ld	(de),a
+		inc	de
+		ld	a,'e'
+		ld	(de),a
+		inc	de
+		ld	a,'s'
+		jr	dp_lba_e
+
+dp_lba_y:	ld	a,'N'
+		ld	(de),a
+		inc	de
+		ld	a,'o'
+		ld	(de),a
+		inc	de
+		ld	a,#20
+dp_lba_e:	ld	(de),a
+
+		ld	c,(ix+#02)		; capacity
+		ld	b,(ix+#03)		; bc = cyl
+		ld	h,(ix+#06)		; h = hea
+		ld	e,(ix+#0c)		; e = sec
+		call	size_count		; count size in MB from CHS
+		ld	de,msg_device_cap
+		call	Num2Dec
+
+		ret
+
 ; Print device partitions
+; input: ix = buffer with MBR
 ; output: c = error, nc = MBR is valid
-
-device_partit:	call	print_s_a
-		db	#10,5			; INK 5
-		db	"Partitions:"
-		db	#10,7+#80		; INK 7
-
-		push	ix
+device_partit:	push	ix
 		pop	hl
 		ld	de,#1fe			; set offset to signature
 		add	hl,de
@@ -290,132 +616,107 @@ device_partit:	call	print_s_a
 		jr	z,signatr_valid		; go to part detect if it is valid
 		ld	a,#02			; else red border
 		out	(ula),a
-		call	print_s_a		; and error message
-		db	#10,2			; INK 2
-		db	#12,1			; FLASH 1
-		db	"MBR bad or not valid!"
-		db	#12,0			; FLASH 0
-		db	#10,7			; INK 7
-		db	#0d,#0d+#80		; 2x ENTER
+		ld	hl,#8902		; error message
+		ld	(xy42.cursor),hl
+		ld	hl,msg_mbr_err
+		call	print42
+		or	a			; carry
 		scf
 		ret
 
-signatr_valid:	call	print_s_a
-		db	#10,5			; INK 5
-		db	#0d+#80			; ENTER
-
-		ld	de,#1be			; set offset to 1st partition entry
+signatr_valid:	ld	de,#1be			; set offset to 1st partition entry
 		add	ix,de
-		ld	bc,1			; 1st partition entry
-dev_part2:	push	bc
-		ld	a,#10
-		rst	#10
-		ld	a,5
-		rst	#10
-		call	print_num
-		call	print_s_a
-		db	":"
-		db	#10,7+#80		; INK 7		
-		ld	a,(ix+4)
-		cp	#00			; empty entry
-		jr	z,part_none
+		ld	de,msg_part_1
+		call	next_entry
+		ld	de,msg_part_2
+		call	next_entry
+		ld	de,msg_part_3
+		call	next_entry
+		ld	de,msg_part_4
+next_entry:	ld	a,(ix+4)
 		call	part_type		; detects a few types of partitions
-		jr	next_entry
-
-part_none:	call	print_s_a
-		dc	"none "
-
-next_entry:	pop	bc
 		ld	de,#10
 		add	ix,de			; next partition entry
-		ld	a,#05
-		inc	bc
-		cp	c
-		jr	nz,dev_part2		; quit if we scanned all 4 entries
-		ld	a,#0d
-		rst	#10			; ENTER
-		ld	a,#0d
-		rst	#10			; ENTER
 		ret
 
-part_type:	cp	#04			; FAT16, less than 32MB
-		jp	z,part_fat16
+; Prints partition type to address in DE
+part_type:	cp	#00			; empty entry
+		jr	z,part_none
+		cp	#04			; FAT16, less than 32MB
+		jr	z,part_fat16
 		cp	#05			; extended CHS
-		jp	z,part_extended
+		jr	z,part_extended
 		cp	#06			; FAT16B (BigFAT)
-		jp	z,part_fat16
+		jr	z,part_fat16
 		cp	#07			; HPFS/NTFS/exFAT
-		jp	z,part_ntfs
+		jr	z,part_ntfs
 		cp	#0b			; FAT32 CHS
-		jp	z,part_fat32
+		jr	z,part_fat32
 		cp	#0c			; FAT32 LBA
-		jp	z,part_fat32
+		jr	z,part_fat32
 		cp	#0e			; FAT16B LBA
-		jp	z,part_fat16
+		jr	z,part_fat16
 		cp	#0f			; extended LBA
-		jp	z,part_extended
+		jr	z,part_extended
 		cp	#47			; MB02+
-		jp	z,part_mb02
+		jr	z,part_mb02
 		cp	#48			; SFS
-		jp	z,part_sfs
+		jr	z,part_sfs
 		cp	#82			; Linux swap
-		jp	z,part_swap
+		jr	z,part_swap
 		cp	#83			; Linux native
-		jp	z,part_linux
+		jr	z,part_linux
 		cp	#85			; Linux extended
-		jp	z,part_extended	
+		jr	z,part_extended
 		cp	#a5			; BSD slice
-		jp	z,part_bsd
+		jr	z,part_bsd
 		cp	#a6			; OpenBSD slice
-		jp	z,part_bsd
+		jr	z,part_bsd
 		cp	#a9			; NetBSD slice
-		jp	z,part_bsd
-		call	print_s_a
-		dc	"unknown "
+		jr	z,part_bsd
+
+		ld	hl,p_m_other
+
+part_type_1:	ld	b,#06
+part_type_2:	ld	a,(hl)
+		ld	(de),a
+		inc	hl
+		inc	de
+		djnz	part_type_2
 		ret
 
-part_fat16:	call	print_s_a
-		dc	"FAT16 "
-		ret	
+part_none:	ld	hl,p_m_none
+		jr	part_type_1
 
-part_fat32:	call	print_s_a
-		dc	"FAT32 "
-		ret
+part_fat16:	ld	hl,p_m_fat16
+		jr	part_type_1
 
-part_ntfs:	call	print_s_a
-		dc	"NTFS "
-		ret
+part_fat32:	ld	hl,p_m_fat32
+		jr	part_type_1
 
-part_mb02:	call	print_s_a
-		db	#13,1		; BRIGHT 1
-		db	"MB02 "
-		db	#13,0+#80	; BRIGHT 0
-		ret
+part_ntfs:	ld	hl,p_m_ntfs
+		jr	part_type_1
 
-part_sfs:	call	print_s_a
-		dc	"SFS "
-		ret
+part_mb02:	ld	hl,p_m_mb02
+		jr	part_type_1
 
-part_linux:	call	print_s_a
-		dc	"Linux "
-		ret
+part_sfs:	ld	hl,p_m_sfs
+		jr	part_type_1
 
-part_swap:	call	print_s_a
-		dc	"swap "
-		ret
+part_linux:	ld	hl,p_m_linux
+		jr	part_type_1
 
-part_bsd	call	print_s_a
-		dc	"BSD "
-		ret
+part_swap:	ld	hl,p_m_swap
+		jr	part_type_1
 
-part_extended:	call	print_s_a
-		dc	"extended "
-		ret
+part_bsd	ld	hl,p_m_bsd
+		jr	part_type_1
 
-;--------------------------------------
+part_extended:	ld	hl,p_m_extended
+		jr	part_type_1
+
 ; looks for partition type 47h
 ; input: IX = buffer with MBR
-
 detect_47h:	ld	de,#1be			; set offset to 1st partition entry
 		add	ix,de
 		ld	bc,1			; 1st partition entry
@@ -433,126 +734,81 @@ detect_47h_2:	pop	bc
 		inc	bc
 		cp	c
 		jr	nz,detect_47h_1
-		call	print_s_a
-		db	#12,1			; FLASH 1	
-		db	"There was no "
-		db	"partiton type  47h "
-		db	"on the device."
-		db	#12,0			; FLASH 0
-		db	#0d,#0d+#80		; ENTER
+
+		ld	a,#02			; red border
+		out	(ula),a
+
+		ld	hl,#8902		; error message
+		ld	(xy42.cursor),hl
+		ld	hl,msg_part_miss
+		call	print42
+
 		scf
 		ret
 
-;--------------------------------------
 ; Partition type 47h handling
-; preserves partition entry position
-; in MBR buffer (IX)
-
+; preserves IX (partition entry position)
 found_47h:	pop	bc			; restore partition entry, not needed anymore
-		call	print_s_a
-		db	#10,5			; INK 5
-		db	"Type 47h location: "
-		db	#10,7			; INK 7
-		db	#13,1+#80		; BRIGHT 1
-		call	print_num		; prints partition number
-		call	print_s_a
-		db	#13,0			; BRIGHT 0
-		db	#10,5			; INK 5
-		db	#0d			; ENTER
-		db	"Size: "
-		db	#10,7			; INK 7
-		db	#13,1+#80		; BRIGHT 1
 
-		push	ix			; save position in MBR buffer
+		ld	bc,msg_pmb03_size
 
-		ld	l,(ix+#0c)		; SEC 0
-		ld	h,(ix+#0d)		; SEC 1
-		ld	e,(ix+#0e)		; SEC 2
-		ld	d,(ix+#0f)		; SEC 3
+		push	ix
 
-		push	hl			; save DEHL
-		push	de
+		ld	e,(ix+#0c)		; SEC 0
+		ld	d,(ix+#0d)		; SEC 1
+		ld	l,(ix+#0e)		; SEC 2
+		ld	h,(ix+#0f)		; SEC 3
 
-		ld	c,0			; print only valid numbers
-		ld	b,#0a			; max 10 characters
-		call	DEC32X
-		call	print_s_a
-		db	#13,0			; BRIGHT 0
-		db	#10,5			; INK 5
-		db	" sectors"
-		db	#0d+#80			; ENTER
-		call	print_s_a
-		db	"Drives count: "
-		db	#10,7			; INK 7
-		db	#13,1+#80		; BRIGHT 1
+		push	de			; save HLDE
+		push	hl
+
+		call	Long2Dec
 
 		pop	hl			; restore HLIX
 		pop	ix
 
 		ld	bc,#1000
 		call	div32_16		; counts how many drives would be from available space, result in HLIX
-						
-		ld	b,xh			; the result will be 16 bit only, so we can truncate HL here
-		ld	c,xl
-		push	bc
+
+		push	ix
+		pop	bc			; number of drives to BC
+		ld	h,b			; and HL
+		ld	l,c
+
+		push	bc			; store number of drives
+
+		ld	de,msg_pmb03_dnum	; print number of drives
+		call	Num2Dec2
 
 		or	a			; clear carry flag
-		
-		ld	hl,#fc
-		sbc	hl,bc			; max 252 drives allowed
+
+		pop	bc			; restore numnber of drives
+
+		ld	hl,#fd
+		sbc	hl,bc			; max 253 drives allowed
 		jr	nc,found_47h_1
 
-		call	print_num
-		call	print_s_a
-		db	#13,0			; BRIGHT 0
-		db	#10,2			; INK 2
-		db	#0d
-		db	"Partition is too big!"
-		db	#0d
-		db	"Only 252 drives "
-		db	"will be used!"
-		db	#0d+#80
-		pop	bc
 		ld	b,0
-		ld	a,#fc			; limit to 252 drives if partition is bigger
+		ld	a,#fd			; limit to 253 drives if partition is bigger
 		ld	c,a
-		push	bc
-		call	print_s_a
-		db	#10,5			; INK 5
-		db	"Occupied drives: "
-		db	#10,7			; INK 7
-		db	#13,1			; BRIGHT 1
-		dc	"@3 - @"
-		jr	found_47h_2
 
-found_47h_1:	call 	print_num		; prints number of virtual drives
-		call	print_s_a
-		db	#13,0			; BRIGHT 0
-		db	#10,5			; INK 5
-		db	#0d			; ENTER
-		db	"Occupied drives: "
-		db	#13,1			; BRIGHT 1
-		db	$10,7			; INK 7
-		dc	"@3 - @"
-found_47h_2:	pop	bc
-		ld	a,c
+found_47h_1:	ld	a,c
 		ld	hl,num_of_drives
 		ld	(hl),a			; save number of drives for later usage
 		add	a,2			; virtual drives starts from @3
 		ld	c,a
-		call	print_num
-		call	print_s_a
-		db	#13,0			; BRIGHT 0
-		db	#10,5			; INK 5
-		db	#0d+#80			; ENTER
-		pop	ix			; restore position in MBR buffer
+		push	bc
+		pop	hl
+		ld	de,msg_pmb03_odrv	; print occupied drives
+		call	Num2Dec2
+
+		pop	ix
+
 		ret
 
-;--------------------------------------
 ; VDT maker
 ; Input: HL = buffer with identify
 ;        IX = partition entry position in MBR bufer
-
 make_vdt:	push	ix			; save partition entry position in MBR
 
 		push	hl			; buffer with identify to IX
@@ -620,7 +876,7 @@ make_vdt_1:	pop	ix			; restore buffer with MBR, pointer is set to corresponding 
 		ld	a,(num_of_drives)
 		dec	a
 		ld	b,a			; loop counter set to number of drives-1
-		
+
 lba_loop:	ld	a,(lba0)		; now we will generates entries 2 to end
 		ld	(hl),a
 		inc	hl
@@ -655,14 +911,12 @@ lba_inc:	ld	(lba2),a
 lba_end:	or	a			; reset carry
 		ret
 
-;--------------------------------------
 ; Reads Identify block
 ; input:  HL = buffer for identify block
-
 get_identify:	ld	a,(master_slave)
 		or	%10100000
 		out	(p_device_head),a	; select master/slave
-	
+
 		ld	a,c_identify		; send identify command
 		out	(p_command),a
 		call	wait_ata_drq		; check for device ready and drq
@@ -676,10 +930,8 @@ get_identify:	ld	a,(master_slave)
 
 		ret
 
-;-------------------------------------
 ; Reads MBR
 ; input: HL = buffer for MBR
-
 get_mbr:	ld	a,(master_slave)
 		or	%10100000
 		out	(p_device_head),a	; select master/slave
@@ -707,13 +959,11 @@ get_mbr:	ld	a,(master_slave)
 
 		ret
 
-;--------------------------------------
 ; Wait for device status:
 ; busy = 0 and ready = 1
 ; with timeout
 ; output: c  = timeout
 ;         nc = drive ready
-
 wait_ata_ready:	ld	de,ata_timeout
 w_a_rd1:	in	a,(p_status)		; read device status
 		and	%11000000		; busy (#80) + ready (#40)
@@ -727,13 +977,11 @@ w_a_rd1:	in	a,(p_status)		; read device status
 		scf				; timeout occured
 		ret
 
-;--------------------------------------
 ; Wait for device status:
 ; busy = 0 and data request = 1
 ; with timeout
 ; output: c  = timeout
 ;         nc = drive ready
-
 wait_ata_drq:	ld	de,ata_timeout
 w_a_drq1:	in	a,(p_status)		; read device status
 		and	%10001000		; busy (#80) + (drq) #08
@@ -745,257 +993,6 @@ w_a_drq1:	in	a,(p_status)		; read device status
 		or	e
 		jr	nz,w_a_drq1
 		scf				; timeout occured
-		ret
-
-;--------------------------------------
-; Counts medium size from CHS
-; input: BC = cyl, H = hea, E = sec
-; output DEHL = size in MB
-
-size_count:	push	bc		; save cyl
-		call	mul8_8		; HL = hea * sec
-		ld	d,h
-		ld	e,l		; DE = hea * sec
-		ld	bc,#200		; 512 bytes per sec
-		ld	hl,0
-		call	mul16_16	; DEHL = hea * sec * 512
-		ld	bc,#400
-		push	hl		; move DEHL to HLIX
-		pop	ix
-		ex	de,hl		; so here will be HLIX = hea * sec * 512
-		call	div32_16	; HLIX = HLIX / 1024, result can be 16 bits in max,
-		ld	d,hx		; so we can truncate HL here
-		ld	e,lx		; DE = (hea*sec*512)/1024
-		pop	bc		; restore cyl
-		ld	hl,0
-		call	mul16_16	; DEHL = ((hea*sec*512)/1024)*cyl
-		ld	bc,#400
-		push	hl		; move DEHL to HLIX
-		pop	ix
-		ex	de,hl		; so here will be HLIX = ((hea*sec*512)/1024)*cyl
-		call	div32_16	; HLIX = HLIX / 1024 = size in MB
-		ex	de,hl		; move HLIX to DEHL
-		push	ix
-		pop	hl
-		ret			; DEHL = size in MB
-
-;--------------------------------------
-; H * E
-; input: H = multiplier, E = multiplicand
-; output: HL = Product
-
-mul8_8:		ld	d,0
-		ld	l,d
-		ld	b,8
-m8_8_lp1:	add	hl,hl
-		jr	nc,m8_8_jp1
-		add	hl,de
-m8_8_jp1:	djnz	m8_8_lp1
-		ret
-
-;--------------------------------------
-; DE * BC
-; input: DE = multiplier, BC = multiplicand
-; output: DEHL = product
-
-mul16_16:	ld	hl,0
-		ld	a,16
-m16_16_lp1:	add	hl,hl
-		rl	e
-		rl	d
-		jr	nc,m16_16_jp1
-		add	hl,bc
-		jr	nc,m16_16_jp1
-		inc	de
-m16_16_jp1:	dec	a
-		jr	nz,m16_16_lp1
-		ret
-
-;--------------------------------------
-; HLIX / BC
-; input: HLIX = numerator, BC = denominator
-; Output: HLIX = result
-;           DE = remainder
-
-div32_16:	ld	de,0
-		ld	a,32
-div32_16loop:	add	ix,ix
-		adc	hl,hl
-		ex	de,hl
-		adc	hl,hl
-		or	a
-		sbc	hl,bc
-		inc	ix
-		jr	nc,cansub
-		add	hl,bc
-		dec	ix
-cansub:		ex	de,hl
-		dec	a
-		jr	nz,div32_16loop
-		ret
-
-;--------------------------------------
-; Clears screen
-
-clear_screen:	ld	hl,screen		; clear screen
-		ld	de,screen+1
-		ld	bc,#17ff
-		xor	a
-		ld	(hl),a
-		ldir
-
-		ld	hl,attrs
-		ld	de,attrs+1
-		ld	bc,#2ff
-		ld	a,#07
-		ld	(hl),a
-		ldir
-		ret
-
-;--------------------------------------
-; Return to BASIC
-
-basic:		di                     
-		ld	iy,#5c3a         
-		ld	hl,#2758          
-		exx                    
-		im	1                 
-		ei                     
-		ret
-
-;--------------------------------------
-; Byteswap - coverts big endian to
-; little endian and vice versa
-; input: HL = address
-;        B = how many bytes
-
-byteswap:	push	af
-		push	hl
-		push	bc
-		rrc	b
-byteswap1:	ld	a,(hl)
-		inc	hl
-		ld	c,(hl)
-		dec	hl
-		ld	(hl),c
-		inc	hl
-		ld	(hl),a
-		inc	hl
-		djnz	byteswap1
-		pop	bc
-		pop	hl
-		pop	af
-		ret
-
-;--------------------------------------
-; Print routine, string end autodetect
-; prints through #02 / #1601
-; usage: ld   a,#02
-;        call #1601
-;        call print
-;        dc   "text" 
-;    (or byte "tex",'t'|128)
-;    (or db   "tex",'t'+128)
-
-print_s_a:	pop	hl
-		call	print_sa_lp
-		push	hl
-		ret		
-
-print_sa_lp:	ld	a,(hl)
-		bit	7,a
-		push	af
-		and	%01111111
-		push	hl
-		rst	#10
-		pop	hl
-		inc	hl
-		pop	af
-		jr	z,print_sa_lp
-		ret
-
-;--------------------------------------
-; Print routine
-; prints through #02 / #1601
-; input: HL = text adress
-;        B = number of characters
-
-print_s_na:	ld	a,(hl)
-		push	hl
-		push	bc
-		rst	#10
-		pop	bc
-		pop	hl
-		inc	hl
-		djnz	print_s_na
-		ret
-
-;--------------------------------------
-; Print 32-bit number
-; by Busy Soft, taken from BSDOS 308
-; input: DEHL = 32bit number
-;           C = char for leading zeroes (0 = only valid numbers, #20 = justify to right)
-;           B = max len (10)
-
-DEC32X:		push	hl
-		push	de
-		push	bc
-		xor	a
-		ld	de,DATA
-		ld	b,#0A
-DCC1:		ld	(de),a
-		inc	de
-		djnz	DCC1
-		pop	bc
-		pop	de
-		push	de
-		push	bc
-		ld	b,#20
-DCC2:		add	hl,hl
-		ex	de,hl
-		adc	hl,hl
-		ex	de,hl
-		push	bc
-		push	de
-		ld	bc,#0A0A
-		ld	de,DATA
-DCC3:		ld	a,(de)
-		adc	a,a
-		cp	c
-		jr	c,DCC4
-		sub	c
-DCC4:		ld	(de),a
-		ccf
-		inc	de
-		djnz	DCC3
-		pop	de
-		pop	bc
-		djnz	DCC2
-		ld	d,b
-		pop	bc
-		push	bc
-		ld	e,b
-		ld	hl,DATA-1
-		add	hl,de
-		dec	b
-		jr	z,DCC8
-DCC5:		ld	a,(hl)
-		or	a
-		jr	nz,DCC6
-		ld	a,c
-		db	#11
-DCC6:		ld	c,'0'
-DCC7:		or	c
-		dec	hl
-		or	a
-		call	nz,print_char		; ROM - print character in A
-		djnz	DCC5
-DCC8:		ld	a,(hl)
-		or	'0'
-		rst	#10
-		pop	bc
-		pop	de
-		pop	hl
 		ret
 
 ;--------------------------------------
@@ -1074,7 +1071,7 @@ cfdriver:	di
 ;mod at #14 in dos_bank
 ;input: a=dos_bank
 
-dos_14h:	
+dos_14h:
 		disp	#14
 
 		ld	(hl),b		;write byte in dos_bank
@@ -1286,7 +1283,7 @@ m_hea2:		db	0
 m_cyl2:		dw	0
 
 
-tab_drv:	ds	1026	
+tab_drv:	ds	1026
 
 preskoc:	push	hl
 		ld	hl,rett
@@ -1402,7 +1399,7 @@ nasob:		add	hl,bc
 
 
 ;------------------------------------
-;counts logical number of sector of 
+;counts logical number of sector of
 ;disk image to corresponding physical
 ;cyl,sec,hea on HDD/CF
 
@@ -1969,26 +1966,137 @@ divok3:		dec	hx			;add bcd,lx
 
 		ent
 patch_90h_end:
+cfdriver_end:
 
-;--------------------------------------
-; Buffers and variables
+; Includes
 
-master_slave:	db	0
+		include	"xy42.a80"		; 42 char print routine by Busy
+		include "draw.a80"		; draw routine by Busy
+
+; Data
+msg_title_lbl:	db	"   CF D"
+		db	"river v1.1  for "
+		db	"MB-03+ Ul"
+		db	"timate"
+		db	#00
+
+msg_device_err:	db	"       "
+		db	"Device not"
+		db	" present o"
+		db	"r error!"
+		db	#00
+
+msg_mbr_err:	db	"            "
+		db	"Bad MBR or error!"
+		db	#00
+
+msg_part_miss:	db	"      "
+		db	"Dedicated "
+		db	"partition "
+		db	"not found!"
+		db	#00
+
+msg_drv_not_i:	db	" Unknown Error.  CF Driver not installed!"
+		db	#00
+
+msg_drv_instld:	db	"     CF Driver installed sucessfully."
+		db	#00
+
+msg_copyright:	db	"           "
+		db	#7f
+		db	"2020 z00m^"
+		db	"SinDiKAT"
+		db	#00
+
+msg_any_key:	db	"              "
+		db	"Press any key."		
+		db	#00
+
+msg_device_inf:	db	"CF card: "
+msg_device_nam:	ds	#4b,#20
+		db	"C/H/S: "
+msg_device_cyl:	ds	#05,#20
+		db	"/"
+msg_device_hea:	ds	#03,#20
+		db	"/"
+msg_device_sec:	ds	#03,#20
+		ds	#16,#20
+		db	"LBA: "
+msg_device_lba:	ds	#03,#20
+		ds	#22,#20
+		db	"Capacity: "
+msg_device_cap:	ds	#05,#20
+		db	" MB"
+		db	#00
+
+msg_part_inf:	db	"Partitions: "
+		ds	#1e,#20
+		db	"1:"
+msg_part_1	ds	#07,#20
+		db	" 2:"
+msg_part_2	ds	#07,#20
+		db	" 3:"
+msg_part_3	ds	#07,#20
+		db	" 4:"
+msg_part_4	ds	#07,#20
+		db	#00
+
+msg_part_mb03:	db	"Dedicated "
+		db	"partition "
+		db	"found.    "
+		ds	#0c,#20
+		db	"Size: "
+msg_pmb03_size:	ds	#0B,#20
+		db	"sectors."
+		ds	#11,#20
+		db	"Drives count: "
+msg_pmb03_dnum:	ds	#03,#20
+		db	"."
+		ds	#18,#20
+		db	"Occupied drives:"
+		db	" @003 - @"
+msg_pmb03_odrv:	ds	#03,#20
+		db	#0
+
+p_m_other:	db	"other  "
+p_m_fat16:	db	"FAT16  "
+p_m_fat32:	db	"FAT32  "
+p_m_ntfs:	db	"NTFS   "
+p_m_mb02:	db	"MB-03+ "
+p_m_sfs:	db	"SFS    "
+p_m_linux:	db	"Linux  "
+p_m_swap:	db	"swap   "
+p_m_bsd:	db	"BSD    "
+p_m_extended:	db	"extend "
+p_m_none:	db	"none   "
+
+; Variables
+sp_store:	dw	#ffff
+master_slave:	db	#00
+num_of_drives:	db	#00
 device_mode:	db	%00000000		; bit7=0, bit6=CHS(0)/LBA(1), bit5=0, bit4=master(0)/slave(1)
 						; bit3-bit1= LBA(010)/CHS2(001)/CHS1(000), bit0=write allowed(0)/write protect(1)
-
 lba0:		db	0
 lba1:		db	0
 lba2:		db	0
 
-num_of_drives:	db	0
-
-DATA:		ds	11
-
+; Buffers
 mas_id_buffer:	ds	#200			; buffer for master device identify block
 mas_mbr_buffr:	ds	#200			; buffer for master MBR
-
 font_buffer:	ds	#310			; buffer for font
+
+; FDD setup for FDC BIOS
+fddsetup:	db	#03			;drive @1: DD,HD
+		db	80			;80 tracks
+		db	#00			;3ms stepping
+		db	#80			;positive disk change
+
+		db	#03			;drive @2: DD,HD
+		db	80			;80 tracks
+		db	#00			;3ms stepping
+		db	#80			;positive disk change
+		
+		dw	0,0,0,0			;drives @3 & @4 not connected
 
 ;--------------------------------------
 ; Virtual disk table
@@ -2011,6 +2119,7 @@ v_sla_cyl_high	db	0		;slave: cylinders high
 		db	0, 0, 0, 0	;@2 - floppy 2, don't change if two fdds are connected
 
 vdt_lba:	ds	1012		;table of virtual drives @3-@255
-					;the format is: lba0,lba1,lba2,device_mode	
+					;the format is: lba0,lba1,lba2,device_mode
 vdt_end:
 		savebin "cf-driver.bin",start,$-start
+

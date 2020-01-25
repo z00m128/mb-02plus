@@ -1,0 +1,332 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Poziciovy print 42*27 znakov ;
+;  + znakovy subor 6*7 bodov   ;
+; (vytvoreny pre disasembler)  ;
+; . -28.05.1988- Busy software ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;DEMO:napiste:asm,dbg,rpp,g
+
+;	DEVICE	ZXSPECTRUM48
+;	OUTPUT	XY-6x7-42.cod
+
+;	org	#8000
+
+;start	ld	hl,#4000
+;	ld	de,#4001
+;	ld	bc,#17ff
+;	ld	(hl),#00
+;	ldir
+;	ld	hl,#0202
+;	ld	(cursor),hl
+;	ld	hl,text
+;aaa	ld	a,(hl)
+;	call	xy
+;	inc	hl
+;	jr	nz,aaa
+;	ld	a,' '
+;bbb	ld	b,a
+;	call	xy
+;	ld	a,b
+;	inc	a
+;	cp	#80
+;	jr	c,bbb
+;	ld	hl,#2758
+;	exx
+;	ret
+
+;text	db	'*** Rutina print'
+;	db	' 42*27 znakov v '
+;	db	'obraze ***'
+;	db	'        Priklad '
+;	db	'vypisu:         '
+;	db	'          '
+;	db	#00
+
+	module	xy42
+
+xy	and	a
+	ret	z
+	exx
+	ld	bc,(cursor)
+xy8	ld	de,znaky-256
+	ld	h,#00
+	ld	l,a
+	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	add	hl,de
+	push	hl
+	pop	iy
+	ld	xh,#08
+xy8dd	ld	a,b
+	cp	#c0
+	jr	nc,xyend
+	call	pixadd
+	ld	d,(iy+#00)
+	ld	e,#00
+	jr	z,xy8bb
+xy8cc	rr	d
+	rr	e
+	dec	a
+	jr	nz,xy8cc
+xy8bb	ld	a,d
+	or	(hl)
+	ld	(hl),a
+	inc	hl
+	ld	a,e
+	or	(hl)
+	ld	(hl),a
+	inc	b
+	inc	iy
+	dec	xh
+	jr	nz,xy8dd
+xyend	ld	ix,flag0
+	ld	a,(ix+#04)
+	add	a,6
+	ld	(ix+#04),a
+	cp	255-5
+	jr	c,xystop
+	ld	(ix+#04),2
+	ld	a,(ix+#05)
+	add	a,7
+	ld	(ix+#05),a
+xystop	exx
+	ret
+
+pixadd	AND	A		; clear carry (already clear)
+	RRA			;			0xxxxxxx
+	SCF			; set carry flag
+	RRA			;			10xxxxxx
+	AND	A		; clear carry flag
+	RRA			;			010xxxxx
+	XOR	B
+	AND	%11111000	; keep the top 5 bits	11111000
+	XOR	B		;			010xxbbb
+	LD	H,A		; transfer high byte to H.
+				; the low byte is derived from both X and Y.
+	LD	A,C		; the x value 0-255.
+	RLCA
+	RLCA
+	RLCA
+	XOR	B		; the y value
+	AND	%11000111	; apply mask		11000111
+	XOR	B		; restore unmasked bits	xxyyyxxx
+	RLCA			; rotate to		xyyyxxxx
+	RLCA			; required position.	yyyxxxxx
+	LD	L,A		; low byte to L.
+				; finally form the pixel position in A.
+	LD	A,C		; x value to A
+	AND	%00000111	; mod 8
+	RET			; return
+
+;systemove premenne:(pre disu)
+
+flag0	db	#00
+flag1	db	#00
+flag2	db	#00
+inp	db	#00
+
+cursor
+xxx	db	#00
+yyy	db	#00
+leni	dw	0
+adr	dw	0
+
+znaky	dw	#00,#00
+	dw	#00,#00
+	dw	#1000,#1010
+	dw	#10,#10
+	dw	#4800,#48
+	dw	#00,#00
+	dw	#5000,#50f8
+	dw	#f850,#50
+	dw	#7800,#70a0
+	dw	#f028,#20
+	dw	#4800,#1008
+	dw	#4020,#48
+	dw	#2000,#2050
+	dw	#4854,#34
+	dw	#1000,#20
+	dw	#00,#00
+	dw	#1000,#2020
+	dw	#2020,#10
+	dw	#2000,#1010
+	dw	#1010,#20
+	dw	#00,#1028
+	dw	#107c,#28
+	dw	#00,#1010
+	dw	#107c,#10
+	dw	#00,#00
+	dw	#1010,#20
+	dw	#00,#00
+	dw	#78,#00
+	dw	#00,#00
+	dw	#3000,#30
+	dw	#00,#0804
+	dw	#2010,#40
+	dw	#3800,#544c
+	dw	#6454,#38
+	dw	#3000,#1050
+	dw	#1010,#7c
+	dw	#3800,#0444
+	dw	#4038,#7c
+	dw	#3800,#1844
+	dw	#4404,#38
+	dw	#0800,#2818
+	dw	#7c48,#08
+	dw	#7c00,#7840
+	dw	#4404,#38
+	dw	#3800,#7840
+	dw	#4444,#38
+	dw	#7c00,#0804
+	dw	#1008,#10
+	dw	#3800,#3844
+	dw	#4444,#38
+	dw	#3800,#4444
+	dw	#043c,#38
+	dw	#00,#3030
+	dw	#3000,#30
+	dw	#00,#10
+	dw	#1010,#20
+	dw	#00,#2010
+	dw	#2040,#10
+	dw	#00,#7800
+	dw	#7800,#00
+	dw	#00,#1020
+	dw	#1008,#20
+	dw	#3000,#1848
+	dw	#10,#10
+	dw	#3800,#3444
+	dw	#5454,#38
+	dw	#3800,#4444
+	dw	#447c,#44
+	dw	#7800,#7844
+	dw	#4444,#78
+	dw	#3800,#4044
+	dw	#4440,#38
+	dw	#7800,#4444
+	dw	#4444,#78
+	dw	#7c00,#7840
+	dw	#4040,#7c
+	dw	#7c00,#7840
+	dw	#4040,#40
+	dw	#3800,#4044
+	dw	#444c,#38
+	dw	#4400,#7c44
+	dw	#4444,#44
+	dw	#3800,#1010
+	dw	#1010,#38
+	dw	#0400,#0404
+	dw	#4444,#38
+	dw	#4800,#6050
+	dw	#4850,#44
+	dw	#4000,#4040
+	dw	#4040,#7c
+	dw	#4400,#546c
+	dw	#4444,#44
+	dw	#4400,#6444
+	dw	#4c54,#44
+	dw	#3800,#4444
+	dw	#4444,#38
+	dw	#7800,#4444
+	dw	#4078,#40
+	dw	#3800,#4444
+	dw	#4c54,#3c
+	dw	#7800,#4444
+	dw	#4878,#44
+	dw	#3800,#3840
+	dw	#4404,#38
+	dw	#7c00,#1010
+	dw	#1010,#10
+	dw	#4400,#4444
+	dw	#4444,#38
+	dw	#4400,#4444
+	dw	#2844,#10
+	dw	#4400,#4444
+	dw	#5444,#28
+	dw	#4400,#1028
+	dw	#2810,#44
+	dw	#4400,#2844
+	dw	#1010,#10
+	dw	#7c00,#1008
+	dw	#4020,#7c
+	dw	#3000,#2020
+	dw	#2020,#30
+	dw	#00,#2040
+	dw	#0810,#04
+	dw	#3000,#1010
+	dw	#1010,#30
+	dw	#1000,#5438
+	dw	#1010,#10
+	dw	#00,#00
+	dw	#00,#fc
+	dw	#1000,#2028
+	dw	#2070,#78
+	dw	#00,#0438
+	dw	#443c,#3c
+	dw	#4000,#7840
+	dw	#4444,#78
+	dw	#00,#4038
+	dw	#4040,#38
+	dw	#0400,#3c04
+	dw	#4444,#3c
+	dw	#00,#4438
+	dw	#4078,#3c
+	dw	#1800,#3020
+	dw	#2020,#20
+	dw	#00,#443c
+	dw	#3c44,#3804
+	dw	#4000,#7840
+	dw	#4444,#44
+	dw	#1000,#3000
+	dw	#1010,#38
+	dw	#0800,#0800
+	dw	#0808,#3048
+	dw	#4000,#6050
+	dw	#5060,#48
+	dw	#2000,#2020
+	dw	#2020,#18
+	dw	#00,#5468
+	dw	#5454,#54
+	dw	#00,#4478
+	dw	#4444,#44
+	dw	#00,#4438
+	dw	#4444,#38
+	dw	#00,#4478
+	dw	#7844,#4040
+	dw	#00,#443c
+	dw	#3c44,#0604
+	dw	#00,#4038
+	dw	#4040,#40
+	dw	#00,#4038
+	dw	#0438,#78
+	dw	#2000,#2070
+	dw	#2020,#18
+	dw	#00,#4444
+	dw	#4444,#38
+	dw	#00,#4444
+	dw	#2828,#10
+	dw	#00,#5444
+	dw	#5454,#28
+	dw	#00,#2844
+	dw	#2810,#44
+	dw	#00,#4444
+	dw	#3c44,#3804
+	dw	#00,#087c
+	dw	#2010,#7c
+	dw	#1800,#2010
+	dw	#1010,#18
+	dw	#2000,#2020
+	dw	#2020,#20
+	dw	#3000,#0810
+	dw	#1010,#30
+	dw	#2800,#50
+	dw	#00,#00
+	dw	#3800,#9444
+	dw	#94a4,#3844
+	dw	#ffff,#ffff
+	dw	#ffff,#ffff
+
+;	OUTEND
+;	SAVESNA	"XY-6x7-42.sna",start
+	endmodule
