@@ -118,7 +118,7 @@ start:		di
 
 		ld	hl,mas_mbr_buffr
 		call	get_mbr			; get MBR
-		jr	c,quit2
+		jp	c,quit2
 
 		ld	hl,mas_id_buffer	; read device name
 		call	device_name
@@ -133,7 +133,7 @@ start:		di
 
 		ld	ix,mas_mbr_buffr	; read device partitions
 		call	device_partit
-		jr	c,quit2
+		jp	c,quit2
 
 		ld	hl,#3c02		; show partitions
 		ld	(xy42.cursor),hl
@@ -226,7 +226,7 @@ quit2:		ld	hl,#B402
 
 		call	wait_key
 
-		ld	a,rom_bank		; rom_bank page in
+		ld	a,rom_bank_ro		; rom_bank page in
 		ld	(mem_port),a
 
 		jp	#3906			; jump BSROM 128k reset
