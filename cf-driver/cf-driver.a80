@@ -4,7 +4,7 @@
 ; (c) 2020 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.1
+; Version: 1.2
 
 		device	zxspectrum48
 
@@ -840,7 +840,7 @@ make_vdt:	push	ix			; save partition entry position in MBR
 		ld	(hl),a
 		ld	a,(ix+#63)
 		bit	1,a			; is LBA supported?
-		jr	z,dev_mode_chs
+		jr	nz,dev_mode_chs
 
 dev_mode_lba:	ld	e,%01000100		; bit6=1 - LBA mode, bit3-bit1=010 - LBA
 		ld	hl,device_mode
@@ -1049,6 +1049,12 @@ cfdriver:	di
 		ld	bc,dos_90h_end-dos_90h
 		ldir
 
+		ld	hl,#003e	;disable FDC write protect detection
+		ld	(#020e),hl
+		ld	hl,#0000
+		ld	(#019F),hl
+		ld	(#0233),hl
+
 		ld	a,patch_bank	;patch_bank page in
 		out	(mem_port),a
 
@@ -1131,7 +1137,7 @@ dos_3eh:
 
 noverify:	ld	c,a		;is verify needed?
 		ld	a,(#03ef)
-		cp	5
+		cp	3		;verify only for drives @1 & @2
 		ld	a,c
 		ret	nc
 		jp	lssecs
@@ -1983,7 +1989,7 @@ cfdriver_end:
 
 ; Data
 msg_title_lbl:	db	"   CF D"
-		db	"river v1.1  for "
+		db	"river v1.2  for "
 		db	"MB-03+ Ul"
 		db	"timate"
 		db	#00
