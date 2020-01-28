@@ -1,0 +1,2106 @@
+;-------------------------------------;
+;         CF Driver for MB-02+        ;
+;-------------------------------------;
+; (c) 2020 z00m^SinDiKAT
+; formatted for SjASMPlus
+
+; Version: 1.2
+
+		device	zxspectrum48
+
+; Definitions
+screen:		equ	#4000
+attrs:		equ	#5800
+ula:		equ	#fe
+
+dos_bank:	equ	#61
+patch_bank:	equ	#62
+rom_bank_ro:	equ	#40
+
+pasive:		equ	#0d
+
+dma_port:	equ	#0b
+
+mem_port:	equ	#17
+
+font_addr:	equ	#3cf0
+font_size:	equ	#310
+
+; ATA ports PVL
+;p_data:		equ	163			;#a3
+;p_error:	equ	167			;#a7
+;p_sec_count:	equ	171			;#ab
+;p_sec_number:	equ	175			;#af
+;p_cyl_low:	equ	179			;#b3
+;p_cyl_high:	equ	183			;#b7
+;p_device_head:	equ	187			;#bb
+;p_command:	equ	191			;#bf
+;p_status:	equ	191			;#bf
+
+;ATA ports DRON
+p_data:	equ	195			;#c3
+p_error:	equ	199			;#c7
+p_sec_count:	equ	203			;#cb
+p_sec_number:	equ	207			;#cf
+p_cyl_low:	equ	211			;#d3
+p_cyl_high:	equ	215			;#d7
+p_device_head:	equ	219			;#db
+p_command:	equ	223			;#df
+p_status:	equ	223			;#df
+
+; ATA commands
+c_identify:	equ 	#ec
+c_readsector:	equ	#20
+
+; ATA variables
+ata_timeout:	equ	0			; timeout for ATA operations, 0 = max
+s_ata_ready:	equ	%01000000		; status ready
+s_ata_drq:	equ	%00001000		; status data request
+
+; Main code
+		org	#8000
+
+start:		di
+
+		ld	(sp_store),sp
+		ld	sp,#dfff
+
+		push	af
+		push	hl
+		push	de
+		push	bc
+		exx
+		ex	af,af'
+		push	af
+		push	hl
+		push	de
+		push	bc
+		push	ix
+		push	iy
+
+		ld	a,dos_bank		; dos_bank page in
+		out	(mem_port),a		
+
+		ld	a,rom_bank_ro		; rom_bank page in
+		out	(mem_port),a
+
+		xor	a
+		out	(ula),a
+		call	clear_screen
+
+		call	draw_frame
+
+		ld	hl,#0202		; title label
+		ld	(xy42.cursor),hl
+		ld	hl,msg_title_lbl
+		call	print42
+
+		ld	hl,#A602
+		ld	(xy42.cursor),hl
+		ld	hl,msg_copyright	; copyright
+		call	print42
+
+		ld	hl,mas_id_buffer
+		call	get_identify		; get identify sector
+		jp	c,quit2
+
+		ld	hl,mas_mbr_buffr
+		call	get_mbr			; get MBR
+		jp	c,quit2
+
+		ld	hl,mas_id_buffer	; read device name
+		call	device_name
+
+		ld	ix,mas_id_buffer	; read device parameters
+		call	device_params
+
+		ld	hl,#1002		; show device info
+		ld	(xy42.cursor),hl
+		ld	hl,msg_device_inf
+		call	print42
+
+		ld	ix,mas_mbr_buffr	; read device partitions
+		call	device_partit
+		jp	c,quit2
+
+		ld	hl,#3c02		; show partitions
+		ld	(xy42.cursor),hl
+		ld	hl,msg_part_inf
+		call	print42
+
+		ld	ix,mas_mbr_buffr
+		call	detect_47h		; detects 47h partition and returns with entry in IX
+		jr	c,quit2
+
+		push	ix
+
+		ld	hl,#5202		; print preinstall info
+		ld	(xy42.cursor),hl
+		ld	hl,msg_part_mb03
+		call	print42
+
+		pop	ix
+
+		ld	hl,mas_id_buffer
+		call	make_vdt		; create VDT
+
+		call	cfdriver		; initialize driver
+
+		ld	a,patch_bank		; patch_bank page in
+		out	(mem_port),a
+
+cfdrv_test:	ld	hl,patch_08h		; simple test if driver was installed
+		ld	a,(hl)
+		cp	'C'
+		jr	nz,cfdrv_not_ok
+		inc	hl
+		ld	a,(hl)
+		cp	'F'
+		jr	nz,cfdrv_not_ok
+		inc	hl
+		ld	a,(hl)
+		cp	'D'
+		jr	nz,cfdrv_not_ok
+
+cfdrv_ok:	ld	a,rom_bank_ro		; rom_bank page in
+		out	(mem_port),a
+
+		ld	hl,#8902
+		ld	(xy42.cursor),hl
+		ld	hl,msg_drv_instld	; driver installed message
+		call	print42
+
+quit:		ld	hl,#B402
+		ld	(xy42.cursor),hl
+		ld	hl,msg_any_key		; any key message
+		call	print42
+
+		call	wait_key
+
+		pop	iy
+		pop	ix
+		pop	bc
+		pop	de
+		pop	hl
+		pop	af
+		exx
+		ex	af,af'
+		pop	bc
+		pop	de
+		pop	hl
+		pop	af
+
+		ld	sp,(sp_store)
+
+		ei
+		ret
+
+cfdrv_not_ok:	ld	a,rom_bank_ro		; rom_bank page in
+		out	(mem_port),a
+
+		ld	a,#02			; red border
+		out	(ula),a
+
+		ld	hl,#8902
+		ld	(xy42.cursor),hl
+		ld	hl,msg_drv_not_i	; print error message
+		call	print42
+		jr	quit
+
+quit2:		ld	hl,#B402
+		ld	(xy42.cursor),hl
+		ld	hl,msg_any_key		; any key message
+		call	print42
+
+		call	wait_key
+
+		jp	#0			; jump to BSROM
+		
+dihalt:		di				; still here?
+		halt				; endless loop
+		jp	dihalt
+
+; 42-6x7 char print
+print42:	ld	a,(hl)
+		call	xy42.xy
+		inc	hl
+		jr	nz,print42
+		ret
+
+; waits for any key
+wait_key:	xor	a
+		in	a,(#fe)
+		cpl
+		and	%00011111
+		jr	z,wait_key
+		ret
+
+; Clears screen
+clear_screen:	ld	hl,screen
+		ld	de,screen+1
+		ld	bc,#17ff
+		xor	a
+		ld	(hl),a
+		ldir
+
+		ld	hl,attrs
+		ld	de,attrs+1
+		ld	bc,#2ff
+		ld	a,#07
+		ld	(hl),a
+		ldir
+		ret
+
+; Draws frame
+draw_frame	call	draw.mkbod
+		xor	a
+		call	draw.over
+		ld	bc,#0000
+		ld	de,#00ff
+		call	draw.line
+		ld	bc,#00ff
+		ld	de,#afff
+		call	draw.line
+		ld	bc,#afff
+		ld	de,#af00
+		call	draw.line
+		ld	bc,#af00
+		ld	de,#0000
+		call	draw.line
+		ld	bc,#0b00
+		ld	de,#0bff
+		call	draw.line
+		ld	bc,#0d00
+		ld	de,#0dff
+		call	draw.line
+		ld	bc,#1a00
+		ld	de,#1aff
+		call	draw.line
+		ld	bc,#3800
+		ld	de,#38ff
+		call	draw.line
+		ld	bc,#4e00
+		ld	de,#4eff
+		call	draw.line
+		ld	bc,#7200
+		ld	de,#72ff
+		call	draw.line
+		ld	bc,#7402
+		ld	de,#74fd
+		call	draw.line
+		ld	bc,#74fd
+		ld	de,#a5fd
+		call	draw.line
+		ld	bc,#a5fd
+		ld	de,#a502
+		call	draw.line
+		ld	bc,#a502
+		ld	de,#7402
+		call	draw.line
+		ret
+
+; Byteswap - coverts big endian to
+; little endian and vice versa
+; input: HL = address
+;        B = how many bytes
+byteswap:	push	af
+		push	hl
+		push	bc
+		rrc	b
+byteswap1:	ld	a,(hl)
+		inc	hl
+		ld	c,(hl)
+		dec	hl
+		ld	(hl),c
+		inc	hl
+		ld	(hl),a
+		inc	hl
+		djnz	byteswap1
+		pop	bc
+		pop	hl
+		pop	af
+		ret
+
+; 16-bit Integer to ASCII (decimal)
+; Input: HL = number to convert, DE = location of ASCII string
+; Output: ASCII string at (DE)
+Num2Dec:	ld	bc,-10000
+		call	Num1
+Num2Dec1:	ld	bc,-1000
+		call	Num1
+Num2Dec2:	ld	bc,-100
+		call	Num1
+		ld	c,-10
+		call	Num1
+		ld	c,b
+
+Num1:		ld	a,'0'-1
+Num2:		inc	a
+		add	hl,bc
+		jr	c,Num2
+		sbc	hl,bc
+
+		ld	(de),a
+		inc	de
+		ret
+
+; 32-bit long to ASCII
+; Input: HLDE = number to convert, BC = location of ASCII string
+; Output: ASCII string at BC
+
+Long2Dec:	push	de
+		exx
+		pop	hl
+		exx
+
+		ld	e,c
+		ld	d,b
+
+		ld	bc,-1000000000/#10000-1
+		exx
+		ld	bc,-1000000000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-100000000/#10000-1
+		exx
+		ld	bc,-100000000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-10000000/#10000-1
+		exx
+		ld	bc,-10000000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-1000000/#10000-1
+		exx
+		ld	bc,-1000000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-100000/#10000-1
+		exx
+		ld	bc,-100000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-10000/#10000-1
+		exx
+		ld	bc,-10000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-1000/#10000-1
+		exx
+		ld	bc,-1000&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-100/#10000-1
+		exx
+		ld	bc,-100&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-10/#10000-1
+		exx
+		ld 	bc,-10&#ffff
+		exx
+		call    LNum1
+
+		ld	bc,-1/#10000-1
+		exx
+		ld 	bc,-1&#ffff
+		exx
+		call    LNum1
+		ret
+
+LNum1:		ld 	a,'0'-1
+
+LNum2:		inc	a
+		exx
+		add	hl,bc
+		exx
+		adc	hl,bc
+		jp 	c,LNum2
+
+		exx
+		sbc	hl,bc
+		exx
+		sbc	hl,bc
+
+		ld	(de),a
+		inc	de
+		ret
+
+; Counts medium size from CHS
+; input: BC = cyl, H = hea, E = sec
+; output DEHL = size in MB
+size_count:	push	bc		; save cyl
+		call	mul8_8		; HL = hea * sec
+		ld	d,h
+		ld	e,l		; DE = hea * sec
+		ld	bc,#200		; 512 bytes per sec
+		ld	hl,0
+		call	mul16_16	; DEHL = hea * sec * 512
+		ld	bc,#400
+		push	hl		; move DEHL to HLIX
+		pop	ix
+		ex	de,hl		; so here will be HLIX = hea * sec * 512
+		call	div32_16	; HLIX = HLIX / 1024, result can be 16 bits in max,
+		ld	d,hx		; so we can truncate HL here
+		ld	e,lx		; DE = (hea*sec*512)/1024
+		pop	bc		; restore cyl
+		ld	hl,0
+		call	mul16_16	; DEHL = ((hea*sec*512)/1024)*cyl
+		ld	bc,#400
+		push	hl		; move DEHL to HLIX
+		pop	ix
+		ex	de,hl		; so here will be HLIX = ((hea*sec*512)/1024)*cyl
+		call	div32_16	; HLIX = HLIX / 1024 = size in MB
+		ex	de,hl		; move HLIX to DEHL
+		push	ix
+		pop	hl
+		ret			; DEHL = size in MB
+
+; H * E
+; input: H = multiplier, E = multiplicand
+; output: HL = Product
+mul8_8:		ld	d,0
+		ld	l,d
+		ld	b,8
+m8_8_lp1:	add	hl,hl
+		jr	nc,m8_8_jp1
+		add	hl,de
+m8_8_jp1:	djnz	m8_8_lp1
+		ret
+
+; DE * BC
+; input: DE = multiplier, BC = multiplicand
+; output: DEHL = product
+mul16_16:	ld	hl,0
+		ld	a,16
+m16_16_lp1:	add	hl,hl
+		rl	e
+		rl	d
+		jr	nc,m16_16_jp1
+		add	hl,bc
+		jr	nc,m16_16_jp1
+		inc	de
+m16_16_jp1:	dec	a
+		jr	nz,m16_16_lp1
+		ret
+
+; HLIX / BC
+; input: HLIX = numerator, BC = denominator
+; output: HLIX = result, DE = remainder
+div32_16:	ld	de,0
+		ld	a,32
+div32_16loop:	add	ix,ix
+		adc	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		or	a
+		sbc	hl,bc
+		inc	ix
+		jr	nc,cansub
+		add	hl,bc
+		dec	ix
+cansub:		ex	de,hl
+		dec	a
+		jr	nz,div32_16loop
+		ret
+
+; Print device error message
+; output: c = error
+device_error:	ld	a,#02			; red border
+		out	(ula),a
+
+		ld	hl,#8902		; error message
+		ld	(xy42.cursor),hl
+		ld	hl,msg_device_err
+		call	print42
+
+		or	a			; carry
+		scf
+		ret
+
+; Print device name
+; input: HL = buffer of identify block
+device_name:	ld	de,#36			; device name starts at 54th byte in buffer
+		add	hl,de
+		ld	b,#21			; model name is 40 chars long
+		call	byteswap		; name is in little endian format
+		ld	de,msg_device_nam
+device_name_1:	ld	a,(hl)
+		ld	(de),a
+		inc	hl
+		inc	de
+		djnz	device_name_1
+		ret
+
+; Print device parameters
+; input: IX = buffer of identify block
+device_params:	ld	l,(ix+#02)		; buffer pointer to Cyl
+		ld	h,(ix+#03)
+		ld	de,msg_device_cyl
+		call	Num2Dec
+
+		ld	l,(ix+#06)		; buffer pointer to Hea
+		ld	h,(ix+#07)
+		ld	de,msg_device_hea
+		call	Num2Dec2
+
+		ld	l,(ix+#0c)		; buffer pointer to Sec
+		ld	h,(ix+#0d)
+		ld	de,msg_device_sec
+		call	Num2Dec2
+
+		ld	a,(ix+#63)		; LBA support ?
+		bit	1,a
+		ld	de,msg_device_lba
+		jr	nz,dp_lba_y
+		ld	a,'Y'
+		ld	(de),a
+		inc	de
+		ld	a,'e'
+		ld	(de),a
+		inc	de
+		ld	a,'s'
+		jr	dp_lba_e
+
+dp_lba_y:	ld	a,'N'
+		ld	(de),a
+		inc	de
+		ld	a,'o'
+		ld	(de),a
+		inc	de
+		ld	a,#20
+dp_lba_e:	ld	(de),a
+
+		ld	c,(ix+#02)		; capacity
+		ld	b,(ix+#03)		; bc = cyl
+		ld	h,(ix+#06)		; h = hea
+		ld	e,(ix+#0c)		; e = sec
+		call	size_count		; count size in MB from CHS
+		ld	de,msg_device_cap
+		call	Num2Dec
+
+		ret
+
+; Print device partitions
+; input: ix = buffer with MBR
+; output: c = error, nc = MBR is valid
+device_partit:	push	ix
+		pop	hl
+		ld	de,#1fe			; set offset to signature
+		add	hl,de
+		ex	hl,de
+		ld	a,(de)
+		ld	l,a
+		inc	de
+		ld	a,(de)
+		ld	h,a
+		ld	bc,#aa55		; signature
+		or	a
+		sbc	hl,bc
+		jr	z,signatr_valid		; go to part detect if it is valid
+		ld	a,#02			; else red border
+		out	(ula),a
+		ld	hl,#8902		; error message
+		ld	(xy42.cursor),hl
+		ld	hl,msg_mbr_err
+		call	print42
+		or	a			; carry
+		scf
+		ret
+
+signatr_valid:	ld	de,#1be			; set offset to 1st partition entry
+		add	ix,de
+		ld	de,msg_part_1
+		call	next_entry
+		ld	de,msg_part_2
+		call	next_entry
+		ld	de,msg_part_3
+		call	next_entry
+		ld	de,msg_part_4
+next_entry:	ld	a,(ix+4)
+		call	part_type		; detects a few types of partitions
+		ld	de,#10
+		add	ix,de			; next partition entry
+		ret
+
+; Prints partition type to address in DE
+part_type:	cp	#00			; empty entry
+		jr	z,part_none
+		cp	#04			; FAT16, less than 32MB
+		jr	z,part_fat16
+		cp	#05			; extended CHS
+		jr	z,part_extended
+		cp	#06			; FAT16B (BigFAT)
+		jr	z,part_fat16
+		cp	#07			; HPFS/NTFS/exFAT
+		jr	z,part_ntfs
+		cp	#0b			; FAT32 CHS
+		jr	z,part_fat32
+		cp	#0c			; FAT32 LBA
+		jr	z,part_fat32
+		cp	#0e			; FAT16B LBA
+		jr	z,part_fat16
+		cp	#0f			; extended LBA
+		jr	z,part_extended
+		cp	#47			; MB02+
+		jr	z,part_mb02
+		cp	#48			; SFS
+		jr	z,part_sfs
+		cp	#82			; Linux swap
+		jr	z,part_swap
+		cp	#83			; Linux native
+		jr	z,part_linux
+		cp	#85			; Linux extended
+		jr	z,part_extended
+		cp	#a5			; BSD slice
+		jr	z,part_bsd
+		cp	#a6			; OpenBSD slice
+		jr	z,part_bsd
+		cp	#a9			; NetBSD slice
+		jr	z,part_bsd
+
+		ld	hl,p_m_other
+
+part_type_1:	ld	b,#06
+part_type_2:	ld	a,(hl)
+		ld	(de),a
+		inc	hl
+		inc	de
+		djnz	part_type_2
+		ret
+
+part_none:	ld	hl,p_m_none
+		jr	part_type_1
+
+part_fat16:	ld	hl,p_m_fat16
+		jr	part_type_1
+
+part_fat32:	ld	hl,p_m_fat32
+		jr	part_type_1
+
+part_ntfs:	ld	hl,p_m_ntfs
+		jr	part_type_1
+
+part_mb02:	ld	hl,p_m_mb02
+		jr	part_type_1
+
+part_sfs:	ld	hl,p_m_sfs
+		jr	part_type_1
+
+part_linux:	ld	hl,p_m_linux
+		jr	part_type_1
+
+part_swap:	ld	hl,p_m_swap
+		jr	part_type_1
+
+part_bsd	ld	hl,p_m_bsd
+		jr	part_type_1
+
+part_extended:	ld	hl,p_m_extended
+		jr	part_type_1
+
+; looks for partition type 47h
+; input: IX = buffer with MBR
+detect_47h:	ld	de,#1be			; set offset to 1st partition entry
+		add	ix,de
+		ld	bc,1			; 1st partition entry
+detect_47h_1:	push	bc
+		ld	a,(ix+#04)
+		cp	#00			; empty entry
+		jr	z,detect_47h_2
+		cp	#47			; type MB02
+		jr	z,found_47h
+
+detect_47h_2:	pop	bc
+		ld	de,#10
+		add	ix,de			; next partition entry
+		ld	a,#05
+		inc	bc
+		cp	c
+		jr	nz,detect_47h_1
+
+		ld	a,#02			; red border
+		out	(ula),a
+
+		ld	hl,#8902		; error message
+		ld	(xy42.cursor),hl
+		ld	hl,msg_part_miss
+		call	print42
+
+		scf
+		ret
+
+; Partition type 47h handling
+; preserves IX (partition entry position)
+found_47h:	pop	bc			; restore partition entry, not needed anymore
+
+		ld	bc,msg_pmb03_size
+
+		push	ix
+
+		ld	e,(ix+#0c)		; SEC 0
+		ld	d,(ix+#0d)		; SEC 1
+		ld	l,(ix+#0e)		; SEC 2
+		ld	h,(ix+#0f)		; SEC 3
+
+		push	de			; save HLDE
+		push	hl
+
+		call	Long2Dec
+
+		pop	hl			; restore HLIX
+		pop	ix
+
+		ld	bc,#1000
+		call	div32_16		; counts how many drives would be from available space, result in HLIX
+
+		push	ix
+		pop	bc			; number of drives to BC
+		ld	h,b			; and HL
+		ld	l,c
+
+		push	bc			; store number of drives
+
+		ld	de,msg_pmb03_dnum	; print number of drives
+		call	Num2Dec1
+
+		or	a			; clear carry flag
+
+		pop	bc			; restore numnber of drives
+
+		ld	hl,#fd
+		sbc	hl,bc			; max 253 drives allowed
+		jr	nc,found_47h_1
+
+		ld	b,0
+		ld	a,#fd			; limit to 253 drives if partition is bigger
+		ld	c,a
+
+found_47h_1:	ld	a,c
+		ld	hl,num_of_drives
+		ld	(hl),a			; save number of drives for later usage
+		add	a,2			; virtual drives starts from @3
+		ld	c,a
+		push	bc
+		pop	hl
+		ld	de,msg_pmb03_odrv	; print occupied drives
+		call	Num2Dec2
+
+		pop	ix
+
+		ret
+
+; VDT maker
+; Input: HL = buffer with identify
+;        IX = partition entry position in MBR bufer
+make_vdt:	push	ix			; save partition entry position in MBR
+
+		push	hl			; buffer with identify to IX
+		pop	ix
+
+		ld	hl,device_mode
+		xor	a			; bit4=0 > master device
+		ld	(hl),a
+		ld	hl,v_mas_sectors
+
+		ld	a,(ix+#0c)		; device geometry: sec
+		ld	(hl),a
+		inc	hl
+		ld	a,(ix+#06)		; device geometry: hea
+		ld	(hl),a
+		inc	hl
+		ld	a,(ix+#02)		; device geometry: cyl low
+		ld	(hl),a
+		inc	hl
+		ld	a,(ix+#03)		; device geometry: cyl high
+		ld	(hl),a
+		ld	a,(ix+#63)
+		bit	1,a			; is LBA supported?
+		jr	nz,dev_mode_chs
+
+dev_mode_lba:	ld	e,%01000100		; bit6=1 - LBA mode, bit3-bit1=010 - LBA
+		ld	hl,device_mode
+		ld	a,(hl)
+		or	e
+		ld	(hl),a
+		jr	make_vdt_1
+
+dev_mode_chs:	ld	e,%00000000		; bit6=0 - CHS mode, bit3-bit1=000 - CHS mode 0
+		ld	hl,device_mode
+		ld	a,(hl)
+		or	e
+		ld	(hl),a
+
+make_vdt_1:	pop	ix			; restore buffer with MBR, pointer is set to corresponding partition entry already
+		ld	a,(ix+#08)		; LBA 0
+		ld	(lba0),a
+		ld	a,(ix+#09)		; LBA 1
+		ld	(lba1),a
+		ld	a,(ix+#0a)		; LBA 2
+		ld	(lba2),a
+
+		ld	hl,vdt_lba		; LBA table in VDT
+
+		ld	a,(lba0)		; first entry for first virtual drive
+		ld	(hl),a
+		inc	hl
+		ld	a,(lba1)
+		ld	(hl),a
+		inc	hl
+		ld	a,(lba2)
+		ld	(hl),a
+		inc	hl
+		ld	a,(device_mode)
+		ld	(hl),a
+		inc	hl
+
+		ld	e,#10			; LBA1+LBA2 will be increased with 4096 sectors
+		ld	d,#01
+
+		ld	a,(num_of_drives)
+		dec	a
+		ld	b,a			; loop counter set to number of drives-1
+
+lba_loop:	ld	a,(lba0)		; now we will generates entries 2 to end
+		ld	(hl),a
+		inc	hl
+
+		ld	a,(lba1)
+		add	a,e			; add 4096 sectors
+		jr	nc,lba_std		; if LBA1 max was not exceeded, continue to LBA2
+		ld	(lba1),a
+		ld	(hl),a
+		inc	hl
+
+		or	a			; reset carry
+		ld	a,(lba2)		; if LBA1 max was exceeded
+		add	a,d			; increase LBA2 and if the LBA2 max was not exceeded
+		jr	c,lba_end
+		jr	lba_inc			; continue to next virtual drive, else end loop
+
+lba_std:	ld	(lba1),a
+		ld	(hl),a
+		inc	hl
+
+		ld	a,(lba2)
+lba_inc:	ld	(lba2),a
+		ld	(hl),a
+		inc	hl
+
+		ld	a,(device_mode)
+		ld	(hl),a
+		inc	hl
+
+		djnz	lba_loop
+lba_end:	or	a			; reset carry
+		ret
+
+; Reads Identify block
+; input:  HL = buffer for identify block
+get_identify:	ld	a,(master_slave)
+		or	%10100000
+		out	(p_device_head),a	; select master/slave
+
+		ld	a,c_identify		; send identify command
+		out	(p_command),a
+		call	wait_ata_drq		; check for device ready and drq
+		jp	c,device_error		; quit to error handling if not
+
+		ld	bc,p_data		; load identify data
+		inir
+		inir
+		call	wait_ata_ready		; check for device ready
+		jp	c,device_error		; quit to error handling if not
+
+		ret
+
+; Reads MBR
+; input: HL = buffer for MBR
+get_mbr:	ld	a,(master_slave)
+		or	%10100000
+		out	(p_device_head),a	; select master/slave
+
+		ld	de,#0000		; cyl = 0
+		ld	bc,#0001		; hea = 0, sec = 1
+		ld	a,#01			; num of secs = 1
+		out	(p_sec_count),a		; set sector count
+		ld	a,c
+		out	(p_sec_number),a	; set sector number
+		ld	a,e
+		out	(p_cyl_low),a		; set cyl low value
+		ld	a,d
+		out	(p_cyl_high),a		; set cyl high value
+		ld	a,c_readsector		; read sector command
+		out	(p_command),a
+		call	wait_ata_drq		; wait if device is ready and drq
+		jp	c,device_error		; quit to error handling if not
+
+		ld	bc,p_data		; load sector data
+		inir
+		inir
+		call	wait_ata_ready		; wait if device is ready
+		jp	c,device_error		; quit to error handling if not
+
+		ret
+
+; Wait for device status:
+; busy = 0 and ready = 1
+; with timeout
+; output: c  = timeout
+;         nc = drive ready
+wait_ata_ready:	ld	de,ata_timeout
+w_a_rd1:	in	a,(p_status)		; read device status
+		and	%11000000		; busy (#80) + ready (#40)
+		cp	s_ata_ready		; #40 = ready
+		ret	z
+		dec	de
+		nop				; some delay
+		ld	a,d
+		or	e
+		jr	nz,w_a_rd1
+		scf				; timeout occured
+		ret
+
+; Wait for device status:
+; busy = 0 and data request = 1
+; with timeout
+; output: c  = timeout
+;         nc = drive ready
+wait_ata_drq:	ld	de,ata_timeout
+w_a_drq1:	in	a,(p_status)		; read device status
+		and	%10001000		; busy (#80) + (drq) #08
+		cp	s_ata_drq		; #08 = data request
+		ret	z
+		dec	de
+		nop				; some delay
+		ld	a,d
+		or	e
+		jr	nz,w_a_drq1
+		scf				; timeout occured
+		ret
+
+;--------------------------------------
+;CF driver body starts here
+
+cfdriver:	di
+
+		ld	hl,font_addr	;copy font to memory
+		ld	de,font_buffer
+		ld	bc,font_size
+		ldir
+
+		ld	hl,vdt		;move VDT into patch body
+		ld	de,tab
+		ld	bc,vdt_end-vdt
+		ldir
+
+		ld	a,dos_bank	;dos_bank page in
+		out	(mem_port),a
+
+		ld	hl,dos_14h	;write byte in dos_bank and jump to patch_bank
+		ld	de,#14
+		ld	bc,dos_14h_end-dos_14h
+		ldir
+
+		ld	hl,dos_23h	;start DMA transfer
+		ld	de,#23
+		ld	bc,dos_23h_end-dos_23h
+		ldir
+
+		ld	hl,dos_2bh	;get byte from dos_bank and jump to patch_bank
+		ld	de,#2b
+		ld	bc,dos_2bh_end-dos_2bh
+		ldir
+
+		ld	hl,dos_3eh	;no verify for drives @5 and higher
+		ld	de,#3e
+		ld	bc,dos_3eh_end-dos_3eh
+		ldir
+
+		ld	hl,noverify	;no verify for drives @5 and higher
+		ld	(#13cb),hl
+
+		ld	hl,dos_90h	;hdd patch driver
+		ld	de,#90
+		ld	bc,dos_90h_end-dos_90h
+		ldir
+
+		ld	a,patch_bank	;patch_bank page in
+		out	(mem_port),a
+
+		ld	hl,patch_00h	;routes from patch_bank to dos_bank
+		ld	de,0
+		ld	bc,patch_00h_end-patch_00h
+		ldir
+
+		ld	hl,patch_90h	;hdd patch body
+		ld	de,#90
+		ld	bc,patch_90h_end-patch_90h
+		ldir
+
+		ld	hl,#c9fb	; ei:ret to address #38 in patch_bank
+		ld	(#38),hl
+
+		ld	hl,font_buffer	;copy font to patch_bank
+		ld	de,font_addr
+		ld	bc,font_size
+		ldir
+
+		ld	a,rom_bank_ro	;rom_bank page in
+		out	(mem_port),a
+		ei
+		ret
+
+;------------------------------------
+;mod at #14 in dos_bank
+;input: a=dos_bank
+
+dos_14h:
+		disp	#14
+
+		ld	(hl),b		;write byte in dos_bank
+		inc	a
+		out	(mem_port),a	;patch_bank page in
+		jp	adr144d
+
+dos_1bh:	ld	a,patch_bank	;route to patch_bank
+		out	(mem_port),a
+		ret
+
+		ent
+dos_14h_end:
+
+;------------------------------------
+;mod at #23 in dos_bank
+;input: a=dos_bank
+
+dos_23h:
+		disp	#23
+
+		out	(c),b		;start DMA transfer
+dos_25h:	inc	a
+		out	(mem_port),a	;patch_bank page in
+
+		ent
+dos_23h_end:
+
+;------------------------------------
+;mod at #2b in dos_bank
+;input: HL=address in dos_bank
+
+dos_2bh:
+		disp	#2b
+
+		ld	b,(hl)		;gets byte from dos_bank, and pages out back to patch_bank
+		jr	dos_25h
+
+		ent
+dos_2bh_end:
+
+;-----------------------------------
+;mod at #3e in dos_bank
+
+lssecs:		equ	#1463
+
+dos_3eh:
+		disp	#3e
+
+noverify:	ld	c,a		;is verify needed?
+		ld	a,(#03ef)
+		cp	5		;verify for drives @1, @2, @3 & @4
+		ld	a,c
+		ret	nc
+		jp	lssecs
+
+		ent
+dos_3eh_end:
+
+;------------------------------------
+;mod at #90 in dos_bank
+
+dos_90h:
+		disp	#90
+
+adr144d:	push	hl
+		ld	hl,255
+		ld	(hl),a
+		dec	hl
+		ex	(sp),hl
+
+		cp	12
+		jr	c,skip1
+		cp	15
+		jr	c,sluz1214
+
+skip1:		cp	16
+		jr	z,setmlt
+		or	a
+		ret	z
+		cp	15
+		ret	nc
+act:		ret
+
+		inc	sp
+		inc	sp
+
+aaa:		cp	4
+		jr	c,loop12
+		cp	6
+		jr	c,rdwrsec
+loop12:		cp	7
+		jr	z,rdwrsec
+		xor	a
+		ret
+
+rdwrsec:	push	hl
+		push	de
+		ld	b,a
+		ld	(sp_st+1),sp
+		ld	sp,128
+		call	dos_1bh
+sp_st:		ld	sp,0
+		push	bc
+rut:		call	nic
+		pop	af
+		pop	de
+		pop	hl
+nic:		ret
+
+setmlt:		ld	a,h
+		or	l
+		jr	nz,loop14
+		ld	hl,nic
+loop14:		ld	(rut+1),hl
+		ret
+
+sluz1214:	push	de
+		push	hl
+		ld	b,a
+		ld	(sp_st+1),sp
+		ld	sp,128
+		call	dos_1bh
+		ld	sp,(sp_st+1)
+		ld	a,b
+		pop	hl
+		or	a
+		jr	nz,no_nfo
+		inc	sp
+		inc	sp
+		push	de
+no_nfo:		pop	de
+		cp	255
+		ret	z		;nz=ret immediately, z=pass
+pryc:		inc	sp
+		inc	sp
+		ret
+
+		nop
+		nop
+
+a1_254:		ld	a,#55
+
+;address #100 should be here
+		if	$>#100
+		display "!!!! Address #100 overflow in dos_bank by ",/D,$-#100," bytes !!!!"
+		endif
+
+		ent
+dos_90h_end:
+
+;------------------------------------
+;hooks at #0 in patch_bank
+
+patch_00h:
+		disp	0
+
+		di
+		xor	a
+		ld	de,65535
+patch_05h:	jp	patch_05h
+patch_08h:	db	"CFDriver"
+
+patch_10h:	ld	a,dos_bank
+		out	(mem_port),a
+patch_14h:	ld	(hl),b
+		inc	a
+		out	(mem_port),a
+		ret
+		nop
+		nop
+patch_1bh:	ld	a,dos_bank	;#1b - route to dos_bank
+		out	(mem_port),a
+		jr	adr144p
+
+dma_start:	out	(mem_port),a	;#21 - route to dma_start, input must be: a=dos_bank, bc=dma_port
+		out	(c),b
+		inc	a
+		out	(mem_port),a
+		ret
+
+patch_29h:	out	(mem_port),a	;#29 - second route to dos_bank
+read_byte:	ld	a,dos_bank
+		jr	patch_29h
+
+		ent
+patch_00h_end:
+
+;------------------------------------
+;patch body at #90 in patch_bank
+
+patch_90h:
+		disp	#90
+
+adr144p:	jp	preskoc
+
+		ent
+
+tab:
+		disp	#93
+;primary
+m_sec1:		db	0
+m_hea1:		db	0
+m_cyl1:		dw	0
+
+;secondary
+m_sec2:		db	0
+m_hea2:		db	0
+m_cyl2:		dw	0
+
+
+tab_drv:	ds	1026
+
+preskoc:	push	hl
+		ld	hl,rett
+		ex	(sp),hl
+
+		ld	a,b
+
+		cp	12
+		jr	z,aktive1
+		cp	13
+		jr	z,pasive1
+		cp	14
+		jr	z,info1
+
+		cp	4
+set_rdm:	jp	z,rd_sec0
+		cp	5
+set_wrm1:	jp	z,wr_sec0
+		cp	7
+		jp	z,wr_trk
+		xor	a
+		ret
+
+rett:		ld	b,a
+		jp	patch_1bh
+
+info1:		ld	a,e
+		call	tst_drv
+		ld	a,255
+		ret	z
+		ld	de,#ff09	;#ff = num of trk, #09=ATA,HD
+		xor	a
+		ret
+
+pasive1:	ld	a,201
+		ld	hl,act
+		ld	b,a
+		rst	16
+		ld	a,255
+		ret
+
+aktive1:	call	pasive1
+		ld	a,e
+		call	tst_drv
+		ld	a,255
+		ret	z
+		xor	a
+		ld	hl,act
+		ld	b,a
+		rst	16
+		ld	a,2
+		ret
+
+wr_trk:		ld	a,e
+		and	128
+		ld	e,a
+		xor	a
+wtrk1:
+		inc	e
+		push	de
+		push	hl
+		push	af
+set_wrm2:	call	wr_sec0
+		pop	af
+		pop	hl
+		ld	de,1024
+		add	hl,de
+		pop	de
+		inc	a
+		cp	9		;num of sectors -1
+		jr	nz,wtrk1
+		ret
+
+;------------------------------------
+;counts logical number of sector
+;HL is preserved, result is passed directly to prepoc
+;input: DE=physical sector number from BSDOS
+
+numsec:		equ	#2306
+
+sect_num:	push	hl
+		ld	hl,numsec	;reads numsec variable from dos_bank
+		call	read_byte
+		ld	a,b
+		ld	(sctrk+1),a
+		xor	a
+		ld	b,a
+		ld	c,d
+		ld	l,b
+		ld	h,b
+		ld	d,b
+		ld	a,e
+		add	a,e
+		rl	c
+		rl	b		;BC=2*track+side
+sctrk:		ld	a,#55		;A=sectrk
+nasob:		add	hl,bc
+		dec	a
+		jr	nz,nasob	;hl=sectrk*(2*track+side)
+		res	7,e
+		dec	e		;e=sector-1
+		add 	hl,de		;hl=sectrk*(2*track+side)+(sector-1)
+		add	hl,hl		;hl=2*(sectrk*(2*track+side)+(sector-1))
+		ld	(prepoc+1),hl
+		ld	a,h
+		pop	hl
+		and	%11110000
+		ret	z
+
+		ld	a,%00010000	;seek error
+		or	a
+		ret
+
+
+;------------------------------------
+;counts logical number of sector of
+;disk image to corresponding physical
+;cyl,sec,hea on HDD/CF
+
+;hl = logical number of sector
+
+prepoc:		ld	hl,0
+
+low24:		ld	de,0
+		add	hl,de
+hig24:		ld	de,0
+		jr	nc,prep1
+		inc	de
+prep1:
+m_sec:		ld	a,0
+		call	div248
+		ld	e,d
+		ld	d,0
+		push	de		;de -> sec
+m_hea:		ld	a,0
+		ld	e,a
+		ld	d,0
+		call	div
+		push	de		;de -> heads
+m_cyl:		ld	de,0
+		call	div		;de -> cyl
+		pop	hl
+		ld	b,l
+		pop	hl
+		ld	c,l
+		inc	c
+		ret
+
+prep_lba:	ld	hl,(prepoc+1)
+		ld	de,(low24+1)
+		add	hl,de
+		ld	de,(hig24+1)
+		jr	nc,prep2
+		inc	de
+
+;b - head (p_device_head)
+;c - sector (p_sec_number)
+;de - cylinder	(e - p_cyl_low, d - p_cyl_high)
+
+prep2:		ld	b,d
+		ld	d,e
+		ld	e,h
+		ld	c,l
+		ret
+
+
+;------------------------------------
+;---------- generic 000 -------------
+;------------------------------------
+
+rd_sec0:	call	sect_num
+		ret	nz
+
+		call	rdd
+		ret	nz
+		ld	de,(prepoc+1)
+		inc	de
+		ld	(prepoc+1),de
+		call	rdd
+		ret			;if ok, zero flag is returned
+
+rdd:		push	hl
+		call	prepoc
+		pop	hl
+		call	read0
+		ret
+
+wr_sec0:
+wr_prot:	ld	a,0
+		or	a
+		ret	nz
+
+		call	sect_num
+		ret	nz
+
+		call	wrr
+		ret	nz
+		ld	de,(prepoc+1)
+		inc	de
+		ld	(prepoc+1),de
+		call	wrr
+		ret				;if ok, zero flag is returned
+
+wrr:		push	hl
+		call	prepoc
+		pop	hl
+		call	write0
+		ret
+
+read0:		call	tst_bsy
+		jp	nz,error
+
+		ld	a,b
+hea_rd0:	or	%10100000
+		out	(p_device_head),a	;number of head
+
+		ld	a,1
+		out	(p_sec_count),a		;number of sectors
+
+		ld	a,c
+		out	(p_sec_number),a	;number of sector (starts from 1)
+
+		ld	a,e
+		out	(p_cyl_low),a
+		ld	a,d
+		out	(p_cyl_high),a		;number of cylinder
+
+		ld	a,#20			;ATA command, read sector(s)
+		out	(p_command),a
+
+		call	tst_bsy
+		jp	nz,error
+
+		call	rd_512			;works as inir (hl+512)
+
+		call	tst_err
+		jp	nz,error
+
+		xor	a
+		ret
+
+write0:		call	tst_bsy
+		jp	nz,error
+
+		ld	a,b
+hea_wr0:	or	%10100000
+		out	(p_device_head),a	;number of head
+
+		ld	a,1
+		out	(p_sec_count),a		;number of sectors
+		ld	a,c
+		out	(p_sec_number),a	;number of sector (starts from 1)
+		ld	a,e
+		out	(p_cyl_low),a
+		ld	a,d
+		out	(p_cyl_high),a		;number of cylinder
+
+		ld	a,#30			;ATA command, write sector(s)
+		out	(p_command),a
+
+		call	tst_bsy
+		jp	nz,error
+
+		call	wr_512
+
+		call	tst_bsy
+		jp	nz,error
+		call	tst_err
+		jp	nz,error
+
+		xor	a
+		ret
+
+;------------------------------------
+;----- end of generic 000 -----------
+;------------------------------------
+
+
+
+;------------------------------------
+;--------- generic+ 001 -------------
+;------------------------------------
+
+rd_sec1:	call	sect_num
+		ret	nz
+		push	hl
+		call	prepoc
+		pop	hl
+		call	read1
+		ret
+
+wr_sec1:	ld	a,(wr_prot+1)
+		or	a
+		ret	nz
+
+		call	sect_num
+		ret	nz
+		push	hl
+		call	prepoc
+		pop	hl
+		call	write1
+		ret
+
+read1:		call	tst_bsy
+		jp	nz,error
+
+		ld	a,b
+hea_rd1:	or	%10100000
+		out	(p_device_head),a	;number of head
+
+		ld	a,2
+		out	(p_sec_count),a		;number of sectors
+
+		ld	a,c
+		out	(p_sec_number),a	;number of sector (starts from 1)
+
+		ld	a,e
+		out	(p_cyl_low),a
+		ld	a,d
+		out	(p_cyl_high),a		;number of cylinder
+
+		ld	a,#20			;ATA command, read sector(s)
+		out	(p_command),a
+
+		call	tst_bsy
+		jr	nz,error
+
+		call	rd_512
+
+		call	tst_err
+		jr	nz,error
+
+		call	tst_bsy
+		jr	nz,error
+
+		call	rd_512
+
+		call	tst_err
+		jr	nz,error
+
+		xor	a
+		ret
+
+write1:		call	tst_bsy
+		jr	nz,error
+
+		ld	a,b
+hea_wr1:	or	%10100000
+		out	(p_device_head),a	;number of head
+
+		ld	a,2
+		out	(p_sec_count),a		;number of sectors
+		ld	a,c
+		out	(p_sec_number),a	;number of sector (starts from 1)
+		ld	a,e
+		out	(p_cyl_low),a
+		ld	a,d
+		out	(p_cyl_high),a		;number of cylinder
+
+		ld	a,#30			;ATA command, write sector(s)
+		out	(p_command),a
+
+		call	tst_bsy
+		jr	nz,error
+
+		call	wr_512
+
+		call	tst_bsy
+		jr	nz,error
+		call	tst_err
+		jr	nz,error
+
+		call	wr_512
+
+		call	tst_bsy
+		jr	nz,error
+		call	tst_err
+		jr	nz,error
+
+		xor	a
+		ret
+
+;------------------------------------
+;----- end of generic+ 001 ----------
+;------------------------------------
+
+
+;------------------------------------
+;-------- LBA mode 010 --------------
+;------------------------------------
+
+rd_sec2:	call	sect_num
+		ret	nz
+
+		push	hl
+		call	prep_lba
+		pop	hl
+
+		call	read1
+		ret
+
+wr_sec2:	ld	a,(wr_prot+1)
+		or	a
+		ret	nz
+
+		call	sect_num
+		ret	nz
+
+		push	hl
+		call	prep_lba
+		pop	hl
+
+		call	write1
+		ret
+
+;------------------------------------
+;---- end of LBA mode 010 -----------
+;------------------------------------
+
+
+;------------------------------------
+;------ rest of patch code ----------
+;------------------------------------
+
+error:		cp	255
+		jr	nz,err1
+		ld	a,1
+		ret
+
+err1:		and	%01010011
+		jr	z,err2
+		ld	a,8
+		ret
+
+err2:		ld	a,128
+		ret
+
+
+tst_bsy:	push	hl
+		push	bc
+		ld	hl,0
+
+tst1:		dec	hl
+		ld	a,l
+		or	h
+		jr	z,tout1
+p84:		in	a,(p_command)
+		inc	a
+		jr	z,p84
+		dec	a
+		bit	7,a
+		jr	nz,tst1
+		pop	bc
+		pop	hl
+		ret
+
+tout1:		ld	a,255
+		or	a
+		pop	bc
+		pop	hl
+		ret
+
+tst_err:	in	a,(p_command)
+		inc	a
+		jr	z,tst_err
+		dec	a
+		and	1
+		ret	z
+		in	a,(p_error)
+		ret
+
+rd_512:		ld	(dma_adr1),hl
+		push	hl
+		ld	hl,dma_in
+		ld	bc,((dma_in_end-dma_in)*256)+dma_port
+		otir
+		ld	a,dos_bank
+		ld	b,#87
+		call	dma_start	;start DMA transfer
+		pop	hl
+		ld	bc,512
+		add	hl,bc
+		ret
+
+dma_in:		db	#c3		;WR6-reset
+		db	%01111101	;WR0 PA->PB, transfer
+		dw	p_data		;source port
+		dw	511		;block size
+		db	%00101100	;WR1 PA-port, fixed
+		db	%00010000	;WR2 PB-memory, increment
+		db	%10101101	;WR4 continuous
+dma_adr1:	dw	0		;destination memory
+		db	%10010010	;WR5 ready low,CE/WAIT,stop on end of block
+		db	#cf		;WR6 load
+		db	#b3		;WR6 force ready
+dma_in_end:
+
+wr_512:		ld	(dma_adr2),hl
+		push	hl
+		ld	hl,dma_out
+		ld	bc,((dma_out_end-dma_out)*256)+dma_port
+		ld	a,dos_bank
+		otir
+		ld	a,dos_bank
+		ld	b,#87
+		call	dma_start
+		pop	hl
+		ld	bc,512
+		add	hl,bc
+		ret
+
+dma_out:	db	#c3		;WR6-reset
+		db	%00000001	;WR0-Temporarily declare Port B as source in WR0 (bit 2 = 0)
+        	db	%00010100	;WR1-PA memory,increment
+        	db	%00101000	;WR2-PB io, fixed
+        	db	%10000000	;WR3
+        	db	%10101101	;WR4-Write Port B (fixed destination) address to WR4.
+		dw	p_data		;port
+        	db	#cf		;WR6-load
+        	db	%01111101	;WR0-transfer,portA,block length
+dma_adr2:	dw	0		;memory
+        	dw	511		;block size
+        	db	%10010010	;WR5-stop on end,/CE/WAIT,Ready low
+        	db	#cf		;WR6-load
+        	db	#b3		;WR6-force ready
+dma_out_end:
+
+tst_drv:	ld	l,a
+		ld	h,0
+		add	hl,hl
+		add	hl,hl
+		ld	de,tab_drv
+		add	hl,de
+
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		inc	hl
+		push	de
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		pop	hl
+
+		ld	a,d
+		rrca
+		rrca
+		and	%01000000
+		ld	(wr_prot+1),a
+
+		ld	a,d
+		rrca
+		and	%00000111
+		jr	z,mode0
+		dec	a
+		jr	z,mode1
+		dec	a
+		jr	z,mode2
+		jr	mode3
+
+mode0:		ld	a,d
+		or	%10100000
+		and	%10110000		;LBA no way
+		ld	(hea_wr0+1),a
+		ld	(hea_rd0+1),a
+
+		ld	bc,rd_sec0
+		ld	(set_rdm+1),bc
+		ld	bc,wr_sec0
+		ld	(set_wrm1+1),bc
+		ld	(set_wrm2+1),bc
+
+		jr	mst_slv			;hl & de contains data!
+
+mode1:		ld	a,d
+		or	%10100000
+		and	%10110000		;LBA no way
+		ld	(hea_wr1+1),a
+		ld	(hea_rd1+1),a
+
+		ld	bc,rd_sec1
+		ld	(set_rdm+1),bc
+		ld	bc,wr_sec1
+		ld	(set_wrm1+1),bc
+		ld	(set_wrm2+1),bc
+
+		jr	mst_slv			;hl & de contains data!
+
+mode2:		ld	a,d
+		or	%11100000		;100% LBA
+		and	%11110000
+		ld	(hea_wr1+1),a
+		ld	(hea_rd1+1),a
+
+		ld	bc,rd_sec2
+		ld	(set_rdm+1),bc
+		ld	bc,wr_sec2
+		ld	(set_wrm1+1),bc
+		ld	(set_wrm2+1),bc
+
+		jr	lba_mod			;hl & de contains data!
+
+mode3:
+mst_slv:	and	%00010000
+		jr	z,prim
+		ld	a,(m_sec2)
+		ld	(m_sec+1),a
+		ld	a,(m_hea2)
+		ld	(m_hea+1),a
+		ld	bc,(m_cyl2)
+		ld	(m_cyl+1),bc
+		jr	slave
+
+prim:		ld	a,(m_sec1)
+		ld	(m_sec+1),a
+		ld	a,(m_hea1)
+		ld	(m_hea+1),a
+		ld	bc,(m_cyl1)
+		ld	(m_cyl+1),bc
+slave:
+lba_mod:	ld	d,0
+		ld	(low24+1),hl
+		ld	(hig24+1),de
+
+		ld	a,e
+		or	h
+		or	l
+		ret
+
+div:		ld	a,h
+		ld	c,l
+		ld	hl,0
+		ld	b,16
+div2:		sll	c
+		rla
+		adc	hl,hl
+		sbc	hl,de
+		jr	nc,div3
+		add	hl,de
+		dec	c
+div3:		djnz	div2
+		ex	de,hl
+		ld	h,a
+		ld	l,c
+		ret
+
+div248:		push	ix
+		ld	bc,0
+		ld	d,0
+		ld	lx,a
+		ld	hx,24
+div2481:	sll	l
+		rl	h
+		rl	e
+		rl	d
+		rl	c
+		rl	b
+
+		ld	a,d			;adc bcd,bcd
+		sbc	a,lx
+		ld	d,a
+		jp	nc,divok1
+		dec	c
+		jp	p,divok1
+		dec	b
+divok1:		jp	p,divok3		;sbc bcd,lx
+
+		add	a,lx
+		ld	d,a
+		jp	nc,divok2
+		inc	c
+		jp	nz,divok2
+		inc	b
+divok2:		dec	l
+divok3:		dec	hx			;add bcd,lx
+		jp	nz,div2481
+
+		pop	ix
+		ret
+
+		ent
+patch_90h_end:
+cfdriver_end:
+
+; Includes
+
+		include	"xy42.a80"		; 42 char print routine by Busy
+		include "draw.a80"		; draw routine by Busy
+
+; Data
+msg_title_lbl:	db	"        CF D"
+		db	"river v1.2  for "
+		db	"MB-02+"
+		db	#00
+
+msg_device_err:	db	"       "
+		db	"Device not"
+		db	" present o"
+		db	"r error!"
+		db	#00
+
+msg_mbr_err:	db	"            "
+		db	"Bad MBR or error!"
+		db	#00
+
+msg_part_miss:	db	"      "
+		db	"Dedicated "
+		db	"partition "
+		db	"not found!"
+		db	#00
+
+msg_drv_not_i:	db	" Unknown Error.  CF Driver not installed!"
+		db	#00
+
+msg_drv_instld:	db	"     CF Driver installed sucessfully."
+		db	#00
+
+msg_copyright:	db	"           "
+		db	#7f
+		db	"2020 z00m^"
+		db	"SinDiKAT"
+		db	#00
+
+msg_any_key:	db	"              "
+		db	"Press any key."		
+		db	#00
+
+msg_device_inf:	db	"CF card: "
+msg_device_nam:	ds	#4b,#20
+		db	"C/H/S: "
+msg_device_cyl:	ds	#05,#20
+		db	"/"
+msg_device_hea:	ds	#03,#20
+		db	"/"
+msg_device_sec:	ds	#03,#20
+		ds	#16,#20
+		db	"LBA: "
+msg_device_lba:	ds	#03,#20
+		ds	#22,#20
+		db	"Capacity: "
+msg_device_cap:	ds	#05,#20
+		db	" MB"
+		db	#00
+
+msg_part_inf:	db	"Partitions: "
+		ds	#1e,#20
+		db	"1:"
+msg_part_1	ds	#07,#20
+		db	" 2:"
+msg_part_2	ds	#07,#20
+		db	" 3:"
+msg_part_3	ds	#07,#20
+		db	" 4:"
+msg_part_4	ds	#07,#20
+		db	#00
+
+msg_part_mb03:	db	"Dedicated "
+		db	"partition "
+		db	"found.    "
+		ds	#0c,#20
+		db	"Size: "
+msg_pmb03_size:	ds	#0B,#20
+		db	"sectors."
+		ds	#11,#20
+		db	"Possible n"
+		db	"umber of d"
+		db	"rives: "
+msg_pmb03_dnum:	ds	#03,#20
+		db	"."
+		ds	#0b,#20
+		db	"Occupied drives:"
+		db	" @003 - @"
+msg_pmb03_odrv:	ds	#03,#20
+		db	#0
+
+p_m_other:	db	"other  "
+p_m_fat16:	db	"FAT16  "
+p_m_fat32:	db	"FAT32  "
+p_m_ntfs:	db	"NTFS   "
+p_m_mb02:	db	"MB-02+ "
+p_m_sfs:	db	"SFS    "
+p_m_linux:	db	"Linux  "
+p_m_swap:	db	"swap   "
+p_m_bsd:	db	"BSD    "
+p_m_extended:	db	"extend "
+p_m_none:	db	"none   "
+
+; Variables
+sp_store:	dw	#ffff
+master_slave:	db	#00
+num_of_drives:	db	#00
+device_mode:	db	%00000000		; bit7=0, bit6=CHS(0)/LBA(1), bit5=0, bit4=master(0)/slave(1)
+						; bit3-bit1= LBA(010)/CHS2(001)/CHS1(000), bit0=write allowed(0)/write protect(1)
+lba0:		db	0
+lba1:		db	0
+lba2:		db	0
+
+; Buffers
+mas_id_buffer:	ds	#200			; buffer for master device identify block
+mas_mbr_buffr:	ds	#200			; buffer for master MBR
+font_buffer:	ds	#310			; buffer for font
+
+;--------------------------------------
+; Virtual disk table
+
+vdt:
+
+v_mas_sectors:	db	0		;master: sectors
+v_mas_heads:	db	0		;master: heads
+v_mas_cyl_low:	db	0		;master: cylinders low
+v_mas_cyl_high:	db	0		;master: cylinders high
+
+v_sla_sectors:	db	0		;slave: sectors
+v_sla_heads:	db	0		;slave:	heads
+v_sla_cyl_low:	db	0		;slave: cylinders low
+v_sla_cyl_high	db	0		;slave: cylinders high
+
+		db	0, 0, 0 ,0	;@0 - tape, don't change
+
+		db	0, 0, 0, 0	;@1 - floppy 1, don't change for MB-02+
+		db	0, 0, 0, 0	;@2 - floppy 2, don't change if two fdds are connected
+
+vdt_lba:	ds	1012		;table of virtual drives @3-@255
+					;the format is: lba0,lba1,lba2,device_mode
+vdt_end:
+		savebin "cf-driver-mb02.bin",start,$-start
+

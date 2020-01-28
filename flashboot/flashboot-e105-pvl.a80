@@ -1,7 +1,8 @@
-;Flashboot v01 for MB-02+
-;(c) 11/2019 z00m^SinDiKAT
+;Flashboot v02 for MB-02+
+;(c) 01/2020 z00m^SinDiKAT
+;EasyHDD 105, Ports: PVL
 
-		output	"flashboot.bin"
+		output	"fb-e-pvl.bin"
 
 ula:		equ	#fe
 dma:		equ	#0b
@@ -197,12 +198,12 @@ dummyloop:	dec	hl
 		jr	nz,dummyloop
 		ret
 
-MsgStartup0:	dc	"          ------------------"
+MsgStartup0:	dc	"      --------------------------"
 MsgStartup1:	dc	"           MB-02+ FlashBoot"
-MsgStartup2:	dc	"              version: 01"
-MsgStartup3:	dc	"          ------------------"
-MsgStartup4:	dc	"     Press space to boot from floppy!"
-MsgStartup5:	dc	"      (c)2019 z00m / TCG / SinDiKAT"
+MsgStartup2:	dc	"       version: 02 EHDD 105 PVL"
+MsgStartup3:	dc	"      --------------------------"
+MsgStartup4:	dc	"    Press space to boot from floppy!"
+MsgStartup5:	dc	"      (c)2020 z00m / TCG / SinDiKAT"
 
 MsgBootEnd0:	dc	"Booting from floppy...                    "
 MsgBootEnd1:	dc	"Booting from flash ROM...                 "
@@ -459,7 +460,6 @@ RAMcode:
 		ld	de,#c000
 		call	dehrust
 
-
 		ld	a,dos_bank		;SRAM DOS BANK
 		out	(mem_port),a
 		
@@ -491,12 +491,8 @@ RAMcode:
 		ld	a,flash_bank0		;FlashROM BANK0
 		out	(mem_port),a
 		
-		ld	hl,HDDpatchBin		;move HDD patch to RAM
+		ld	hl,EasyHDDBin		;move HDD patch to RAM
 		ld	de,#8000
-		call	dehrust
-
-		ld	hl,VDT			;move VDT to its place
-		ld	de,#8003
 		call	dehrust
 
 		ld	a,rom_bank_ro		;ROM BANK read only
@@ -543,9 +539,7 @@ roll:		db	#55
 
 RAMcode_end:		
 
-HDDpatchBin:	incbin	"hdpc.hru"
-
-VDT:		incbin	"vdt.hru"
+EasyHDDBin:	incbin	"easyhdd-pvl.hru"
 
 BSDOSBin:	incbin	"bsdos.hru"
 

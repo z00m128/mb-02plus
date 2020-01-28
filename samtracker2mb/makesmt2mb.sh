@@ -6,6 +6,7 @@
 # bin2tap
 # dirtap
 # zmakebas
+# zx7
 
 ASM="sjasmplus"
 FILE="smt2mb"
