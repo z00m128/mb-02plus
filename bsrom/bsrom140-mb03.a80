@@ -1,6 +1,6 @@
 ;##########################################################################
 ;# BSrom140 - Modified ZX Spectrum ROM - (c) Busy soft - Release 22.04.97 #
-;#                   with enhancements needed for BSDOS                   #
+;#             with enhancements needed for BSDOS and MB-03+              #
 ;##########################################################################
 ;                         Original rom: (c) Amstrad
 
@@ -764,25 +764,27 @@ SEMI_TONE:	DB	#89, #02, #D0, #12, #86
 		DB	#89, #69, #14, #F6, #24
 		DB	#89, #76, #F1, #10, #05
 
-; BSROM for MB02+
-; reserved for future patches
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
-		DW	#0000
+; BSROM for MB-03+
+; SAA Silence, ULAPlus palette off
+SAAUPOFF:	CALL	SAARESET
+		LD	BC,#BF3B
+		LD	A,#40
+		OUT	(C),A
+		LD	B,#FF
+		XOR	A
+		OUT	(C),A
+		RET
+
+; Unused bytes
+		DW	#FFFF
+		DW	#FFFF
+		DW	#FFFF
+		DW	#FFFF
 
 ; Save header and program or data
 SA_BYTES:	LD	HL,SA_LD_RET
 		PUSH	HL
-SA_BYTES1:	CALL	TSTSAV			;BSROM for MB02+ - modified tape save (tape emulator)
+SA_BYTES1:	CALL	TSTSAV			;BSROM for MB-03+ - modified tape save (tape emulator)
 		BIT	7,A
 		JR	Z,SA_FLAG
 		LD	HL,#0C98
@@ -877,12 +879,12 @@ SA_LD_END:	POP	AF
 LD_BYTES:	INC	D
 		EX	AF,AF'
 		DEC	D
-		NOP				; BSROM for MB02+ - don't disable interrupt
+		NOP				; BSROM for MB-03+ - don't disable interrupt
 		LD	A,#0F
-		LD	A,#FE			; BSROM for MB02+ - don't change border
+		LD	A,#FE			; BSROM for MB-03+ - don't change border
 		LD	HL,SA_LD_RET
 		PUSH	HL
-		CALL	TSTLOA			; BSROM for MB02+ - modified tape load (tape emulator)
+		CALL	TSTLOA			; BSROM for MB-03+ - modified tape load (tape emulator)
 LD_BYTES1:	AND	#20
 		OR	#02
 		LD	C,A
@@ -991,7 +993,7 @@ SAVE_ETC:	POP	AF
 		LD	A,(#5C74)
 		SUB	#E0
 		LD	(#5C74),A
-		NOP			; BSROM for MB02+ - filename handling provided by BSDOS
+		NOP			; BSROM for MB-03+ - filename handling provided by BSDOS
 		NOP
 		NOP
 		CALL	SYNTAX_Z
@@ -1477,7 +1479,7 @@ SA_CONTRL:	PUSH	HL
 		XOR	A
 		CALL	SA_BYTES
 		POP	IX
-		LD	B,#02			; BSROM for MB02+ - wait only 2/50 sec
+		LD	B,#02			; BSROM for MB-03+ - wait only 2/50 sec
 SA_1_SEC:	HALT
 		DJNZ	SA_1_SEC
 		LD	E,(IX+#0B)
@@ -1564,7 +1566,7 @@ PO_RIGHT:	LD	A,(#5C91)
 
 ; Carriage return / Enter
 PO_ENTER:	BIT	1,(IY+#01)
-		RET	NZ			; BSROM for MB02+ - don't use ZX Printer
+		RET	NZ			; BSROM for MB-03+ - don't use ZX Printer
 		NOP
 		NOP
 		LD	C,#21
@@ -1742,7 +1744,7 @@ PR_ALL:		LD	A,C			; Print all characters
 		BIT	1,(IY+#01)
 		JR	Z,PR_ALL_1
 		PUSH	DE
-		LD	DE,#0ECD		; BSROM for MB02+ - don't use ZX Printer
+		LD	DE,#0ECD		; BSROM for MB-03+ - don't use ZX Printer
 		POP	DE
 		LD	A,C
 PR_ALL_1:	CP	C
@@ -2220,7 +2222,7 @@ CL_ADDR:	LD	A,#18
 		LD	H,A
 		RET
 
-; BSROM for MB02+ - here was ZX Printer handling.
+; BSROM for MB-03+ - here was ZX Printer handling.
 ; Replaced with BSDOS patches
 COPY:		RET
 
@@ -2274,7 +2276,7 @@ NEWFNC:		LD	A,FUNKC
 		JP	Z,S_FN_SBRN1
 		JP	SF_RUN1
 
-; BSROM for MB02+
+; BSROM for MB-03+
 ; Reserved for future BSDOS patches
 
 		DW	#0000
@@ -2819,8 +2821,8 @@ MAIN_3:		LD	HL,(#5C59)
 		LD	(IY+#0A),#01
 		CALL	LINE_RUN
 MAIN_4:		RST	#38			; BSROM - bugfix - was HALT
-		HALT				; BSROM for MB02+ - wait for beam
-		NOP				; BSROM for MB02+ - ZX Printer not used anymore hence six NOPs
+		HALT				; BSROM for MB-03+ - wait for beam
+		NOP				; BSROM for MB-03+ - ZX Printer not used anymore hence six NOPs
 		NOP
 		NOP
 		RES	5,(IY+#01) 
@@ -3859,7 +3861,7 @@ P_DIM:		DB	#05
 P_REM:		DB	#05
 		DW	REM
 
-P_NEW:		DB	#05			; BSROM for MB02+ - enhanced NEW command, added numeric parameter
+P_NEW:		DB	#05			; BSROM for MB-03+ - enhanced NEW command, added numeric parameter
 		DW	CMDEXE
 
 P_RUN:		DB	#03
@@ -3905,7 +3907,7 @@ P_DRAW:		DB	#09
 		DB	#05
 		DW	DRAW
 
-P_COPY:		DB	#05			; BSROM for MB02+ - enhanced COPY command, added numeric parameter
+P_COPY:		DB	#05			; BSROM for MB-03+ - enhanced COPY command, added numeric parameter
 		DW	CMDEXE
 
 P_LPRINT:	DB	#05
@@ -3969,7 +3971,7 @@ P_ERASE:	DB	#0A
 		DB	#00
 		DW	CAT_ETC
 
-P_CAT:		DB	#05			; BSROM for MB02+ - enhanced CAT command, added numeric parameter
+P_CAT:		DB	#05			; BSROM for MB-03+ - enhanced CAT command, added numeric parameter
 		DW	CMDEXE
 
 ; Main parser of BASIC interpreter
@@ -3995,7 +3997,7 @@ STMT_L_1:	CALL	SET_WORK
 		LD	HL,STMT_RET
 		PUSH	HL
 		CP	#CE
-		JP	C,NEWCMD		; BSROM for MB02+ - new BASIC commands
+		JP	C,NEWCMD		; BSROM for MB-03+ - new BASIC commands
 		SUB	#CE
 		LD	C,A
 		RST	#20
@@ -4250,7 +4252,7 @@ CL_09_1:	CALL	CO_TEMP_2
 		JR	EXPT_2NUM
 
 ; Command class 09 - four commands handling
-		JP	CMDMGF			; BSROM for MB02+ - modified tape commands
+		JP	CMDMGF			; BSROM for MB-03+ - modified tape commands
 
 ; Fetch a number
 FETCH_NUM:	CP	#0D
@@ -5775,7 +5777,7 @@ S_BRACKET:	RST	#20
 		RST	#20
 		JP	S_CONT_2
 
-S_FN:		JP	NEWFNC			; BSROM for MB02+ - new functions
+S_FN:		JP	NEWFNC			; BSROM for MB-03+ - new functions
 
 S_RND:		CALL	SYNTAX_Z
 		JR	Z,S_RND_END
@@ -9445,15 +9447,15 @@ PUST:		CALL	KEY_SCAN
 		JR	Z,USERJP
 		CP	'E'			; E - extended 128k reset.
 		JR	Z,RES128
-		CP	'I'			; I - quiet (3x)AY & SAA. Reset DMA.
+		CP	'I'			; I - quiet (3x)AY & SAA. Reset DMA. Turn ULAPlus off.
 		JP	Z,HARD
-		CP	'T'			; T - set tape as actual device (only on MB-02).
+		CP	'T'			; T - set tape as actual device (only on MB-03+).
 		JP	Z,SETTAP
-		CP	'D'			; D - set disk as actual device (only on MB-02).
+		CP	'D'			; D - set disk as actual device (only on MB-03+).
 		JP	Z,SETDSK
 		CP	'B'			; B - warm start. BASIC program with variables is not deleted.
 		JP	Z,BASIC
-		CP	'Z'			; Z - user function reserved for MB-02 applications.
+		CP	'Z'			; Z - user function reserved for MB-03+ applications.
 		LD	HL,(DISKTOOLS)
 		JR	NZ,DSKIP
 		JP	(HL)
@@ -9463,7 +9465,7 @@ DSKIP:		CP	'N'			; N - CLEAR #5FFF: NEW - memory above #6000 is not changed.
 		CP	'R'			; R - CLEAR #FFFF: NEW - classic 48k reset.
 		LD	D,E
 RESNEW:		JP	Z,NEW_1
-NERES:		CP	'S'			; S - save SCREEN$ on tape, or disk if MB-02 is present.
+NERES:		CP	'S'			; S - save SCREEN$ on tape, or disk if MB-03+ is present.
 		JR	NZ,NESAV
 		LD	IX,#4000
 		LD	DE,#1B00
@@ -9720,7 +9722,7 @@ NEWTAB:		DB	'#'
 		DB	'='
 		DW	USERJP
 
-; Quiet (3x)AY & SAA. Reset FDC, DMA, stop drives if MB-02 is present
+; Quiet (3x)AY & SAA. Reset DMA, turn ULAPlus palette off
 HARD:		LD	A,#C3
 		OUT	(#0B),A			; Reset DMA
 		LD	BC,#FFFD
@@ -9733,7 +9735,7 @@ HARD:		LD	A,#C3
 		LD	A,#FF			; AY1 silence
 		OUT	(C),A
 		CALL	AYCTRL
-		JP	SAARESET		; SAA silence
+		JP	SAAUPOFF		; SAA silence + ULAPlus OFF
 
 ; Warm start
 BASIC:		LD	HL,INIT_CHAN
@@ -9903,7 +9905,7 @@ MENO1:		RST	#10
 
 		DB	#FF
 
-; BSROM for MB02+
+; BSROM for MB-03+
 ; ROM BIOS
 SETRWP:		JR	ROMDIS			; Set rom bank + write protect
 SETDWP:		JR	DOSDIS			; Set dos bank + write protect
@@ -9940,11 +9942,11 @@ BNCALL:		CALL	SETRWE
 REGHL:		LD	HL,#5555
 SWITCH:		JP	SETDWE
 
-; BSROM for MB02+
+; BSROM for MB-03+
 ; this is hardware dependant part of ROM BIOS
 ; here are FFs by standard
 ; this part of code is loaded during system boot
-; valid only for MB02+
+; valid only for MB-03+
 ROMDIS:		PUSH	AF
 		LD	A,#40
 		JR	BNKOUT
