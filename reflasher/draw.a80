@@ -1,0 +1,248 @@
+; Nasa rutinka interpolatora sa vola "line" a na vstupe ocakava suradnice dvoch
+; bodov v registroch BC a DE: prvy bod X=C,Y=B a druhy X=E,Y=D. Rutinka si
+; najprv prehodi suradnice bodov tak, aby ciaru kreslila vzdy zhora nadol,
+; potom si zisti, ci bude kreslit ciaru zlava doprava alebo zprava dolava a
+; podla toho si nastavi rotaciu masky a pripadny inkrement/dekrement adresy.
+; Potom si podla predpocitanej tabulky z minulej casti vypocita adresu a masku
+; prveho vykreslovaneho bodu, este sa rozhodne ci sa bude viackrat posuvat do
+; strany alebo dole (ludsky povedane, ci ciara bude "vodorovnejsia" alebo
+; "zvislejsia") a nakoniec sa priamo vrhne na vypocet a vykreslovanie vsetkych
+; bodov leziacich na spojnici medzi dvomi zadanymi bodmi na vstupe. 
+; Ako obvykle, rutinka "run" ukazuje priklad pouzitia interpolatora a rutinka
+; "over" urcuje sposob vykreslovania ciary (OVER 0 alebo OVER 1). 
+; Rutinka "bod" sluzi na samotne vykreslenie bodu, na vstupe ocakava
+; suradnice v registri BC (B=Y,C=X). Rutinka "over" specifikuje sposob
+; vykreslovania bodu, vstup: A=0 pre OVER 0 alebo A=1 pre OVER 1. Rutinka
+; "mkbod" sluzi na vypocet tabulky potrebnej pre rutinku "bod". Treba ju
+; zavolat raz na zaciatku pred prvym pouzitim rutinky "bod". 
+      
+;run         call  mkbod  
+;            ld    bc,#00  
+;            ld    de,#bfff  
+;            call  line  
+;            ld    bc,#1525  
+;            ld    de,#2343  
+;            call  line  
+;            ld    bc,#8142  
+;            ld    de,#4767  
+;            jp    line   
+
+            module draw
+
+over        rrca    
+            sbc   a,a  
+            and   #18  
+            xor   #b6  
+            ld    (lnov1),a  
+            ld    (lnov2),a  
+            ld    (bodset),a  
+            ret    
+      
+line        ld    a,d
+            cp    b  
+            jr    nc,lnxch  
+            ld    d,b  
+            ld    b,a  
+            ld    a,e  
+            ld    e,c  
+            ld    c,a  
+lnxch       ld    a,c  
+            cp    e  
+            sbc   a,a  
+            and   #08  
+            ld    l,#2d  
+            jr    z,skokplus1  ;#01  
+            dec   l  
+skokplus1   inc   a  
+            ld    (rot1+1),a  
+            ld    (rot2+1),a  
+            ld    a,l  
+            ld    (deci1),a  
+            ld    (deci2),a  
+      
+            ld    a,d  
+            sub   b  
+            ld    d,a  
+            ld    a,e  
+            sub   c  
+            ld    e,a  
+            jr    nc,skokplus3;#03  
+            neg    
+skokplus3   ld    e,a  
+      
+  
+lnbod       ld    h,hitab+3  
+            ld    l,c   
+            ld    c,(hl)  
+            dec   h  
+            ld    a,(hl)  
+            dec   h  
+            ld    l,b  
+            or    (hl)  
+            dec   h  
+            ld    h,(hl)  
+            ld    l,a  
+      
+            ld    a,e  
+            cp    d  
+            jr    nc,lnaaa  
+      
+            ld    b,d  
+            inc   b  
+            ld    a,e  
+            sub   d  
+            ld    e,a  
+            xor   a  
+            xor   d  
+            rra    
+      
+lnn1        ex    af,af  
+            ld    a,c  
+lnov1       xor   (hl)  
+            ld    (hl),a  
+            inc   h  
+            ld    a,h  
+            and   #07  
+            jr    z,dolu1  
+hore1       ex    af,af  
+            add   a,e  
+            jr    nc,ln11  
+rot1        rrc   c  
+            jr    c,deci1  
+            djnz  lnn1  
+            ret    
+      
+deci1       dec   l  
+            djnz  lnn1  
+            ret    
+                
+ln11        add   a,d  
+            djnz  lnn1  
+            ret    
+                
+dolu1       ld    a,#20  
+            add   a,l  
+            ld    l,a  
+            jr    c,hore1  
+            ld    a,#f8  
+            add   a,h  
+            ld    h,a  
+            jp    hore1  
+      
+lnaaa       ld    b,e  
+            inc   b  
+            ld    a,e  
+            sub   d  
+            ld    d,a  
+            xor   a  
+            xor   e  
+            rra    
+            ex    af,af  
+            jr    hore2  
+      
+lnn2        ex    af,af  
+            inc   h  
+            ld    a,h  
+            and   #07  
+            jr    z,dole2  
+hore2       ld    a,c  
+lnov2       xor   (hl)  
+            ld    (hl),a  
+rot2        rrc   c  
+            jr    c,deci2  
+            ex    af,af  
+            sub   d  
+            jr    c,ln22  
+            djnz  lnn2  
+            ret    
+      
+deci2       dec   l  
+            ex    af,af  
+            sub   d  
+            jr    c,ln22  
+            djnz  lnn2  
+            ret    
+      
+ln22        add   a,e  
+            ex    af,af  
+            djnz  hore2  
+            ret    
+                
+dole2       ld    a,#20  
+            add   a,l  
+            ld    l,a  
+            jr    c,hore2  
+            ld    a,#f8  
+            add   a,h  
+            ld    h,a  
+            jp    hore2 
+            
+      
+bod         ld    h,high tabbod  
+            ld    l,b  
+            ld    d,(hl)  
+            inc   h  
+            ld    a,(hl)  
+            inc   h  
+            ld    l,c  
+            or    (hl)  
+            ld    e,a  
+            inc   h  
+            ld    a,(de)  
+bodset      xor   (hl)  
+            ld    (de),a  
+            ret    
+      
+      
+mkbod       ld    ix,tabbod  
+            ld    hl,#4000  
+mkbb1       ld    (ix+#00),h  
+            inc   xh  
+            ld    (ix+#00),l  
+            dec   xh  
+            call  dole  
+            inc   xl  
+            jr    nz,mkbb1  
+            inc   xh  
+            inc   xh  
+mkbb2       ld  a,xl  
+            rrca    
+            rrca    
+            rrca    
+            and   #1f  
+            ld    (ix+#00),a  
+            ld    a,xl  
+            cpl    
+            add   a,a  
+            add   a,a  
+            add   a,a  
+            or    #c7  
+            ld    (mkbb3+1),a  
+            xor   a  
+mkbb3       set   1,a  
+            inc   xh  
+            ld    (ix+#00),a  
+            dec   xh  
+            inc   xl  
+            jr    nz,mkbb2  
+            ret    
+      
+dole        inc   h  
+            ld    a,h  
+            and  #07  
+            ret  nz  
+            ld  a,#20  
+            add  a,l  
+            ld  l,a  
+            ret  c  
+            ld  a,#f8  
+            add  a,h  
+            ld  h,a  
+            ret  
+            
+tabbod      equ (1+high $)*256 ; prepocet aby se zacinalo na kulate adrese
+            org tabbod
+            block 1024  
+hitab       equ  high tabbod
+
+            endmodule

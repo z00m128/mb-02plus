@@ -1,0 +1,386 @@
+;-------------------------------------;
+;    ReFlasher for MB-03+ Ultimate    ;
+;-------------------------------------;
+; (c) 2020 z00m^SinDiKAT
+; formatted for SjASMPlus
+
+; Version: 1.0
+
+		device	zxspectrum48
+
+; Definitions
+screen:		equ	#4000
+attrs:		equ	#5800
+ula:		equ	#fe
+
+; Main
+		org	#6000
+
+start:		di
+
+		xor	a
+		out	(ula),a
+		call	clear_screen
+
+		call	draw_frame
+
+		call	show_text
+
+		call	wait_key
+
+basic:          ld	iy,#5c3a         
+		ld	hl,#2758          
+		exx                    
+		im	1                 
+		ei                     
+		ret 
+
+; Displays text
+show_text:	ld	hl,#0202		; title label
+		ld	(xy42.cursor),hl
+		ld	hl,txt_title
+		call	print42
+
+		ld	hl,#B102
+		ld	(xy42.cursor),hl
+		ld	hl,txt_version		; version
+		call	print42
+
+		ld	hl,#B179
+		ld	(xy42.cursor),hl
+		ld	hl,txt_copyright	; copyright
+		call	print42
+
+		ld	hl,#0D02
+		ld	(xy42.cursor),hl
+		ld	hl,txt_ufirm		; boot
+		call	print42
+
+		ld	hl,#1502
+		ld	(xy42.cursor),hl
+		ld	hl,txt_diag		; diag ROM
+		call	print42
+
+		ld	hl,#1D02
+		ld	(xy42.cursor),hl
+		ld	hl,txt_esxdos		; ESXDOS
+		call	print42
+
+		ld	hl,#2502
+		ld	(xy42.cursor),hl
+		ld	hl,txt_easyhdd		; EasyHDD
+		call	print42		
+
+		ld	hl,#2D02
+		ld	(xy42.cursor),hl
+		ld	hl,txt_bsrom		; BSROM
+		call	print42
+
+		ld	hl,#3502
+		ld	(xy42.cursor),hl
+		ld	hl,txt_bsdos		; BSDOS
+		call	print42
+
+
+		ld	hl,#3D02
+		ld	(xy42.cursor),hl
+		ld	hl,txt_patches		; patches
+		call	print42
+
+		ld	hl,#4502
+		ld	(xy42.cursor),hl
+		ld	hl,txt_nmi_1		; NMI menu 1
+		call	print42
+
+		ld	hl,#4D02
+		ld	(xy42.cursor),hl
+		ld	hl,txt_nmi_2		; NMI menu 2
+		call	print42		
+
+		ld	hl,#5502
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved0	; Reserved
+		call	print42
+
+		ld	hl,#5D02
+		ld	(xy42.cursor),hl
+		ld	hl,txt_devace		; DevastAce
+		call	print42
+
+		ld	hl,#6502
+		ld	(xy42.cursor),hl
+		ld	hl,txt_ubios		; BIOS
+		call	print42
+
+		ld	hl,#0D59
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved1	; Reserved
+		call	print42
+
+		ld	hl,#1559
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved2	; Reserved
+		call	print42
+
+		ld	hl,#1D59
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved3	; Reserved
+		call	print42
+
+		ld	hl,#2559
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved4	; Reserved
+		call	print42
+
+		ld	hl,#2D59
+		ld	(xy42.cursor),hl
+		ld	hl,txt_h04rom0		; H04 bank 0
+		call	print42
+
+		ld	hl,#3559
+		ld	(xy42.cursor),hl
+		ld	hl,txt_h04rom1		; H04 bank 1
+		call	print42
+
+		ld	hl,#3D59
+		ld	(xy42.cursor),hl
+		ld	hl,txt_h04rom2		; H04 bank 2
+		call	print42		
+
+		ld	hl,#4559
+		ld	(xy42.cursor),hl
+		ld	hl,txt_h04rom3		; H04 bank 3
+		call	print42
+
+		ld	hl,#4D59
+		ld	(xy42.cursor),hl
+		ld	hl,txt_h05rom0		; H05 bank 0
+		call	print42
+
+		ld	hl,#5559
+		ld	(xy42.cursor),hl
+		ld	hl,txt_h05rom1		; H05 bank 1
+		call	print42
+
+		ld	hl,#5D59
+		ld	(xy42.cursor),hl
+		ld	hl,txt_h05rom2		; H05 bank 2
+		call	print42		
+
+		ld	hl,#6559
+		ld	(xy42.cursor),hl
+		ld	hl,txt_h05rom3		; H05 bank 3
+		call	print42
+
+		ld	hl,#0DAF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_crom0		; Custom ROM 0
+		call	print42
+
+		ld	hl,#15AF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_crom1		; Custom ROM 1
+		call	print42
+
+		ld	hl,#1DAF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_crom2		; Custom ROM 2
+		call	print42
+
+		ld	hl,#25AF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_crom3		; Custom ROM 3
+		call	print42
+
+		ld	hl,#2DAF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_crom4		; Custom ROM 4
+		call	print42
+
+		ld	hl,#35AF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_crom5		; Custom ROM 5
+		call	print42
+
+		ld	hl,#3DAF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_crom6		; Custom ROM 6
+		call	print42
+
+		ld	hl,#45AF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_crom7		; Custom ROM 7
+		call	print42
+
+		ld	hl,#4DAF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved5	; Reserved
+		call	print42
+
+		ld	hl,#55AF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved6	; Reserved
+		call	print42
+
+		ld	hl,#5DAF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved7	; Reserved
+		call	print42
+
+		ld	hl,#65AF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_reserved8	; Reserved
+		call	print42
+
+		ld	hl,#7002
+		ld	(xy42.cursor),hl
+		ld	hl,txt_unodos		; UnoDOS
+		call	print42
+
+		ld	hl,#7059
+		ld	(xy42.cursor),hl
+		ld	hl,txt_fatware		; FATware
+		call	print42
+
+		ld	hl,#70AF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_mdos		; MDOS
+		call	print42		
+
+		ld	hl,#7802
+		ld	(xy42.cursor),hl
+		ld	hl,txt_tbios		; TBIOS
+		call	print42
+
+		ld	hl,#7859
+		ld	(xy42.cursor),hl
+		ld	hl,txt_demfir		; DEMFIR
+		call	print42
+
+		ld	hl,#78AF
+		ld	(xy42.cursor),hl
+		ld	hl,txt_cfdriver		; CFDriver
+		call	print42
+
+		ret
+
+; Draws frame
+draw_frame:	call	draw.mkbod
+		xor	a
+		call	draw.over
+
+		ld	bc,#0000
+		ld	de,#00ff
+		call	draw.line
+		ld	bc,#00ff
+		ld	de,#afff
+		call	draw.line
+		ld	bc,#afff
+		ld	de,#af00
+		call	draw.line
+		ld	bc,#af00
+		ld	de,#0000
+		call	draw.line
+
+		ld	bc,#0b00
+		ld	de,#0bff
+		call	draw.line
+
+		ld	bc,#6e00
+		ld	de,#6eff
+		call	draw.line
+
+		ld	bc,#8100
+		ld	de,#81ff
+		call	draw.line
+
+		ret
+
+; Clears screen
+clear_screen:	ld	hl,screen
+		ld	de,screen+1
+		ld	bc,#17ff
+		xor	a
+		ld	(hl),a
+		ldir
+
+		ld	hl,attrs
+		ld	de,attrs+1
+		ld	bc,#2ff
+		ld	a,#07
+		ld	(hl),a
+		ldir
+		ret
+
+; 42-6x7 char print
+print42:	ld	a,(hl)
+		call	xy42.xy
+		inc	hl
+		jr	nz,print42
+		ret		
+
+; Waits for any key
+wait_key:	xor	a
+		in	a,(#fe)
+		cpl
+		and	%00011111
+		jr	z,wait_key
+		ret
+
+; Includes
+		include	"xy42.a80"		; 42 char print routine by Busy
+		include "draw.a80"		; draw routine by Busy
+
+; Data
+txt_ufirm:	db	"0: Boot",0
+txt_diag:	db	"1: DiagROM",0
+txt_esxdos:	db	"2: ESXDOS",0
+txt_unodos:	db	"@: UnoDOS",0
+txt_fatware	db	"$: FATWare",0
+txt_mdos	db	"%: MDOS3",0
+txt_tbios	db	"&: TBIOS",0
+txt_demfir	db	"^: DEMFIR",0
+txt_easyhdd:	db	"3: EasyHDD",0
+txt_cfdriver:	db	"#: CFDriver",0
+txt_bsrom:	db	"4: BSROM",0
+txt_bsdos:	db	"5: BSDOS",0
+txt_patches:	db	"6: Patches",0
+txt_nmi_1:	db	"7: NMI menu 1",0
+txt_nmi_2:	db	"8: NMI menu 2",0
+txt_reserved0	db	"9: Reserved",0
+txt_devace:	db	"A: DevastAce",0
+txt_ubios:	db	"B: BIOS",0
+txt_reserved1:	db	"C: Reserved",0
+txt_reserved2:	db	"D: Reserved",0
+txt_reserved3:	db	"E: Reserved",0
+txt_reserved4:	db	"F: Reserved",0
+txt_h04rom0	db	"G: H04 ROM 0",0
+txt_h04rom1	db	"H: H04 ROM 1",0
+txt_h04rom2	db	"I: H04 ROM 2",0
+txt_h04rom3	db	"J: H04 ROM 3",0
+txt_h05rom0	db	"K: H05 ROM 0",0
+txt_h05rom1	db	"L: H05 ROM 1",0
+txt_h05rom2	db	"M: H05 ROM 2",0
+txt_h05rom3	db	"N: H05 ROM 3",0
+txt_crom0	db	"O: Cust.ROM 0",0
+txt_crom1	db	"P: Cust.ROM 1",0
+txt_crom2	db	"Q: Cust.ROM 2",0
+txt_crom3	db	"R: Cust.ROM 3",0
+txt_crom4	db	"S: Cust.ROM 4",0
+txt_crom5	db	"T: Cust.ROM 5",0
+txt_crom6	db	"U: Cust.ROM 6",0
+txt_crom7	db	"V: Cust.ROM 7",0
+txt_reserved5:	db	"W: Reserved",0
+txt_reserved6:	db	"X: Reserved",0
+txt_reserved7:	db	"Y: Reserved",0
+txt_reserved8:	db	"Z: Reserved",0
+
+txt_copyright:	db	#7f,"z00m^SinDiKAT 02/2020",0
+txt_title:	db	"      ReFlasher for  MB-03+ Ultimate",0
+txt_version:	db	"Version: 1.0",0
+
+txt_flash_one:	db	"Press corresponding key to program single bank.",0
+txt_flash_all:	db	"Press EDIT to program all banks.",0
+
+		savebin "reflasher.bin",start,$-start
+		
