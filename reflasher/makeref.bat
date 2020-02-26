@@ -1,2 +1,6 @@
 sjasmplus --syntax=f --lst=reflasher.lst reflasher.a80
-bin2tap -o reflasher.tap -a 24576 -b -r 24575 reflasher.bin
+zmakebas -a 9997 -n ReFlasher -o 001.tap reflasher.bas
+bin2tap -o 002.tap reflasher.bin
+type 001.tap 002.tap > ReFlasher.tap
+del 001.tap 002.tap
+pause

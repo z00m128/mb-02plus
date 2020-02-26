@@ -14,7 +14,7 @@ attrs:		equ	#5800
 ula:		equ	#fe
 
 ; Main
-		org	#6000
+		org	#8000
 
 start:		di
 
@@ -22,18 +22,270 @@ start:		di
 		out	(ula),a
 		call	clear_screen
 
-		call	draw_frame
+		call	draw_frame		; draws frame
 
-		call	show_text
+		call	show_text		; displays all texts
 
-		call	wait_key
+		call	check_ret_bas		; fresh start or returning from bin loading?
 
-basic:          ld	iy,#5c3a         
-		ld	hl,#2758          
-		exx                    
-		im	1                 
-		ei                     
+again:		call	dummy_loop
+
+		call	inkey.ANYKEY		; get user response
+		ld	(key_store),a
+		cp	'!'			; exit to basic
+		jp	z,basic
+		cp	'#'			; flash CFDriver
+		jp	z,flash_cfdriver
+		cp	'$'			; flash FATware
+		jp	z,flash_fatware
+		cp	'%'			; flash MDOS3
+		jp	z,flash_mdos3
+		cp	'&'			; flash TBIOS
+		jp	z,flash_tbios
+		cp	'*'			; flash all banks
+		jp	z,flash_all
+		cp	'+'			; flash DEMFIR
+		jp	z,flash_demfir
+		cp	'0'
+		jr	c,wrong_key
+		cp	':'			; 0-9 range
+		jp	c,range_nums
+		cp	'@'
+		jp	z,flash_unodos
+		cp	'A'
+		jp	c,wrong_key
+		cp	'['			; A-Z range
+		jp	nc,wrong_key
+
+range_chars:	push	af
+		sub	'A'-10
+		jr	do_chars
+
+range_nums:	push	af
+		sub	'0'
+do_chars:	sla	a
+		ld	(flash_bank),a
+
+		call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flash_bank	; programins single bank
+		call	print42
+
+		pop	af
+
+		call	text_status
+		jp	again
+
+; Quit to BASIC
+basic:		call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_quit		; quit status message
+		call	print42
+		xor	a
+		ld	(ret_from_bas),a
+		ld	bc,9996
+		exx
+
+basic2:		ld	iy,#5c3a
+		ld	hl,#2758
+		exx
+		im	1
+		ei
 		ret 
+
+; Displays "Wrong key!"
+wrong_key:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_bad_key		; wrong key pressed
+		call	print42
+
+		call	text_status
+		jp	again
+
+; Dummy loop
+dummy_loop:	ld	hl,#ffff
+dl1:		dec	hl
+		ld	a,h
+		or	l
+		jr	nz,dl1
+		ret
+
+; Clears status line
+clear_stat_ln:	ld	hl,#5086
+		ld	b,25
+cl_st_ln_lp2:	push	bc
+		push	hl
+		ld	b,7
+cl_st_ln_lp1:	xor	a
+		ld	(hl),a
+		call	downhl
+		djnz	cl_st_ln_lp1
+		pop	hl
+		inc	hl
+		pop	bc
+		djnz	cl_st_ln_lp2
+		ret
+
+; Displays "Loading binary"
+text_loading:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_loading		; loading message
+		call	print42	
+		ret
+; Displays "Waiting for your action"
+text_status:	call	dummy_loop
+
+		call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_action		; status text
+		call	print42
+		ret
+
+; Programs CF Driver
+flash_cfdriver:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_loading		; loading message
+		call	print42
+
+		ld	a,1
+		ld	(ret_from_bas),a
+		ld	bc,10
+		exx
+		jp	basic2
+
+ret_cfdriver:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_cfdrv	; programming CFDriver
+		call	print42
+		call	text_status
+		ret
+
+; Programs FATware
+flash_fatware:	call	text_loading
+		ld	a,2
+		ld	(ret_from_bas),a
+		ld	bc,20
+		exx
+		jp	basic2
+
+ret_fatware:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_fatwr	; programming FATware
+		call	print42
+		call	text_status
+		ret		
+
+; Programs MDOS3
+flash_mdos3:	call	text_loading
+		ld	a,3
+		ld	(ret_from_bas),a
+		ld	bc,30
+		exx
+		jp	basic2
+
+ret_mdos3:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_mdos3	; programming MDOS3
+		call	print42
+		call	text_status
+		ret
+
+; Programs TBIOS
+flash_tbios:	call	text_loading	
+		ld	a,4
+		ld	(ret_from_bas),a
+		ld	bc,40
+		exx
+		jp	basic2
+
+ret_tbios:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_tbios	; programming TBIOS
+		call	print42
+		call	text_status
+		ret
+
+; Programs UnoDOS
+flash_unodos:	call	text_loading
+		ld	a,5
+		ld	(ret_from_bas),a
+		ld	bc,50
+		exx
+		jp	basic2
+
+ret_unodos:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_unods	; programming UnoDOS
+		call	print42
+		call	text_status
+		ret
+
+; Programs DEMFIR
+flash_demfir:	call	text_loading
+		ld	a,6
+		ld	(ret_from_bas),a
+		ld	bc,60
+		exx
+		jp	basic2
+
+ret_demfir:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_demfr	; programming DEMFIR
+		call	print42
+		call	text_status
+		ret
+
+; Programs all banks at once
+flash_all:	call	clear_stat_ln
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flash_all	; programming all banks
+		call	print42
+		call	text_status
+		jp	again
+
+; Checks if program run was fresh or not
+check_ret_bas:	ld	a,(ret_from_bas)	; if returning from bin loading, finish the action
+		cp	0
+		ret	z
+		cp	1
+		call	z,ret_cfdriver
+		cp	2
+		call	z,ret_fatware
+		cp	3
+		call	z,ret_mdos3
+		cp	4
+		call	z,ret_tbios
+		cp	5
+		call	z,ret_unodos
+		cp	6
+		call	z,ret_demfir
+		ret
 
 ; Displays text
 show_text:	ld	hl,#0202		; title label
@@ -51,215 +303,234 @@ show_text:	ld	hl,#0202		; title label
 		ld	hl,txt_copyright	; copyright
 		call	print42
 
-		ld	hl,#0D02
+		ld	hl,#0E02
 		ld	(xy42.cursor),hl
 		ld	hl,txt_ufirm		; boot
 		call	print42
 
-		ld	hl,#1502
+		ld	hl,#1602
 		ld	(xy42.cursor),hl
 		ld	hl,txt_diag		; diag ROM
 		call	print42
 
-		ld	hl,#1D02
+		ld	hl,#1E02
 		ld	(xy42.cursor),hl
 		ld	hl,txt_esxdos		; ESXDOS
 		call	print42
 
-		ld	hl,#2502
+		ld	hl,#2602
 		ld	(xy42.cursor),hl
 		ld	hl,txt_easyhdd		; EasyHDD
 		call	print42		
 
-		ld	hl,#2D02
+		ld	hl,#2E02
 		ld	(xy42.cursor),hl
 		ld	hl,txt_bsrom		; BSROM
 		call	print42
 
-		ld	hl,#3502
+		ld	hl,#3602
 		ld	(xy42.cursor),hl
 		ld	hl,txt_bsdos		; BSDOS
 		call	print42
 
-
-		ld	hl,#3D02
+		ld	hl,#3E02
 		ld	(xy42.cursor),hl
 		ld	hl,txt_patches		; patches
 		call	print42
 
-		ld	hl,#4502
+		ld	hl,#4602
 		ld	(xy42.cursor),hl
 		ld	hl,txt_nmi_1		; NMI menu 1
 		call	print42
 
-		ld	hl,#4D02
+		ld	hl,#4E02
 		ld	(xy42.cursor),hl
 		ld	hl,txt_nmi_2		; NMI menu 2
 		call	print42		
 
-		ld	hl,#5502
+		ld	hl,#5602
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved0	; Reserved
 		call	print42
 
-		ld	hl,#5D02
+		ld	hl,#5E02
 		ld	(xy42.cursor),hl
 		ld	hl,txt_devace		; DevastAce
 		call	print42
 
-		ld	hl,#6502
+		ld	hl,#6602
 		ld	(xy42.cursor),hl
 		ld	hl,txt_ubios		; BIOS
 		call	print42
 
-		ld	hl,#0D59
+		ld	hl,#0E59
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved1	; Reserved
 		call	print42
 
-		ld	hl,#1559
+		ld	hl,#1659
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved2	; Reserved
 		call	print42
 
-		ld	hl,#1D59
+		ld	hl,#1E59
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved3	; Reserved
 		call	print42
 
-		ld	hl,#2559
+		ld	hl,#2659
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved4	; Reserved
 		call	print42
 
-		ld	hl,#2D59
+		ld	hl,#2E59
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h04rom0		; H04 bank 0
 		call	print42
 
-		ld	hl,#3559
+		ld	hl,#3659
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h04rom1		; H04 bank 1
 		call	print42
 
-		ld	hl,#3D59
+		ld	hl,#3E59
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h04rom2		; H04 bank 2
 		call	print42		
 
-		ld	hl,#4559
+		ld	hl,#4659
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h04rom3		; H04 bank 3
 		call	print42
 
-		ld	hl,#4D59
+		ld	hl,#4E59
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h05rom0		; H05 bank 0
 		call	print42
 
-		ld	hl,#5559
+		ld	hl,#5659
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h05rom1		; H05 bank 1
 		call	print42
 
-		ld	hl,#5D59
+		ld	hl,#5E59
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h05rom2		; H05 bank 2
 		call	print42		
 
-		ld	hl,#6559
+		ld	hl,#6659
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h05rom3		; H05 bank 3
 		call	print42
 
-		ld	hl,#0DAF
+		ld	hl,#0EAF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_crom0		; Custom ROM 0
 		call	print42
 
-		ld	hl,#15AF
+		ld	hl,#16AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_crom1		; Custom ROM 1
 		call	print42
 
-		ld	hl,#1DAF
+		ld	hl,#1EAF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_crom2		; Custom ROM 2
 		call	print42
 
-		ld	hl,#25AF
+		ld	hl,#26AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_crom3		; Custom ROM 3
 		call	print42
 
-		ld	hl,#2DAF
+		ld	hl,#2EAF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_crom4		; Custom ROM 4
 		call	print42
 
-		ld	hl,#35AF
+		ld	hl,#36AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_crom5		; Custom ROM 5
 		call	print42
 
-		ld	hl,#3DAF
+		ld	hl,#3EAF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_crom6		; Custom ROM 6
 		call	print42
 
-		ld	hl,#45AF
+		ld	hl,#46AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_crom7		; Custom ROM 7
 		call	print42
 
-		ld	hl,#4DAF
+		ld	hl,#4EAF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved5	; Reserved
 		call	print42
 
-		ld	hl,#55AF
+		ld	hl,#56AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved6	; Reserved
 		call	print42
 
-		ld	hl,#5DAF
+		ld	hl,#5EAF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved7	; Reserved
 		call	print42
 
-		ld	hl,#65AF
+		ld	hl,#66AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_reserved8	; Reserved
 		call	print42
 
-		ld	hl,#7002
+		ld	hl,#7102
 		ld	(xy42.cursor),hl
 		ld	hl,txt_unodos		; UnoDOS
 		call	print42
 
-		ld	hl,#7059
+		ld	hl,#7159
 		ld	(xy42.cursor),hl
 		ld	hl,txt_fatware		; FATware
 		call	print42
 
-		ld	hl,#70AF
+		ld	hl,#71AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_mdos		; MDOS
 		call	print42		
 
-		ld	hl,#7802
+		ld	hl,#7902
 		ld	(xy42.cursor),hl
 		ld	hl,txt_tbios		; TBIOS
 		call	print42
 
-		ld	hl,#7859
+		ld	hl,#7959
 		ld	(xy42.cursor),hl
 		ld	hl,txt_demfir		; DEMFIR
 		call	print42
 
-		ld	hl,#78AF
+		ld	hl,#79AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_cfdriver		; CFDriver
+		call	print42
+
+		ld	hl,#8402
+		ld	(xy42.cursor),hl
+		ld	hl,txt_one_bank		; info text 1
+		call	print42
+
+		ld	hl,#8C02
+		ld	(xy42.cursor),hl
+		ld	hl,txt_all_banks	; info text 2
+		call	print42		
+
+		ld	hl,#9F02
+		ld	(xy42.cursor),hl
+		ld	hl,txt_status		; label STATUS
+		call	print42
+
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_action		; status text
 		call	print42
 
 		ret
@@ -286,12 +557,20 @@ draw_frame:	call	draw.mkbod
 		ld	de,#0bff
 		call	draw.line
 
-		ld	bc,#6e00
-		ld	de,#6eff
+		ld	bc,#0d00
+		ld	de,#0dff
 		call	draw.line
 
-		ld	bc,#8100
-		ld	de,#81ff
+		ld	bc,#6f00
+		ld	de,#6fff
+		call	draw.line
+
+		ld	bc,#8200
+		ld	de,#82ff
+		call	draw.line
+
+		ld	bc,#9500
+		ld	de,#95ff
 		call	draw.line
 
 		ret
@@ -317,21 +596,35 @@ print42:	ld	a,(hl)
 		call	xy42.xy
 		inc	hl
 		jr	nz,print42
-		ret		
-
-; Waits for any key
-wait_key:	xor	a
-		in	a,(#fe)
-		cpl
-		and	%00011111
-		jr	z,wait_key
+		ret
+; DOWNHL
+downhl:		inc	h
+		ld	a,h
+		and	7
+		ret	nz
+		ld	a,l
+		add	a,32
+		ld	l,a
+		ld	a,h
+		jr	c,downhl2
+		sub	8
+		ld	h,a
+downhl2:
+		cp	88
+		ret	c
+		ld	hl,64
 		ret
 
 ; Includes
 		include	"xy42.a80"		; 42 char print routine by Busy
 		include "draw.a80"		; draw routine by Busy
+		include "inkey.a80"		; inkey routine
 
 ; Data
+
+flash_bank:	db	0
+ret_from_bas:	db	0
+
 txt_ufirm:	db	"0: Boot",0
 txt_diag:	db	"1: DiagROM",0
 txt_esxdos:	db	"2: ESXDOS",0
@@ -339,7 +632,7 @@ txt_unodos:	db	"@: UnoDOS",0
 txt_fatware	db	"$: FATWare",0
 txt_mdos	db	"%: MDOS3",0
 txt_tbios	db	"&: TBIOS",0
-txt_demfir	db	"^: DEMFIR",0
+txt_demfir	db	"+: DEMFIR",0
 txt_easyhdd:	db	"3: EasyHDD",0
 txt_cfdriver:	db	"#: CFDriver",0
 txt_bsrom:	db	"4: BSROM",0
@@ -366,10 +659,10 @@ txt_crom0	db	"O: Cust.ROM 0",0
 txt_crom1	db	"P: Cust.ROM 1",0
 txt_crom2	db	"Q: Cust.ROM 2",0
 txt_crom3	db	"R: Cust.ROM 3",0
-txt_crom4	db	"S: Cust.ROM 4",0
-txt_crom5	db	"T: Cust.ROM 5",0
-txt_crom6	db	"U: Cust.ROM 6",0
-txt_crom7	db	"V: Cust.ROM 7",0
+txt_crom4	db	"S: Derby++ b0",0
+txt_crom5	db	"T: Derby++ b1",0
+txt_crom6	db	"U: Derby++ b2",0
+txt_crom7	db	"V: Derby++ b3",0
 txt_reserved5:	db	"W: Reserved",0
 txt_reserved6:	db	"X: Reserved",0
 txt_reserved7:	db	"Y: Reserved",0
@@ -379,8 +672,28 @@ txt_copyright:	db	#7f,"z00m^SinDiKAT 02/2020",0
 txt_title:	db	"      ReFlasher for  MB-03+ Ultimate",0
 txt_version:	db	"Version: 1.0",0
 
-txt_flash_one:	db	"Press corresponding key to program single bank.",0
-txt_flash_all:	db	"Press EDIT to program all banks.",0
+txt_status:	db	"STATUS:",0
+txt_action:	db	"Waiting for your action",0
+
+txt_one_bank:	db	"Keys 0-Z = program single bank, ! to quit.",0
+txt_all_banks:	db	"To program banks 0-Z at once, press *.",0
+
+txt_flash_bank: db	"Programming bank "
+key_store:	ds	1,30
+		db	0
+
+txt_flash_all:	db	"Programming banks 0-Z ",0
+
+txt_flsh_cfdrv:	db	"Programming CFDriver to bank 3",0
+txt_flsh_fatwr:	db	"Programming FATware to bank 3",0
+txt_flsh_mdos3:	db	"Programming MDOS3 to bank 3",0
+txt_flsh_tbios:	db	"Programming TBIOS to bank 3",0
+txt_flsh_unods:	db	"Programming UnoDOS to bank 3",0
+txt_flsh_demfr:	db	"Programming DEMFIR to bank 3",0
+
+txt_bad_key:	db	"Wrong key!",0
+txt_loading:	db	"Loading binary",0
+txt_quit:	db	"Exiting!",0
 
 		savebin "reflasher.bin",start,$-start
 		

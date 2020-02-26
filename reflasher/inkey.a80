@@ -1,0 +1,101 @@
+		module	inkey
+
+ANYKEY		call	IINKEY
+		jr	z,ANYKEY
+		push	af
+ANYKEY_0	call	IINKEY
+		jr	nz,ANYKEY_0
+		pop	af
+		ret
+;------------------------------
+IINKEY		push	hl
+		push	de
+		push	bc
+		ld	bc,#7FFE
+		ld	h,0
+		ld	d,h
+		ld	e,h
+II1		ld	l,5
+		in	a,(c)
+II2		inc	h
+		rrca
+		jr	c,II3
+		ld	d,e
+		ld	e,h
+II3		dec	l
+		jr	nz,II2
+		rrc	b
+		jr	c,II1
+		ld	a,e
+		cp	#24
+		jr	nz,II5
+		ld	e,d
+		ld	d,#24
+II5		cp	2
+		jr	nz,II6
+		ld	e,d
+		ld	d,2
+II6		ld	hl,IINN
+		xor	a
+		xor	d
+		jr	z,II7
+		ld	hl,IISS
+		cp	2
+		jr	z,II7
+		ld	hl,IICS
+		cp	#24
+		jr	z,II7
+		ld	a,1
+		jr	II8
+
+II7		ld	d,0
+		add	hl,de
+		ld	a,(hl)
+II8		and	a
+		pop	bc
+		pop	de
+		pop	hl
+		ret
+
+IINN		defb	0," ",#1C
+		defb	"mnb"
+		defb	13
+		defb	"lkjh"
+		defb	"poiuy"
+		defb	"09876"
+		defb	"12345"
+		defb	"qwert"
+		defb	"asdfg"
+		defb	0
+		defb	"zxcv"
+
+IICS		defb	0,#11,#0E
+		defb	"MNB"
+		defb	2
+		defb	"LKJH"
+		defb	"POIUY"
+		defb	#0C,#0F,9,#0B,#0A
+		defb	7,6,4,5,8
+		defb	"QWERT"
+		defb	"ASDFG"
+		defb	#1F
+		defb	"ZXCV"
+
+IISS		defb	0,16,#1E
+		defb	".,*"
+		defb	3
+		defb	"=+-^"
+		defb	34		;"
+		defb	";}{"
+		defb	"_)('&"
+		defb	"!@#$%"
+		defb	#12,#13,#14
+		defb	"<>"
+		defb	"~|"
+		defb	92		;\
+		defb	123		;{
+		defb	125		;}
+		defb	#1D
+		defb	":`?/"
+
+		endmodule
