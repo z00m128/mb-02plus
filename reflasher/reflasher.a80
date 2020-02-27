@@ -1,5 +1,5 @@
 ;-------------------------------------;
-;    ReFlasher for MB-03+ Ultimate    ;
+;    ReFlasher for  MB03+ Ultimate    ;
 ;-------------------------------------;
 ; (c) 2020 z00m^SinDiKAT
 ; formatted for SjASMPlus
@@ -28,9 +28,7 @@ start:		di
 
 		call	check_ret_bas		; fresh start or returning from bin loading?
 
-again:		call	dummy_loop
-
-		call	inkey.ANYKEY		; get user response
+again:		call	inkey.ANYKEY		; get user response
 		ld	(key_store),a
 		cp	'!'			; exit to basic
 		jp	z,basic
@@ -47,7 +45,7 @@ again:		call	dummy_loop
 		cp	'+'			; flash DEMFIR
 		jp	z,flash_demfir
 		cp	'0'
-		jr	c,wrong_key
+		jp	c,wrong_key
 		cp	':'			; 0-9 range
 		jp	c,range_nums
 		cp	'@'
@@ -57,37 +55,192 @@ again:		call	dummy_loop
 		cp	'['			; A-Z range
 		jp	nc,wrong_key
 
-range_chars:	push	af
-		sub	'A'-10
+range_chars:	sub	'A'-10
 		jr	do_chars
 
-range_nums:	push	af
-		sub	'0'
+range_nums:	sub	'0'
 do_chars:	sla	a
 		ld	(flash_bank),a
+		call	text_loading
+		ld	a,7
+		ld	(ret_from_bas),a
+		ld	a,(key_store)
+		sub	38
+		ld	c,a
+		ld	b,0
+		exx
+		jp	basic2
 
-		call	clear_stat_ln
-
+ret_singlebank:	call	clear_stat_ln
 		ld	hl,#9F32
 		ld	(xy42.cursor),hl
-		ld	hl,txt_flash_bank	; programins single bank
+		ld	hl,txt_flash_bank	; programing single bank
+		call	print42
+		call	text_status
+		ret
+
+; Programs CF Driver
+flash_cfdriver:	call	text_loading
+		ld	a,1
+		ld	(ret_from_bas),a
+		ld	bc,60
+		exx
+		jp	basic2
+
+ret_cfdriver:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_cfdrv	; programming CFDriver
+		call	print42
+		call	text_status
+		ret
+
+; Programs FATware
+flash_fatware:	call	text_loading
+		ld	a,2
+		ld	(ret_from_bas),a
+		ld	bc,61
+		exx
+		jp	basic2
+
+ret_fatware:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_fatwr	; programming FATware
+		call	print42
+		call	text_status
+		ret
+
+; Programs MDOS3
+flash_mdos3:	call	text_loading
+		ld	a,3
+		ld	(ret_from_bas),a
+		ld	bc,62
+		exx
+		jp	basic2
+
+ret_mdos3:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_mdos3	; programming MDOS3
+		call	print42
+		call	text_status
+		ret
+
+; Programs TBIOS
+flash_tbios:	call	text_loading
+		ld	a,4
+		ld	(ret_from_bas),a
+		ld	bc,63
+		exx
+		jp	basic2
+
+ret_tbios:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_tbios	; programming TBIOS
+		call	print42
+		call	text_status
+		ret
+
+; Programs UnoDOS
+flash_unodos:	call	text_loading
+		ld	a,5
+		ld	(ret_from_bas),a
+		ld	bc,64
+		exx
+		jp	basic2
+
+ret_unodos:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_unods	; programming UnoDOS
+		call	print42
+		call	text_status
+		ret
+
+; Programs DEMFIR
+flash_demfir:	call	text_loading
+		ld	a,6
+		ld	(ret_from_bas),a
+		ld	bc,65
+		exx
+		jp	basic2
+
+ret_demfir:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flsh_demfr	; programming DEMFIR
+		call	print42
+		call	text_status
+		ret
+
+; Programs all banks at once
+flash_all:	ld	a,9
+		ld	(basic_line),a
+		ld	(ret_from_bas),a
+
+flash_all2:	call	text_loading
+		ld	a,(basic_line)
+		cp	20
+		jr	nz,test52
+		ld	a,27
+		ld	(basic_line),a
+test52:		cp	52
+		jp	z,again
+		inc	a
+		ld	(basic_line),a
+		ld	b,0
+		ld	c,a
+		exx
+		jp	basic2
+		
+ret_flashall:	pop	hl
+		ld	a,(basic_line)
+		cp	52
+		ret	z
+		
+		call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flash_all	; programming all banks
 		call	print42
 
-		pop	af
+		pop	hl
 
-		call	text_status
-		jp	again
+		jp	flash_all2
+
+; Checks if program run was fresh or not
+check_ret_bas:	ld	a,(ret_from_bas)	; if returning from bin loading, finish the action
+		or	a
+		ret	z
+		cp	1
+		call	z,ret_cfdriver
+		cp	2
+		call	z,ret_fatware
+		cp	3
+		call	z,ret_mdos3
+		cp	4
+		call	z,ret_tbios
+		cp	5
+		call	z,ret_unodos
+		cp	6
+		call	z,ret_demfir
+		cp	7
+		call	z,ret_singlebank
+		cp	9
+		call	z,ret_flashall
+		ret
 
 ; Quit to BASIC
 basic:		call	clear_stat_ln
-
 		ld	hl,#9F32
 		ld	(xy42.cursor),hl
 		ld	hl,txt_quit		; quit status message
 		call	print42
 		xor	a
 		ld	(ret_from_bas),a
-		ld	bc,9996
+		ld	bc,9997
 		exx
 
 basic2:		ld	iy,#5c3a
@@ -95,25 +248,32 @@ basic2:		ld	iy,#5c3a
 		exx
 		im	1
 		ei
-		ret 
+		ret
 
 ; Displays "Wrong key!"
 wrong_key:	call	clear_stat_ln
-
 		ld	hl,#9F32
 		ld	(xy42.cursor),hl
 		ld	hl,txt_bad_key		; wrong key pressed
 		call	print42
-
+		call	dummy_loop
 		call	text_status
 		jp	again
 
-; Dummy loop
-dummy_loop:	ld	hl,#ffff
-dl1:		dec	hl
-		ld	a,h
-		or	l
-		jr	nz,dl1
+; Displays "Loading binary"
+text_loading:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_loading		; loading message
+		call	print42
+		ret
+
+; Displays "Waiting for your action"
+text_status:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_action		; status text
+		call	print42
 		ret
 
 ; Clears status line
@@ -130,161 +290,6 @@ cl_st_ln_lp1:	xor	a
 		inc	hl
 		pop	bc
 		djnz	cl_st_ln_lp2
-		ret
-
-; Displays "Loading binary"
-text_loading:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_loading		; loading message
-		call	print42	
-		ret
-; Displays "Waiting for your action"
-text_status:	call	dummy_loop
-
-		call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_action		; status text
-		call	print42
-		ret
-
-; Programs CF Driver
-flash_cfdriver:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_loading		; loading message
-		call	print42
-
-		ld	a,1
-		ld	(ret_from_bas),a
-		ld	bc,10
-		exx
-		jp	basic2
-
-ret_cfdriver:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_cfdrv	; programming CFDriver
-		call	print42
-		call	text_status
-		ret
-
-; Programs FATware
-flash_fatware:	call	text_loading
-		ld	a,2
-		ld	(ret_from_bas),a
-		ld	bc,20
-		exx
-		jp	basic2
-
-ret_fatware:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_fatwr	; programming FATware
-		call	print42
-		call	text_status
-		ret		
-
-; Programs MDOS3
-flash_mdos3:	call	text_loading
-		ld	a,3
-		ld	(ret_from_bas),a
-		ld	bc,30
-		exx
-		jp	basic2
-
-ret_mdos3:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_mdos3	; programming MDOS3
-		call	print42
-		call	text_status
-		ret
-
-; Programs TBIOS
-flash_tbios:	call	text_loading	
-		ld	a,4
-		ld	(ret_from_bas),a
-		ld	bc,40
-		exx
-		jp	basic2
-
-ret_tbios:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_tbios	; programming TBIOS
-		call	print42
-		call	text_status
-		ret
-
-; Programs UnoDOS
-flash_unodos:	call	text_loading
-		ld	a,5
-		ld	(ret_from_bas),a
-		ld	bc,50
-		exx
-		jp	basic2
-
-ret_unodos:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_unods	; programming UnoDOS
-		call	print42
-		call	text_status
-		ret
-
-; Programs DEMFIR
-flash_demfir:	call	text_loading
-		ld	a,6
-		ld	(ret_from_bas),a
-		ld	bc,60
-		exx
-		jp	basic2
-
-ret_demfir:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_demfr	; programming DEMFIR
-		call	print42
-		call	text_status
-		ret
-
-; Programs all banks at once
-flash_all:	call	clear_stat_ln
-
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flash_all	; programming all banks
-		call	print42
-		call	text_status
-		jp	again
-
-; Checks if program run was fresh or not
-check_ret_bas:	ld	a,(ret_from_bas)	; if returning from bin loading, finish the action
-		cp	0
-		ret	z
-		cp	1
-		call	z,ret_cfdriver
-		cp	2
-		call	z,ret_fatware
-		cp	3
-		call	z,ret_mdos3
-		cp	4
-		call	z,ret_tbios
-		cp	5
-		call	z,ret_unodos
-		cp	6
-		call	z,ret_demfir
 		ret
 
 ; Displays text
@@ -321,7 +326,7 @@ show_text:	ld	hl,#0202		; title label
 		ld	hl,#2602
 		ld	(xy42.cursor),hl
 		ld	hl,txt_easyhdd		; EasyHDD
-		call	print42		
+		call	print42
 
 		ld	hl,#2E02
 		ld	(xy42.cursor),hl
@@ -346,7 +351,7 @@ show_text:	ld	hl,#0202		; title label
 		ld	hl,#4E02
 		ld	(xy42.cursor),hl
 		ld	hl,txt_nmi_2		; NMI menu 2
-		call	print42		
+		call	print42
 
 		ld	hl,#5602
 		ld	(xy42.cursor),hl
@@ -396,7 +401,7 @@ show_text:	ld	hl,#0202		; title label
 		ld	hl,#3E59
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h04rom2		; H04 bank 2
-		call	print42		
+		call	print42
 
 		ld	hl,#4659
 		ld	(xy42.cursor),hl
@@ -416,7 +421,7 @@ show_text:	ld	hl,#0202		; title label
 		ld	hl,#5E59
 		ld	(xy42.cursor),hl
 		ld	hl,txt_h05rom2		; H05 bank 2
-		call	print42		
+		call	print42
 
 		ld	hl,#6659
 		ld	(xy42.cursor),hl
@@ -496,7 +501,7 @@ show_text:	ld	hl,#0202		; title label
 		ld	hl,#71AF
 		ld	(xy42.cursor),hl
 		ld	hl,txt_mdos		; MDOS
-		call	print42		
+		call	print42
 
 		ld	hl,#7902
 		ld	(xy42.cursor),hl
@@ -521,7 +526,7 @@ show_text:	ld	hl,#0202		; title label
 		ld	hl,#8C02
 		ld	(xy42.cursor),hl
 		ld	hl,txt_all_banks	; info text 2
-		call	print42		
+		call	print42
 
 		ld	hl,#9F02
 		ld	(xy42.cursor),hl
@@ -597,6 +602,7 @@ print42:	ld	a,(hl)
 		inc	hl
 		jr	nz,print42
 		ret
+
 ; DOWNHL
 downhl:		inc	h
 		ld	a,h
@@ -609,11 +615,19 @@ downhl:		inc	h
 		jr	c,downhl2
 		sub	8
 		ld	h,a
-downhl2:
-		cp	88
+downhl2:	cp	88
 		ret	c
 		ld	hl,64
 		ret
+
+;Dummy loop
+dummy_loop:	ld	hl,#ffff
+dumloop1:	dec	hl
+		ld	a,h
+		or	l
+		jr	nz,dumloop1
+		ret
+
 
 ; Includes
 		include	"xy42.a80"		; 42 char print routine by Busy
@@ -621,9 +635,9 @@ downhl2:
 		include "inkey.a80"		; inkey routine
 
 ; Data
-
 flash_bank:	db	0
 ret_from_bas:	db	0
+basic_line	db	0
 
 txt_ufirm:	db	"0: Boot",0
 txt_diag:	db	"1: DiagROM",0
@@ -669,7 +683,7 @@ txt_reserved7:	db	"Y: Reserved",0
 txt_reserved8:	db	"Z: Reserved",0
 
 txt_copyright:	db	#7f,"z00m^SinDiKAT 02/2020",0
-txt_title:	db	"      ReFlasher for  MB-03+ Ultimate",0
+txt_title:	db	"       ReFlasher for MB03+ Ultimate",0
 txt_version:	db	"Version: 1.0",0
 
 txt_status:	db	"STATUS:",0
@@ -679,10 +693,10 @@ txt_one_bank:	db	"Keys 0-Z = program single bank, ! to quit.",0
 txt_all_banks:	db	"To program banks 0-Z at once, press *.",0
 
 txt_flash_bank: db	"Programming bank "
-key_store:	ds	1,30
+key_store:	ds	1,#20
 		db	0
 
-txt_flash_all:	db	"Programming banks 0-Z ",0
+txt_flash_all:	db	"Programming banks 0-Z",0
 
 txt_flsh_cfdrv:	db	"Programming CFDriver to bank 3",0
 txt_flsh_fatwr:	db	"Programming FATware to bank 3",0
@@ -696,4 +710,3 @@ txt_loading:	db	"Loading binary",0
 txt_quit:	db	"Exiting!",0
 
 		savebin "reflasher.bin",start,$-start
-		
