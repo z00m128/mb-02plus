@@ -58,9 +58,9 @@ range_chars:	sub	'A'-10
 
 range_nums:	sub	'0'
 do_chars:	sla	a
-		ld	(flash_bank),a
+		ld	(flash_block+1),a
 		call	text_loading
-		ld	a,7
+		ld	a,1
 		ld	(ret_from_bas),a
 		ld	a,(key_store)
 		sub	38
@@ -69,133 +69,139 @@ do_chars:	sla	a
 		exx
 		jp	basic2
 
-ret_singlebank:	call	clear_stat_ln
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flash_bank	; programing single bank
-		call	print42
-		ret
-
 ; Programs CF Driver
-flash_cfdriver:	call	text_loading
-		ld	a,1
+flash_cfdriver:	ld	a,3
 		ld	(ret_from_bas),a
+		sla	a
+		ld	(flash_block+1),a
+		call	text_loading
 		ld	bc,60
 		exx
 		jp	basic2
 
-ret_cfdriver:	call	clear_stat_ln
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_cfdrv	; programming CFDriver
-		call	print42
-		ret
-
 ; Programs FATware
-flash_fatware:	call	text_loading
-		ld	a,2
+flash_fatware:	ld	a,2
 		ld	(ret_from_bas),a
+		sla	a
+		ld	(flash_block+1),a
+		call	text_loading
 		ld	bc,61
 		exx
 		jp	basic2
 
-ret_fatware:	call	clear_stat_ln
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_fatwr	; programming FATware
-		call	print42
-		ret
-
 ; Programs MDOS3
-flash_mdos3:	call	text_loading
-		ld	a,3
+flash_mdos3:	ld	a,2
 		ld	(ret_from_bas),a
+		sla	a
+		ld	(flash_block+1),a
+		call	text_loading
 		ld	bc,62
 		exx
 		jp	basic2
 
-ret_mdos3:	call	clear_stat_ln
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_mdos3	; programming MDOS3
-		call	print42
-		ret
-
 ; Programs TBIOS
-flash_tbios:	call	text_loading
-		ld	a,4
+flash_tbios:	ld	a,2
 		ld	(ret_from_bas),a
+		sla	a
+		ld	(flash_block+1),a
+		call	text_loading
 		ld	bc,63
 		exx
 		jp	basic2
 
-ret_tbios:	call	clear_stat_ln
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_tbios	; programming TBIOS
-		call	print42
-		ret
-
 ; Programs UnoDOS
-flash_unodos:	call	text_loading
-		ld	a,5
+flash_unodos:	ld	a,2
 		ld	(ret_from_bas),a
+		sla	a
+		ld	(flash_block+1),a
+		call	text_loading
 		ld	bc,64
 		exx
 		jp	basic2
 
-ret_unodos:	call	clear_stat_ln
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_unods	; programming UnoDOS
-		call	print42
-		ret
-
 ; Programs DEMFIR
-flash_demfir:	call	text_loading
-		ld	a,6
+flash_demfir:	ld	a,2
 		ld	(ret_from_bas),a
+		sla	a
+		ld	(flash_block+1),a
+		call	text_loading
 		ld	bc,65
 		exx
 		jp	basic2
 
-ret_demfir:	call	clear_stat_ln
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_flsh_demfr	; programming DEMFIR
-		call	print42
+; Return from BASIC for singlebank programming
+ret_singlebank:	call	flash_exec
+		ret
+
+; Return from BASIC for CFDriver
+ret_cfdriver:	ld	a,'3'
+		ld	(key_store),a
+		call	flash_exec
+		ret
+
+; Return from BASIC for divIDE firmwares
+ret_divide_fw:	ld	a,'2'
+		ld	(key_store),a
+		call	flash_exec
 		ret
 
 ; Programs all banks at once
 flash_all:	ld	a,9
-		ld	(basic_line),a
 		ld	(ret_from_bas),a
+		inc	a
+		ld	(basic_line),a
+
+		ld	a,'0'
+		ld	(key_store),a
+		xor	a
+		ld	(flash_bank),a
+		ld	(flash_block+1),a
 
 flash_all2:	ld	a,(basic_line)
 		cp	20
-		jr	nz,test52
+		jr	nz,flash_all3
+		ld	a,'A'
+		ld	(key_store),a
 		ld	a,27
 		ld	(basic_line),a
-test52:		cp	52
-		jp	z,again
-		inc	a
-		ld	(basic_line),a
-		call	text_loading
-		ld	b,0
+		jr	flash_all4
+
+flash_all3:	cp	53
+		jp	z,flash_all5
+
+flash_all4:	call	text_loading
+		ld	a,(basic_line)
 		ld	c,a
+		ld	b,0
 		exx
 		jp	basic2
-		
-ret_flashall:	pop	hl
-		ld	a,(basic_line)
-		cp	52
-		ret	z
-		
-		call	clear_stat_ln
+
+flash_all5:	call	clear_stat_ln
 		ld	hl,#9F32
 		ld	(xy42.cursor),hl
-		ld	hl,txt_flash_all	; programming all banks
+		ld	hl,txt_any_key		; Press any key status message
 		call	print42
+		call	inkey.ANYKEY
+		jp	again
+
+
+; Return from BASIC for programming all banks
+ret_flashall:	call	flash_exec
+
+		ld	a,(basic_line)
+		inc	a
+		ld	(basic_line),a
+
+		ld	a,(key_store)
+		inc	a
+		ld	(key_store),a
+
+		ld	a,(flash_bank)
+		inc	a
+		ld	(flash_bank),a
+
+		sla	a
+		ld	(flash_block+1),a
 
 		pop	hl
 
@@ -206,21 +212,15 @@ check_ret_bas:	ld	a,(ret_from_bas)
 		or	a
 		jr	z,first_start
 		cp	1
-		call	z,ret_cfdriver
+		jp	z,ret_singlebank
 		cp	2
-		call	z,ret_fatware
+		jp	z,ret_divide_fw
 		cp	3
-		call	z,ret_mdos3
-		cp	4
-		call	z,ret_tbios
-		cp	5
-		call	z,ret_unodos
-		cp	6
-		call	z,ret_demfir
-		cp	7
-		call	z,ret_singlebank
+		jp	z,ret_cfdriver
 		cp	9
-		call	z,ret_flashall
+		jr	z,ret_flashall
+		xor	a
+		ld	(ret_from_bas),a
 		ret
 
 ; If first start occurs, init screen
@@ -281,6 +281,139 @@ cl_st_ln_lp1:	xor	a
 		pop	bc
 		djnz	cl_st_ln_lp2
 		ret
+
+; Flash subroutine
+flash_exec:	xor	a			;ZXi enable flash
+		ld	bc,#203B
+		out	(c),a
+
+		ld	bc,#213B
+		in	a,(c)			;remember machine
+		push	af
+		ld	a,#FF			;HW - FF - Flash firmware
+		out	(c),a
+
+;Ultimator enable flash
+		ld	a,%01100011		;enable flash and write area0 and 1
+		out	(#53),a
+		xor	a
+		out	(#27),a			;high byte of Page in Area0 #0000-#1FFF
+		out	(#67),a			;high byte of Page in Area1
+flash_block	ld	a,0			;page 0+ Area0
+		out	(#07),a
+		inc	a			;page 1+ Area1
+		out	(#47),a
+
+;erase sectors (2KWord sector) 8 sectors to erase
+		call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_erasing		;status text Erasing
+		call	print42
+		call	dummy_loop
+
+erase:		ld	b,#08			;8 sector to erase
+		ld	de,#0000
+erase1:		ld	hl,#0555
+		ld	a,#AA
+		ld	(hl),a
+		ld	hl,#02AA
+		ld	a,#55
+		ld	(hl),a
+		ld	hl,#0555
+		ld	a,#80
+		ld	(hl),a
+		ld	hl,#0555
+		ld	a,#AA
+		ld	(hl),a
+		ld	hl,#02AA
+		ld	a,#55
+		ld	(hl),a
+		ld	a,#50
+		ld	(de),a
+erase2:		ld	a,(de)
+		rlca
+		jr	nc,erase2		;Data# Polling (DQ7) 0-erase is in progress, 1-end of erase
+		ld	a,8			;add 2K
+		add	a,d
+		ld	d,a
+		djnz	erase1
+
+		call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_flash_bank	;text Progamming bank
+		call	print42
+
+;word program
+program:	ld	de,#c000		; from (ZX RAM)
+		ld	hl,#0000		; to (flash)
+program1:	ld	bc,#0555
+		ld	a,#AA
+		ld	(bc),a
+		ld	bc,#02AA
+		ld	a,#55
+		ld	(bc),a
+		ld	bc,#0555
+		ld	a,#A0
+		ld	(bc),a
+		ld	a,(de)			;read from ZX RAM
+		ld	(hl),a			;write to FLASH
+program2:	cp	(hl)
+		jr	nz,program2		;Data# Polling (DQ7) for program is different and use complement DQ7 bit, 10uS is maximum write time (cca 40T states), slower but more easy is test reading writed data
+		inc	hl
+		inc	de
+		ld	a,h
+		cp	#40			;end of 16KB
+		jr	nz,program1
+
+		call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_pgm_ok		;text Progamming was OK
+		call	print42
+		call	dummy_loop
+;verify
+		call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_verifying 	;text Verifying
+		call	print42
+		call	dummy_loop
+
+verify:		ld	hl,#c000
+		ld	de,0
+		ld	bc,#3fff
+verify1:	ld	a,(de)
+		cp	(hl)
+		jr	nz,ver_error
+		inc	de
+		inc	hl
+		dec	bc
+		ld	a,b
+		or	c
+		jr	nz,verify1
+
+		call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_ver_ok		;text Verify went successfully
+		call	print42
+		call	dummy_loop
+		call	dummy_loop
+
+flash_exit:	pop	af
+		ld	bc,#213B
+		out	(c),a			;back to previous machine
+		ret
+
+ver_error:	call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_ver_nok		;text Verify ended with errors!
+		call	print42
+		call	inkey.ANYKEY
+		jr	flash_exit
 
 ; Displays text
 show_text:	ld	hl,#0202		; title label
@@ -618,16 +751,15 @@ dumloop1:	dec	hl
 		jr	nz,dumloop1
 		ret
 
-
 ; Includes
 		include	"xy42.a80"		; 42 char print routine by Busy
-		include "draw.a80"		; draw routine by Busy
-		include "inkey.a80"		; inkey routine
+		include	"draw.a80"		; draw routine by Busy
+		include	"inkey.a80"		; inkey routine
 
 ; Data
-flash_bank:	db	0
 ret_from_bas:	db	0
-basic_line	db	0
+basic_line:	db	0
+flash_bank:	db	0
 
 txt_ufirm:	db	"0: Boot",0
 txt_diag:	db	"1: DiagROM",0
@@ -686,17 +818,15 @@ txt_flash_bank: db	"Programming bank "
 key_store:	ds	1,#20
 		db	0
 
-txt_flash_all:	db	"Programming banks 0-Z",0
-
-txt_flsh_cfdrv:	db	"Programming CFDriver to bank 3",0
-txt_flsh_fatwr:	db	"Programming FATware to bank 3",0
-txt_flsh_mdos3:	db	"Programming MDOS3 to bank 3",0
-txt_flsh_tbios:	db	"Programming TBIOS to bank 3",0
-txt_flsh_unods:	db	"Programming UnoDOS to bank 3",0
-txt_flsh_demfr:	db	"Programming DEMFIR to bank 3",0
+txt_erasing:	db	"Erasing...",0
+txt_verifying:	db	"Verifying...",0
+txt_ver_ok	db	"Verify was OK.",0
+txt_ver_nok:	db	"Verify ended with error!!!",0
+txt_pgm_ok	db	"Programming was successful.",0
 
 txt_bad_key:	db	"Wrong key!",0
 txt_loading:	db	"Loading binary",0
 txt_quit:	db	"Exiting!",0
+txt_any_key:	db	"Press any key.",0
 
 		savebin "reflasher.bin",start,$-start
