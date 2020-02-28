@@ -18,17 +18,15 @@ ula:		equ	#fe
 
 start:		di
 
-		xor	a
-		out	(ula),a
-		call	clear_screen
-
-		call	draw_frame		; draws frame
-
-		call	show_text		; displays all texts
-
 		call	check_ret_bas		; fresh start or returning from bin loading?
 
-again:		call	inkey.ANYKEY		; get user response
+again:		call	clear_stat_ln
+		ld	hl,#9F32
+		ld	(xy42.cursor),hl
+		ld	hl,txt_action		; status text
+		call	print42
+
+		call	inkey.ANYKEY		; get user response
 		ld	(key_store),a
 		cp	'!'			; exit to basic
 		jp	z,basic
@@ -76,7 +74,6 @@ ret_singlebank:	call	clear_stat_ln
 		ld	(xy42.cursor),hl
 		ld	hl,txt_flash_bank	; programing single bank
 		call	print42
-		call	text_status
 		ret
 
 ; Programs CF Driver
@@ -92,7 +89,6 @@ ret_cfdriver:	call	clear_stat_ln
 		ld	(xy42.cursor),hl
 		ld	hl,txt_flsh_cfdrv	; programming CFDriver
 		call	print42
-		call	text_status
 		ret
 
 ; Programs FATware
@@ -108,7 +104,6 @@ ret_fatware:	call	clear_stat_ln
 		ld	(xy42.cursor),hl
 		ld	hl,txt_flsh_fatwr	; programming FATware
 		call	print42
-		call	text_status
 		ret
 
 ; Programs MDOS3
@@ -124,7 +119,6 @@ ret_mdos3:	call	clear_stat_ln
 		ld	(xy42.cursor),hl
 		ld	hl,txt_flsh_mdos3	; programming MDOS3
 		call	print42
-		call	text_status
 		ret
 
 ; Programs TBIOS
@@ -140,7 +134,6 @@ ret_tbios:	call	clear_stat_ln
 		ld	(xy42.cursor),hl
 		ld	hl,txt_flsh_tbios	; programming TBIOS
 		call	print42
-		call	text_status
 		ret
 
 ; Programs UnoDOS
@@ -156,7 +149,6 @@ ret_unodos:	call	clear_stat_ln
 		ld	(xy42.cursor),hl
 		ld	hl,txt_flsh_unods	; programming UnoDOS
 		call	print42
-		call	text_status
 		ret
 
 ; Programs DEMFIR
@@ -172,7 +164,6 @@ ret_demfir:	call	clear_stat_ln
 		ld	(xy42.cursor),hl
 		ld	hl,txt_flsh_demfr	; programming DEMFIR
 		call	print42
-		call	text_status
 		ret
 
 ; Programs all banks at once
@@ -180,8 +171,7 @@ flash_all:	ld	a,9
 		ld	(basic_line),a
 		ld	(ret_from_bas),a
 
-flash_all2:	call	text_loading
-		ld	a,(basic_line)
+flash_all2:	ld	a,(basic_line)
 		cp	20
 		jr	nz,test52
 		ld	a,27
@@ -190,6 +180,7 @@ test52:		cp	52
 		jp	z,again
 		inc	a
 		ld	(basic_line),a
+		call	text_loading
 		ld	b,0
 		ld	c,a
 		exx
@@ -211,9 +202,9 @@ ret_flashall:	pop	hl
 		jp	flash_all2
 
 ; Checks if program run was fresh or not
-check_ret_bas:	ld	a,(ret_from_bas)	; if returning from bin loading, finish the action
+check_ret_bas:	ld	a,(ret_from_bas)
 		or	a
-		ret	z
+		jr	z,first_start
 		cp	1
 		call	z,ret_cfdriver
 		cp	2
@@ -230,6 +221,14 @@ check_ret_bas:	ld	a,(ret_from_bas)	; if returning from bin loading, finish the a
 		call	z,ret_singlebank
 		cp	9
 		call	z,ret_flashall
+		ret
+
+; If first start occurs, init screen
+first_start:	xor	a
+		out	(ula),a
+		call	clear_screen
+		call	draw_frame		; draws frame
+		call	show_text		; displays all texts
 		ret
 
 ; Quit to BASIC
@@ -257,7 +256,6 @@ wrong_key:	call	clear_stat_ln
 		ld	hl,txt_bad_key		; wrong key pressed
 		call	print42
 		call	dummy_loop
-		call	text_status
 		jp	again
 
 ; Displays "Loading binary"
@@ -265,14 +263,6 @@ text_loading:	call	clear_stat_ln
 		ld	hl,#9F32
 		ld	(xy42.cursor),hl
 		ld	hl,txt_loading		; loading message
-		call	print42
-		ret
-
-; Displays "Waiting for your action"
-text_status:	call	clear_stat_ln
-		ld	hl,#9F32
-		ld	(xy42.cursor),hl
-		ld	hl,txt_action		; status text
 		call	print42
 		ret
 
