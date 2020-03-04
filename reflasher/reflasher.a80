@@ -4,7 +4,7 @@
 ; (c) 2020 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.0
+; Version: 1.1
 
 		device	zxspectrum48
 
@@ -12,6 +12,7 @@
 screen:		equ	#4000
 attrs:		equ	#5800
 ula:		equ	#fe
+stat_ln_xy:	equ	#A332
 
 ; Main
 		org	#8000
@@ -21,7 +22,7 @@ start:		di
 		call	check_ret_bas		; fresh start or returning from bin loading?
 
 again:		call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_action		; status text
 		call	print42
@@ -42,6 +43,8 @@ again:		call	clear_stat_ln
 		jp	z,flash_all
 		cp	'+'			; flash DEMFIR
 		jp	z,flash_demfir
+		cp	'-'			; flash +divide
+		jp	z,flash_pldivide
 		cp	'0'
 		jp	c,wrong_key
 		cp	':'			; 0-9 range
@@ -129,6 +132,16 @@ flash_demfir:	ld	a,2
 		exx
 		jp	basic2
 
+; Programs +divide
+flash_pldivide:	ld	a,2
+		ld	(ret_from_bas),a
+		sla	a
+		ld	(flash_block+1),a
+		call	text_loading
+		ld	bc,66
+		exx
+		jp	basic2
+
 ; Return from BASIC for singlebank programming
 ret_singlebank:	call	flash_exec
 		ret
@@ -177,7 +190,7 @@ flash_all4:	call	text_loading
 		jp	basic2
 
 flash_all5:	call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_any_key		; Press any key status message
 		call	print42
@@ -233,7 +246,7 @@ first_start:	xor	a
 
 ; Quit to BASIC
 basic:		call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_quit		; quit status message
 		call	print42
@@ -251,7 +264,7 @@ basic2:		ld	iy,#5c3a
 
 ; Displays "Wrong key!"
 wrong_key:	call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_bad_key		; wrong key pressed
 		call	print42
@@ -260,14 +273,14 @@ wrong_key:	call	clear_stat_ln
 
 ; Displays "Loading binary"
 text_loading:	call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_loading		; loading message
 		call	print42
 		ret
 
 ; Clears status line
-clear_stat_ln:	ld	hl,#5086
+clear_stat_ln:	ld	hl,#5486
 		ld	b,25
 cl_st_ln_lp2:	push	bc
 		push	hl
@@ -306,7 +319,7 @@ flash_block	ld	a,0			;page 0+ Area0
 
 ;erase sectors (2KWord sector) 8 sectors to erase
 		call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_erasing		;status text Erasing
 		call	print42
@@ -340,7 +353,7 @@ erase2:		ld	a,(de)
 		djnz	erase1
 
 		call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_flash_bank	;text Progamming bank
 		call	print42
@@ -368,14 +381,14 @@ program2:	cp	(hl)
 		jr	nz,program1
 
 		call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_pgm_ok		;text Progamming was OK
 		call	print42
 		call	dummy_loop
 ;verify
 		call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_verifying 	;text Verifying
 		call	print42
@@ -395,7 +408,7 @@ verify1:	ld	a,(de)
 		jr	nz,verify1
 
 		call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_ver_ok		;text Verify went successfully
 		call	print42
@@ -408,7 +421,7 @@ flash_exit:	pop	af
 		ret
 
 ver_error:	call	clear_stat_ln
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_ver_nok		;text Verify ended with errors!
 		call	print42
@@ -638,25 +651,30 @@ show_text:	ld	hl,#0202		; title label
 
 		ld	hl,#79AF
 		ld	(xy42.cursor),hl
-		ld	hl,txt_cfdriver		; CFDriver
+		ld	hl,txt_plsdivide	; +divide
 		call	print42
 
-		ld	hl,#8402
+		ld	hl,#8102
 		ld	(xy42.cursor),hl
-		ld	hl,txt_one_bank		; info text 1
+		ld	hl,txt_cfdriver		; CFDriver
 		call	print42
 
 		ld	hl,#8C02
 		ld	(xy42.cursor),hl
+		ld	hl,txt_one_bank		; info text 1
+		call	print42
+
+		ld	hl,#9402
+		ld	(xy42.cursor),hl
 		ld	hl,txt_all_banks	; info text 2
 		call	print42
 
-		ld	hl,#9F02
+		ld	hl,#A302
 		ld	(xy42.cursor),hl
 		ld	hl,txt_status		; label STATUS
 		call	print42
 
-		ld	hl,#9F32
+		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_action		; status text
 		call	print42
@@ -693,12 +711,12 @@ draw_frame:	call	draw.mkbod
 		ld	de,#6fff
 		call	draw.line
 
-		ld	bc,#8200
-		ld	de,#82ff
+		ld	bc,#8A00
+		ld	de,#8Aff
 		call	draw.line
 
-		ld	bc,#9500
-		ld	de,#95ff
+		ld	bc,#9D00
+		ld	de,#9Dff
 		call	draw.line
 
 		ret
@@ -769,6 +787,7 @@ txt_fatware	db	"$: FATWare",0
 txt_mdos	db	"%: MDOS3",0
 txt_tbios	db	"&: TBIOS",0
 txt_demfir	db	"+: DEMFIR",0
+txt_plsdivide:	db	"-: +divide",0
 txt_easyhdd:	db	"3: EasyHDD",0
 txt_cfdriver:	db	"#: CFDriver",0
 txt_bsrom:	db	"4: BSROM",0
@@ -804,9 +823,9 @@ txt_reserved6:	db	"X: Reserved",0
 txt_reserved7:	db	"Y: Reserved",0
 txt_reserved8:	db	"Z: Reserved",0
 
-txt_copyright:	db	#7f,"z00m^SinDiKAT 02/2020",0
+txt_copyright:	db	#7f,"z00m^SinDiKAT 03/2020",0
 txt_title:	db	"       ReFlasher for MB03+ Ultimate",0
-txt_version:	db	"Version: 1.0",0
+txt_version:	db	"Version: 1.1",0
 
 txt_status:	db	"STATUS:",0
 txt_action:	db	"Waiting for your action",0

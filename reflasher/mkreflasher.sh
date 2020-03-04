@@ -37,6 +37,7 @@ bin2tap -append -o firmwares.tap fw/FATware.cod
 bin2tap -append -o firmwares.tap fw/MDOS3.cod
 bin2tap -append -o firmwares.tap fw/TBIOS.cod
 bin2tap -append -o firmwares.tap fw/DEMFIR.cod
+bin2tap -append -o firmwares.tap fw/+divide.cod
 bin2tap -append -o firmwares.tap fw/BSROM140.cod
 bin2tap -append -o firmwares.tap fw/GW03.cod
 bin2tap -append -o firmwares.tap fw/jgh.cod
