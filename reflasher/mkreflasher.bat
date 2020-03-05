@@ -42,6 +42,6 @@ bin2tap -append -o firmwares.tap fw\+divide.cod
 bin2tap -append -o firmwares.tap fw\BSROM140.cod
 bin2tap -append -o firmwares.tap fw\GW03.cod
 bin2tap -append -o firmwares.tap fw\jgh.cod
-type 001.tap 002.tap firmwares.tap > ReFlasher.tap
+type 001.tap 002.tap firmwares.tap > ReFlashr.tap
 del 001.tap 002.tap firmwares.tap
 pause
