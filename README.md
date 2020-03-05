@@ -1,4 +1,4 @@
-# MB-02+/MB-03+ Ultimate resource
+# MB-02+/MB03+ Ultimate resource
 A set of sources for MB-02+ and/or MB03+ Ultimate (formatted for SjASMPlus):
 
 - _bsdos308/bsdos308:_ Complete source code of DOS bank (BSDOS with BIOSes).
