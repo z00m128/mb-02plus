@@ -4,7 +4,7 @@
 ; (c) 2020 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.1
+; Version: 1.2
 
 		device	zxspectrum48
 
@@ -180,7 +180,7 @@ flash_all2:	ld	a,(basic_line)
 		jr	flash_all4
 
 flash_all3:	cp	53
-		jp	z,flash_all5
+		jr	z,flash_all5
 
 flash_all4:	call	text_loading
 		ld	a,(basic_line)
@@ -196,7 +196,6 @@ flash_all5:	call	clear_stat_ln
 		call	print42
 		call	inkey.ANYKEY
 		jp	again
-
 
 ; Return from BASIC for programming all banks
 ret_flashall:	call	flash_exec
@@ -312,19 +311,18 @@ flash_exec:	xor	a			;ZXi enable flash
 		xor	a
 		out	(#27),a			;high byte of Page in Area0 #0000-#1FFF
 		out	(#67),a			;high byte of Page in Area1
-flash_block	ld	a,0			;page 0+ Area0
+flash_block:	ld	a,0			;page 0+ Area0
 		out	(#07),a
 		inc	a			;page 1+ Area1
 		out	(#47),a
 
-;erase sectors (2KWord sector) 8 sectors to erase
 		call	clear_stat_ln
 		ld	hl,stat_ln_xy
 		ld	(xy42.cursor),hl
 		ld	hl,txt_erasing		;status text Erasing
 		call	print42
-		call	dummy_loop
 
+;erase sectors (2KWord sector) 8 sectors to erase
 erase:		ld	b,#08			;8 sector to erase
 		ld	de,#0000
 erase1:		ld	hl,#0555
@@ -344,9 +342,28 @@ erase1:		ld	hl,#0555
 		ld	(hl),a
 		ld	a,#50
 		ld	(de),a
-erase2:		ld	a,(de)
+		ex	af,af'
+		push	bc
+		ld	bc,#500
+erase2:		ex	af,af'
+		ld	a,(de)
 		rlca
-		jr	nc,erase2		;Data# Polling (DQ7) 0-erase is in progress, 1-end of erase
+		jr	c,erase_ok		;Data# Polling (DQ7) 0-erase is in progress, 1-end of erase
+		ex	af,af'
+		dec	bc
+		ld	a,b
+		or	c
+		jr	nz,erase2
+		pop	bc
+erase_bad:	call	clear_stat_ln
+		ld	hl,stat_ln_xy
+		ld	(xy42.cursor),hl
+		ld	hl,txt_ers_nok		;text Erasing went bad
+		call	print42
+		call	inkey.ANYKEY
+		jp	flash_exit
+
+erase_ok:	pop	bc
 		ld	a,8			;add 2K
 		add	a,d
 		ld	d,a
@@ -372,9 +389,26 @@ program1:	ld	bc,#0555
 		ld	(bc),a
 		ld	a,(de)			;read from ZX RAM
 		ld	(hl),a			;write to FLASH
-program2:	cp	(hl)
-		jr	nz,program2		;Data# Polling (DQ7) for program is different and use complement DQ7 bit, 10uS is maximum write time (cca 40T states), slower but more easy is test reading writed data
-		inc	hl
+		ex	af,af'
+		ld	bc,#300
+program2:	ex	af,af'
+		cp	(hl)
+		jr	z,program_ok
+		ex	af,af'
+		dec	bc
+		ld	a,b
+		or	c
+		jr	nz,program2
+
+program_bad:	call	clear_stat_ln
+		ld	hl,stat_ln_xy
+		ld	(xy42.cursor),hl
+		ld	hl,txt_pgm_nok		;text Progamming went bad
+		call	print42
+		call	inkey.ANYKEY
+		jr	flash_exit
+
+program_ok:	inc	hl
 		inc	de
 		ld	a,h
 		cp	#40			;end of 16KB
@@ -392,7 +426,6 @@ program2:	cp	(hl)
 		ld	(xy42.cursor),hl
 		ld	hl,txt_verifying 	;text Verifying
 		call	print42
-		call	dummy_loop
 
 verify:		ld	hl,#c000
 		ld	de,0
@@ -412,7 +445,6 @@ verify1:	ld	a,(de)
 		ld	(xy42.cursor),hl
 		ld	hl,txt_ver_ok		;text Verify went successfully
 		call	print42
-		call	dummy_loop
 		call	dummy_loop
 
 flash_exit:	pop	af
@@ -762,7 +794,7 @@ downhl2:	cp	88
 		ret
 
 ;Dummy loop
-dummy_loop:	ld	hl,#ffff
+dummy_loop:	ld	hl,#afff
 dumloop1:	dec	hl
 		ld	a,h
 		or	l
@@ -825,7 +857,7 @@ txt_reserved8:	db	"Z: Reserved",0
 
 txt_copyright:	db	#7f,"z00m^SinDiKAT 03/2020",0
 txt_title:	db	"       ReFlasher for MB03+ Ultimate",0
-txt_version:	db	"Version: 1.1",0
+txt_version:	db	"Version: 1.2",0
 
 txt_status:	db	"STATUS:",0
 txt_action:	db	"Waiting for your action",0
@@ -839,9 +871,11 @@ key_store:	ds	1,#20
 
 txt_erasing:	db	"Erasing...",0
 txt_verifying:	db	"Verifying...",0
-txt_ver_ok	db	"Verify was OK.",0
-txt_ver_nok:	db	"Verify ended with error!!!",0
-txt_pgm_ok	db	"Programming was successful.",0
+txt_ver_ok:	db	"Verify was OK.",0
+txt_ver_nok:	db	"Verify failed!!!",0
+txt_pgm_ok:	db	"Programming was successful.",0
+txt_pgm_nok:	db	"Programming failed!!!",0
+txt_ers_nok:	db	"Erase failed!!!",0
 
 txt_bad_key:	db	"Wrong key!",0
 txt_loading:	db	"Loading binary",0
