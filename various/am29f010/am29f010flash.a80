@@ -1,0 +1,929 @@
+; AM29F010 Programmer for MB-02+
+; by z00m^SinDiKAT 04/2020
+; version 1.0
+
+		device	zxspectrum48
+
+		output	"am29f010.cod"
+
+		org	#8000
+
+ula:		equ	#fe
+screen:		equ	#4000
+attrs:		equ	#5800
+
+mem_port:	equ	#17
+rom_bank_ro:	equ	#40
+dos_enable:	equ	#3c9e
+rom_disable:	equ	#3c98
+svc_catx:	equ	#2c
+
+sector0_rw:	equ	%10100000
+sector1_rw:	equ	%10100001
+sector2_rw:	equ	%10100010
+sector3_rw:	equ	%10100011
+sector4_rw:	equ	%10100100
+sector5_rw:	equ	%10100101
+sector6_rw:	equ	%10100110
+sector7_rw:	equ	%10100111
+
+sector_data:	equ	#c000
+
+status_line:	equ	#8030
+
+begin:		di
+
+		xor	a
+		out	(ula),a
+		call	clear_screen
+		call	print_texts
+
+keytest:	call	ANYKEY
+		cp	'!'
+		jr	z,basic
+		cp	'L'
+		jr	z,data_load
+		cp	'l'
+		jr	z,data_load
+		cp	'C'
+		jp	z,disk_dir
+		cp	'c'
+		jp	z,disk_dir
+		cp	'0'
+		jr	z,write_sec0
+		cp	'1'
+		jr	z,write_sec1
+		cp	'2'
+		jr	z,write_sec2
+		cp	'3'
+		jr	z,write_sec3
+		cp	'4'
+		jr	z,write_sec4
+		cp	'5'
+		jr	z,write_sec5
+		cp	'6'
+		jr	z,write_sec6
+		cp	'7'
+		jr	z,write_sec7
+
+		call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_bad_key
+		call	print42
+		call	dummy_loop
+
+no_operation:	call	clear_stat_ln
+		call	text_action
+
+		jr	keytest
+
+basic:		call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_quit
+		call	print42
+
+		ld	bc,9999
+		exx
+
+basic2:		ld	a,rom_bank_ro
+		out	(mem_port),a
+
+		ld	iy,#5c3a
+		ld	hl,#2758
+		exx
+		im	1
+		ei
+		ret
+
+data_load:	ld	bc,9000
+		exx
+		jr	basic2
+
+write_sec0:	ld	a,sector0_rw
+		ld	(sector),a
+		jr	exec_flash
+
+write_sec1:	ld	a,sector1_rw
+		ld	(sector),a
+		jr	exec_flash
+
+write_sec2:	ld	a,sector2_rw
+		ld	(sector),a
+		jr	exec_flash
+
+write_sec3:	ld	a,sector3_rw
+		ld	(sector),a
+		jr	exec_flash
+
+write_sec4:	ld	a,sector4_rw
+		ld	(sector),a
+		jr	exec_flash
+
+write_sec5:	ld	a,sector5_rw
+		ld	(sector),a
+		jr	exec_flash
+
+write_sec6:	ld	a,sector6_rw
+		ld	(sector),a
+		jr	exec_flash
+
+write_sec7:	ld	a,sector7_rw
+		ld	(sector),a
+		jr	exec_flash
+
+disk_dir:	call	dos_enable
+		ld	b,1			;show actual directory
+		ld	a,svc_catx
+		rst	#20
+		call	rom_disable
+		call	ANYKEY
+		jp	begin
+
+exec_flash:	call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_sec_erase
+		call	print42
+
+sector_erase:	ld	a,sector1_rw		;1st bus write cycle
+		out	(mem_port),a
+		ld	a,#aa
+		ld	(#1555),a
+
+		ld	a,sector0_rw		;2nd bus write cycle
+		out	(mem_port),a
+		ld	a,#55
+		ld	(#2aaa),a
+
+		ld	a,sector1_rw		;3rd bus write cycle
+		out	(mem_port),a
+		ld	a,#80			;erase command
+		ld	(#1555),a
+		ld	a,#aa			;4th bus write cycle
+		ld	(#1555),a
+
+		ld	a,sector0_rw		;5th bus write cycle
+		out	(mem_port),a
+		ld	a,#55
+		ld	(#2aaa),a
+
+		ld	a,(sector)		;6th bus write cycle
+		out	(mem_port),a
+		ld	a,#30			;sector erase
+		ld	(#0000),a
+
+		ld	bc,#f000		;Timeout for erase error
+
+erase_wait:	ld	a,(#0000)
+		rlca
+		jr	c,sector_write		;DQ7 Data Polling: 0-erase is in progress, 1-erase completed
+		dec	bc
+		ld	a,b
+		or	c
+		jr	nz,erase_wait
+
+erase_error:	ld	a,2
+		out	(ula),a
+
+		call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_erase_err
+		call	print42
+		call	ANYKEY
+
+		jp	end_flash
+
+sector_write:	call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_sec_write
+		call	print42
+
+		ld	hl,#0000		;sector start
+		ld	de,sector_data		;sector data
+
+sector_write1:	ld	a,sector1_rw		;1st bus write cycle
+		out	(mem_port),a
+		ld	a,#aa
+		ld	(#1555),a
+
+		ld	a,sector0_rw		;2nd bus write cycle
+		out	(mem_port),a
+		ld	a,#55
+		ld	(#2aaa),a
+
+		ld	a,sector1_rw		;3rd bus write cycle
+		out	(mem_port),a
+		ld	a,#A0			;byte write command
+		ld	(#1555),a
+
+		ld	a,(sector)		;sector number
+		out	(mem_port),a
+
+		ld	a,(de)			;from RAM
+		ld	(hl),a			;to sector
+		ex	af,af'
+		ld	bc,#4000		;timeout for write error
+sector_write2:	ex	af,af'
+		cp	(hl)			;wait for writing
+		jr	z,write_ok
+		ex	af,af'
+		dec	bc
+		ld	a,b
+		or	c
+		jr	nz,sector_write2
+
+write_error:	ld	a,2
+		out	(ula),a
+
+		call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_write_err
+		call	print42
+		call	ANYKEY
+
+		jr	end_flash
+
+write_ok:	ld	a,(bordercolor)
+		cp	8
+		jr	nz,write_ok1
+		xor	a
+write_ok1:	out 	(ula),a
+		inc	a
+		ld	(bordercolor),a
+
+		inc	hl
+		inc	de
+		ld	a,h
+		cp	#40			;end of sector
+		jr	nz,sector_write1
+
+		xor	a
+		out	(ula),a
+
+sector_verify:	call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_sec_verify
+		call	print42
+
+		ld	hl,sector_data
+		ld	de,#0000
+		ld	bc,#3fff
+		ld	a,(sector)
+		and	%11011111		;read only mode
+		out	(mem_port),a
+verify:		ld	a,(de)
+		cp	(hl)
+		jr	nz,verify_error
+		inc	hl
+		inc	de
+		dec	bc
+		ld	a,b
+		or	c
+		jr	nz,verify
+
+		ld	a,4			;green border
+		out	(ula),a
+
+		call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_pgm_ok
+		call	print42
+		call	ANYKEY
+
+end_flash:	ld	a,rom_bank_ro
+		out	(mem_port),a
+
+		xor	a
+		out	(ula),a
+
+		jp	no_operation
+
+verify_error:	ld	a,2
+		out	(ula),a
+
+		call	clear_stat_ln
+		ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_verify_err
+		call	print42
+		call	ANYKEY
+
+		jr	end_flash
+
+txt_header0:	db	"+----------------------------------------+",0
+txt_header1:	db	"|   Programmer for AM29F010 and MB-02+   |",0
+txt_header2:	db	"|          ",#7f,"2020 z00m^SinDiKAT           |",0
+		db	0
+
+txt_keys:	db	"Press L to Load data file, C to CAT.",0
+txt_quit_key:	db	"Press ! to quit.",0
+
+txt_sector0:	db	"Write sector: 0 -> #00000-#03FFF",0
+txt_sector1:	db	"              1 -> #04000-#07FFF",0
+txt_sector2:	db	"              2 -> #08000-#0BFFF",0
+txt_sector3:	db	"              3 -> #0C000-#0FFFF",0
+txt_sector4:	db	"              4 -> #10000-#13FFF",0
+txt_sector5:	db	"              5 -> #14000-#17FFF",0
+txt_sector6:	db	"              6 -> #18000-#1BFFF",0
+txt_sector7:	db	"              7 -> #1C000-#1FFFF",0
+
+txt_status_lbl:	db	"Status:",0
+txt_status_nop:	db	"Waiting for your action.",0
+
+txt_sec_erase:	db	"Erasing sector...",0
+txt_erase_err:	db	"Erasing failed !!!",0
+txt_sec_write:	db	"Writing sector...",0
+txt_write_err:	db	"Writing failed !!!",0
+txt_sec_verify:	db	"Verifying sector...",0
+txt_verify_err:	db	"Verify failed !!!",0
+txt_pgm_ok:	db	"Programming was succesful.",0
+
+txt_bad_key:	db	"Wrong key!",0
+txt_quit:	db	"Quit.",0
+
+sector:		db	0
+bordercolor	db	0
+
+print_texts:	ld	hl,#0000
+		ld	(cursor),hl
+		ld	hl,txt_header0
+		call	print42
+
+		ld	hl,#0801
+		ld	(cursor),hl
+		ld	hl,txt_header1
+		call	print42
+
+		ld	hl,#1001
+		ld	(cursor),hl
+		ld	hl,txt_header2
+		call	print42
+
+		ld	hl,#1700
+		ld	(cursor),hl
+		ld	hl,txt_header0
+		call	print42
+
+		ld	hl,#2800
+		ld	(cursor),hl
+		ld	hl,txt_keys
+		call	print42
+
+		ld	hl,#3800
+		ld	(cursor),hl
+		ld	hl,txt_sector0
+		call	print42
+
+		ld	hl,#4000
+		ld	(cursor),hl
+		ld	hl,txt_sector1
+		call	print42
+
+		ld	hl,#4800
+		ld	(cursor),hl
+		ld	hl,txt_sector2
+		call	print42
+
+		ld	hl,#5000
+		ld	(cursor),hl
+		ld	hl,txt_sector3
+		call	print42
+
+		ld	hl,#5800
+		ld	(cursor),hl
+		ld	hl,txt_sector4
+		call	print42
+
+		ld	hl,#6000
+		ld	(cursor),hl
+		ld	hl,txt_sector5
+		call	print42
+
+		ld	hl,#6800
+		ld	(cursor),hl
+		ld	hl,txt_sector6
+		call	print42
+
+		ld	hl,#7000
+		ld	(cursor),hl
+		ld	hl,txt_sector7
+		call	print42
+
+		ld	hl,#B79E
+		ld	(cursor),hl
+		ld	hl,txt_quit_key
+		call	print42
+
+		ld	hl,#8000
+		ld	(cursor),hl
+		ld	hl,txt_status_lbl
+		call	print42
+
+text_action:	ld	hl,status_line
+		ld	(cursor),hl
+		ld	hl,txt_status_nop
+		call	print42
+
+		ret
+
+; Clears status line
+clear_stat_ln:	ld	hl,#5105
+		ld	b,24
+cl_st_ln_lp2:	push	bc
+		push	hl
+		ld	b,7
+cl_st_ln_lp1:	xor	a
+		ld	(hl),a
+		call	downhl
+		djnz	cl_st_ln_lp1
+		pop	hl
+		inc	hl
+		pop	bc
+		djnz	cl_st_ln_lp2
+		ret
+
+; Clears screen
+clear_screen:	ld	hl,screen
+		ld	de,screen+1
+		ld	bc,#17ff
+		xor	a
+		ld	(hl),a
+		ldir
+
+		ld	hl,attrs
+		ld	de,attrs+1
+		ld	bc,#2ff
+		ld	a,#07
+		ld	(hl),a
+		ldir
+		ret
+
+;Dummy loop
+dummy_loop:	ld	hl,#afff
+dumloop1:	dec	hl
+		ld	a,h
+		or	l
+		jr	nz,dumloop1
+		ret
+
+; DOWNHL
+downhl:		inc	h
+		ld	a,h
+		and	7
+		ret	nz
+		ld	a,l
+		add	a,32
+		ld	l,a
+		ld	a,h
+		jr	c,downhl2
+		sub	8
+		ld	h,a
+downhl2:	cp	88
+		ret	c
+		ld	hl,64
+		ret
+
+; 42-6x7 char print
+print42:	ld	a,(hl)
+		call	xy
+		inc	hl
+		jr	nz,print42
+		ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Poziciovy print 42*27 znakov ;
+;  + znakovy subor 6*7 bodov   ;
+; (vytvoreny pre disasembler)  ;
+; . -28.05.1988- Busy software ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;DEMO:napiste:asm,dbg,rpp,g
+
+;	DEVICE	ZXSPECTRUM48
+;	OUTPUT	XY-6x7-42.cod
+
+;	org	#8000
+
+;start	ld	hl,#4000
+;	ld	de,#4001
+;	ld	bc,#17ff
+;	ld	(hl),#00
+;	ldir
+;	ld	hl,#0202
+;	ld	(cursor),hl
+;	ld	hl,text
+;aaa	ld	a,(hl)
+;	call	xy
+;	inc	hl
+;	jr	nz,aaa
+;	ld	a,' '
+;bbb	ld	b,a
+;	call	xy
+;	ld	a,b
+;	inc	a
+;	cp	#80
+;	jr	c,bbb
+;	ld	hl,#2758
+;	exx
+;	ret
+
+;text	db	'*** Rutina print'
+;	db	' 42*27 znakov v '
+;	db	'obraze ***'
+;	db	'        Priklad '
+;	db	'vypisu:         '
+;	db	'          '
+;	db	#00
+
+xy	and	a
+	ret	z
+	exx
+	ld	bc,(cursor)
+xy8	ld	de,znaky-256
+	ld	h,#00
+	ld	l,a
+	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	add	hl,de
+	push	hl
+	pop	iy
+	ld	xh,#08
+xy8dd	ld	a,b
+	cp	#c0
+	jr	nc,xyend
+	call	pixadd
+	ld	d,(iy+#00)
+	ld	e,#00
+	jr	z,xy8bb
+xy8cc	rr	d
+	rr	e
+	dec	a
+	jr	nz,xy8cc
+xy8bb	ld	a,d
+	or	(hl)
+	ld	(hl),a
+	inc	hl
+	ld	a,e
+	or	(hl)
+	ld	(hl),a
+	inc	b
+	inc	iy
+	dec	xh
+	jr	nz,xy8dd
+xyend	ld	ix,flag0
+	ld	a,(ix+#04)
+	add	a,6
+	ld	(ix+#04),a
+	cp	255-5
+	jr	c,xystop
+	ld	(ix+#04),2
+	ld	a,(ix+#05)
+	add	a,7
+	ld	(ix+#05),a
+xystop	exx
+	ret
+
+pixadd	AND	A		; clear carry (already clear)
+	RRA			;			0xxxxxxx
+	SCF			; set carry flag
+	RRA			;			10xxxxxx
+	AND	A		; clear carry flag
+	RRA			;			010xxxxx
+	XOR	B
+	AND	%11111000	; keep the top 5 bits	11111000
+	XOR	B		;			010xxbbb
+	LD	H,A		; transfer high byte to H.
+				; the low byte is derived from both X and Y.
+	LD	A,C		; the x value 0-255.
+	RLCA
+	RLCA
+	RLCA
+	XOR	B		; the y value
+	AND	%11000111	; apply mask		11000111
+	XOR	B		; restore unmasked bits	xxyyyxxx
+	RLCA			; rotate to		xyyyxxxx
+	RLCA			; required position.	yyyxxxxx
+	LD	L,A		; low byte to L.
+				; finally form the pixel position in A.
+	LD	A,C		; x value to A
+	AND	%00000111	; mod 8
+	RET			; return
+
+;systemove premenne:(pre disu)
+
+flag0	db	#00
+flag1	db	#00
+flag2	db	#00
+inp	db	#00
+
+cursor
+xxx	db	#00
+yyy	db	#00
+leni	dw	0
+adr	dw	0
+
+znaky	dw	#00,#00
+	dw	#00,#00
+	dw	#1000,#1010
+	dw	#10,#10
+	dw	#4800,#48
+	dw	#00,#00
+	dw	#5000,#50f8
+	dw	#f850,#50
+	dw	#7800,#70a0
+	dw	#f028,#20
+	dw	#4800,#1008
+	dw	#4020,#48
+	dw	#2000,#2050
+	dw	#4854,#34
+	dw	#1000,#20
+	dw	#00,#00
+	dw	#1000,#2020
+	dw	#2020,#10
+	dw	#2000,#1010
+	dw	#1010,#20
+	dw	#00,#1028
+	dw	#107c,#28
+	dw	#00,#1010
+	dw	#107c,#10
+	dw	#00,#00
+	dw	#1010,#20
+	dw	#00,#00
+	dw	#78,#00
+	dw	#00,#00
+	dw	#3000,#30
+	dw	#00,#0804
+	dw	#2010,#40
+	dw	#3800,#544c
+	dw	#6454,#38
+	dw	#3000,#1050
+	dw	#1010,#7c
+	dw	#3800,#0444
+	dw	#4038,#7c
+	dw	#3800,#1844
+	dw	#4404,#38
+	dw	#0800,#2818
+	dw	#7c48,#08
+	dw	#7c00,#7840
+	dw	#4404,#38
+	dw	#3800,#7840
+	dw	#4444,#38
+	dw	#7c00,#0804
+	dw	#1008,#10
+	dw	#3800,#3844
+	dw	#4444,#38
+	dw	#3800,#4444
+	dw	#043c,#38
+	dw	#00,#3030
+	dw	#3000,#30
+	dw	#00,#10
+	dw	#1010,#20
+	dw	#00,#2010
+	dw	#2040,#10
+	dw	#00,#7800
+	dw	#7800,#00
+	dw	#00,#1020
+	dw	#1008,#20
+	dw	#3000,#1848
+	dw	#10,#10
+	dw	#3800,#3444
+	dw	#5454,#38
+	dw	#3800,#4444
+	dw	#447c,#44
+	dw	#7800,#7844
+	dw	#4444,#78
+	dw	#3800,#4044
+	dw	#4440,#38
+	dw	#7800,#4444
+	dw	#4444,#78
+	dw	#7c00,#7840
+	dw	#4040,#7c
+	dw	#7c00,#7840
+	dw	#4040,#40
+	dw	#3800,#4044
+	dw	#444c,#38
+	dw	#4400,#7c44
+	dw	#4444,#44
+	dw	#3800,#1010
+	dw	#1010,#38
+	dw	#0400,#0404
+	dw	#4444,#38
+	dw	#4800,#6050
+	dw	#4850,#44
+	dw	#4000,#4040
+	dw	#4040,#7c
+	dw	#4400,#546c
+	dw	#4444,#44
+	dw	#4400,#6444
+	dw	#4c54,#44
+	dw	#3800,#4444
+	dw	#4444,#38
+	dw	#7800,#4444
+	dw	#4078,#40
+	dw	#3800,#4444
+	dw	#4c54,#3c
+	dw	#7800,#4444
+	dw	#4878,#44
+	dw	#3800,#3840
+	dw	#4404,#38
+	dw	#7c00,#1010
+	dw	#1010,#10
+	dw	#4400,#4444
+	dw	#4444,#38
+	dw	#4400,#4444
+	dw	#2844,#10
+	dw	#4400,#4444
+	dw	#5444,#28
+	dw	#4400,#1028
+	dw	#2810,#44
+	dw	#4400,#2844
+	dw	#1010,#10
+	dw	#7c00,#1008
+	dw	#4020,#7c
+	dw	#3000,#2020
+	dw	#2020,#30
+	dw	#00,#2040
+	dw	#0810,#04
+	dw	#3000,#1010
+	dw	#1010,#30
+	dw	#1000,#5438
+	dw	#1010,#10
+	dw	#00,#00
+	dw	#00,#fc
+	dw	#1000,#2028
+	dw	#2070,#78
+	dw	#00,#0438
+	dw	#443c,#3c
+	dw	#4000,#7840
+	dw	#4444,#78
+	dw	#00,#4038
+	dw	#4040,#38
+	dw	#0400,#3c04
+	dw	#4444,#3c
+	dw	#00,#4438
+	dw	#4078,#3c
+	dw	#1800,#3020
+	dw	#2020,#20
+	dw	#00,#443c
+	dw	#3c44,#3804
+	dw	#4000,#7840
+	dw	#4444,#44
+	dw	#1000,#3000
+	dw	#1010,#38
+	dw	#0800,#0800
+	dw	#0808,#3048
+	dw	#4000,#6050
+	dw	#5060,#48
+	dw	#2000,#2020
+	dw	#2020,#18
+	dw	#00,#5468
+	dw	#5454,#54
+	dw	#00,#4478
+	dw	#4444,#44
+	dw	#00,#4438
+	dw	#4444,#38
+	dw	#00,#4478
+	dw	#7844,#4040
+	dw	#00,#443c
+	dw	#3c44,#0604
+	dw	#00,#4038
+	dw	#4040,#40
+	dw	#00,#4038
+	dw	#0438,#78
+	dw	#2000,#2070
+	dw	#2020,#18
+	dw	#00,#4444
+	dw	#4444,#38
+	dw	#00,#4444
+	dw	#2828,#10
+	dw	#00,#5444
+	dw	#5454,#28
+	dw	#00,#2844
+	dw	#2810,#44
+	dw	#00,#4444
+	dw	#3c44,#3804
+	dw	#00,#087c
+	dw	#2010,#7c
+	dw	#1800,#2010
+	dw	#1010,#18
+	dw	#2000,#2020
+	dw	#2020,#20
+	dw	#3000,#0810
+	dw	#1010,#30
+	dw	#2800,#50
+	dw	#00,#00
+	dw	#3800,#9444
+	dw	#94a4,#3844
+	dw	#ffff,#ffff
+	dw	#ffff,#ffff
+
+ANYKEY		call	IINKEY
+		jr	z,ANYKEY
+		push	af
+ANYKEY_0	call	IINKEY
+		jr	nz,ANYKEY_0
+		pop	af
+		ret
+;------------------------------
+IINKEY		push	hl
+		push	de
+		push	bc
+		ld	bc,#7FFE
+		ld	h,0
+		ld	d,h
+		ld	e,h
+II1		ld	l,5
+		in	a,(c)
+II2		inc	h
+		rrca
+		jr	c,II3
+		ld	d,e
+		ld	e,h
+II3		dec	l
+		jr	nz,II2
+		rrc	b
+		jr	c,II1
+		ld	a,e
+		cp	#24
+		jr	nz,II5
+		ld	e,d
+		ld	d,#24
+II5		cp	2
+		jr	nz,II6
+		ld	e,d
+		ld	d,2
+II6		ld	hl,IINN
+		xor	a
+		xor	d
+		jr	z,II7
+		ld	hl,IISS
+		cp	2
+		jr	z,II7
+		ld	hl,IICS
+		cp	#24
+		jr	z,II7
+		ld	a,1
+		jr	II8
+
+II7		ld	d,0
+		add	hl,de
+		ld	a,(hl)
+II8		and	a
+		pop	bc
+		pop	de
+		pop	hl
+		ret
+
+IINN		defb	0," ",#1C
+		defb	"mnb"
+		defb	13
+		defb	"lkjh"
+		defb	"poiuy"
+		defb	"09876"
+		defb	"12345"
+		defb	"qwert"
+		defb	"asdfg"
+		defb	0
+		defb	"zxcv"
+
+IICS		defb	0,#11,#0E
+		defb	"MNB"
+		defb	2
+		defb	"LKJH"
+		defb	"POIUY"
+		defb	#0C,#0F,9,#0B,#0A
+		defb	7,6,4,5,8
+		defb	"QWERT"
+		defb	"ASDFG"
+		defb	#1F
+		defb	"ZXCV"
+
+IISS		defb	0,16,#1E
+		defb	".,*"
+		defb	3
+		defb	"=+-^"
+		defb	34		;"
+		defb	";}{"
+		defb	"_)('&"
+		defb	"!@#$%"
+		defb	#12,#13,#14
+		defb	"<>"
+		defb	"~|"
+		defb	92		;\
+		defb	123		;{
+		defb	125		;}
+		defb	#1D
+		defb	":`?/"
+
+;	OUTEND
+;	SAVESNA	"XY-6x7-42.sna",start
+
+		outend
+;		savesna	"am29f010.sna",begin
