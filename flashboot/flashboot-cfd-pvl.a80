@@ -1,6 +1,6 @@
-;Flashboot v02 for MB-02+
-;(c) 20/2019 z00m^SinDiKAT
-;CF Driver 1.2, Ports: Dron
+;Flashboot v03 for MB-02+
+;(c) 04/2020 z00m^SinDiKAT
+;CF Driver 1.2, Ports: PVL
 
 		output	"fb-cfd-pvl.bin"
 
@@ -45,19 +45,19 @@ begin:		di
 		ld	i,a
 		ld	(ula),a
 		out	(mot),a			;stop motors
-		
+
 		ld	hl,#4000		;clear screen
 		ld	de,#4001
 		ld	bc,#1aff
 		ld	(hl),a
 		ldir
-		
+
 		ld	hl,#5800
 		ld	de,#5801
 		ld	bc,#2ff
 		ld	(hl),#07
 		ldir
-		
+
 StartupMessage: ld	hl,MsgStartup0		;print informations
 		ld	de,VideoRAM
 		call	Print
@@ -80,11 +80,11 @@ StartupMessage: ld	hl,MsgStartup0		;print informations
 
 		ld	hl,MsgStartup5
 		ld	de,VideoRAM+#10*#100+#E0
-		call	Print	
+		call	Print
 
 		ld	a,#01			;blue border while waiting for space
 		out	(ula),a
-		
+
 testspace:	ld	hl,#ffff		;timeout for fdd boot
 tst_spc_lp:	ld	a,#7f			;test for space
 		in	a,(ula)
@@ -147,7 +147,6 @@ FloppyReady2:	in	a,(mot)			; is floppy drive ready?
 		cp	#18			; check	BSDOS boot sector ID byte
 		jr	nz,FDDBoot1		; try again if it's wrong
 
-
 BootEnd:	di
 		ld	a,#d0			; FDC command - ForceInterrupt
 		out	(fdc),a			; reset FDC
@@ -166,7 +165,7 @@ BootEnd:	di
 DMASequence:	db	#C3			; R6: reset DMA
 		db	#79			; R0: DMA transfer PortB->PortA
 		dw	BootSector		; destination address
-		dw 	#3FF			; size of data buffer
+		dw	#3FF			; size of data buffer
 		db	#14			; R1: PortA - memory, incremented, default timing
 		db	#28			; R2: PortB - I/O, fixed, default timing
 		db	#80			; R3: disable DMA, no interrupt
@@ -189,7 +188,7 @@ FlashBoot:	ld	hl,MsgBootEnd1		;print "Booting from flash ROM..." message
 		ld	de,#6000
 		ld	bc,RAMcode_end-RAMcode
 		ldir
-		
+
 		jp	#6000
 
 dummyloop:	dec	hl
@@ -200,7 +199,7 @@ dummyloop:	dec	hl
 
 MsgStartup0:	dc	"      --------------------------"
 MsgStartup1:	dc	"           MB-02+ FlashBoot"
-MsgStartup2:	dc	"       version: 02  CFD 1.2 PVL"
+MsgStartup2:	dc	"       version: 03  CFD 1.2 PVL"
 MsgStartup3:	dc	"      --------------------------"
 MsgStartup4:	dc	"    Press space to boot from floppy!"
 MsgStartup5:	dc	"      (c)2020 z00m / TCG / SinDiKAT"
@@ -215,7 +214,7 @@ MsgBootEnd1:	dc	"Booting from flash ROM...                 "
 
 Print:		ld	(pos),de
 		xor	a
-		ld	(roll),a	
+		ld	(roll),a
 
 print1:		push	hl
 		ld	a,(hl)
@@ -265,7 +264,7 @@ asci0:		ld	a,(roll)
 		jr	z,roll1
 roll0:		call	asci1
 		ret
- 
+
 roll1:		ld	b,8
 rol1_1:		ld	a,(de)
 		sla	a
@@ -279,7 +278,7 @@ rol1_1:		ld	a,(de)
 		inc	de
 		djnz	rol1_1
 		ret
- 
+
 roll2:		ld	b,8
 rol2_1:		ld	a,(de)
 		sla	a
@@ -297,7 +296,7 @@ rol2_1:		ld	a,(de)
 		inc	de
 		djnz	rol2_1
 		ret
- 
+
 roll3:		ld	b,8
 rol3_1:		ld	a,(de)
 		srl	a
@@ -308,7 +307,7 @@ rol3_1:		ld	a,(de)
 		inc	de
 		djnz	rol3_1
 		ret
- 
+
 asci1:		ld	b,8
 asc1:		ld	a,(de)
 		ld	(hl),a
@@ -316,7 +315,7 @@ asc1:		ld	a,(de)
 		call	downhl
 		djnz	asc1
 		ret
- 
+
 asci2:		ld	(hl),a
 		ld	a,c
 		dec	hl
@@ -325,10 +324,10 @@ asci2:		ld	(hl),a
 		inc	hl
 		call	downhl
 		ret
- 
+
 asci3:		or	(hl)
 		ld	(hl),a
- 
+
 downhl:		inc	h
 		ld	a,h
 		and	7
@@ -441,7 +440,7 @@ MsgFont:	db	#00, #00, #00, #00, #00, #00, #00, #00
 		db	#00, #10, #10, #10, #10, #10, #10, #00
 		db	#00, #E0, #20, #18, #20, #20, #E0, #00
 		db	#00, #28, #50, #00, #00, #00, #00, #00
-		db	#00, #78, #84, #B4, #B4, #84, #78, #00		
+		db	#00, #78, #84, #B4, #B4, #84, #78, #00
 
 RAMcode:
 		disp	#6000
@@ -460,26 +459,13 @@ RAMcode:
 		ld	de,#c000
 		call	dehrust
 
-
 		ld	a,dos_bank		;SRAM DOS BANK
 		out	(mem_port),a
-		
+
 		ld	hl,#c000		;move BSDOS to SRAM
 		ld	de,#0000
 		ld	bc,#4000
 		ldir
-		
-		ld	hl,fddsetup		;move floppies setup to BSDOS
-		ld	de,#80
-		ld	bc,#10
-		ldir
-
-		ld	a,#c3			;start FDC bios
-		ld      hl,#0100
- 		ld      (#18),a
- 		ld      (#19),hl
- 		ld      a,#0d			;pasive
- 		rst     #18
 
 		ld	a,rom_bank		;SRAM ROM BANK
 		out	(mem_port),a
@@ -488,10 +474,10 @@ RAMcode:
 		ld	de,#0000
 		ld	bc,#4000
 		ldir
-		
+
 		ld	a,flash_bank0		;FlashROM BANK0
 		out	(mem_port),a
-		
+
 		ld	hl,CFDBin		;move HDD patch to RAM
 		ld	de,#8000
 		call	dehrust
@@ -502,7 +488,19 @@ RAMcode:
 		call	#8000			;run HDD patch
 
 		call	dos_ena			;DOS BANK
-		
+
+		ld	hl,fddsetup		;move floppies setup to BSDOS
+		ld	de,#80
+		ld	bc,#10
+		ldir
+
+		ld	a,#c3			;start FDC bios
+		ld	hl,#0100
+		ld	(#18),a
+		ld	(#19),hl
+		ld	a,#0d			;pasive
+		rst	#18
+
 		ld	a,killx			;clear cache
 		rst	#20
 		ld	e,#03			;drive @3 active
@@ -510,27 +508,27 @@ RAMcode:
 		rst	#20
 		ld	a,startdos		;start operating system
 		rst	#20
-		rst	#28			;jump to ROM BIOS
-		dw      #3906			;with BSROM 128k reset
- 		rst     #00			;if not, jump to 0
-		ld	a,#02			;still here? 
+		call	#3CA0			;jump to ROM
+		dw	#3906			;with BSROM 128k reset
+		rst	#00			;if it returns somehow, jump to 0
+		ld	a,#02			;still here?
 		out	(ula),a			;red border
 dihalt:		di				;and neverending loop
 		halt
-		jr 	dihalt
+		jr	dihalt
 
 		include "dehrust.a80"
 
-fddsetup:	db	#03                 	;drive @1: DD,HD (e.g. standard floppy)
+fddsetup:	db	#03			;drive @1: DD,HD (standard 3.5" floppy)
 		db	80			;80 tracks
 		db	#00			;3ms stepping
 		db	#80			;positive disk change
 
-		db	#03			;drive @2: DD,HD (e.g. gotek)
+		db	#03			;drive @2: DD,HD (standard 3.5" floppy)
 		db	80			;80 tracks
 		db	#00			;3ms stepping
-		db	#01			;negative ready
-		
+		db	#80			;positive disk change
+
 		dw	0,0,0,0			;drives @3 & @4 not connected
 
 pos:		dw	#5555
@@ -538,7 +536,7 @@ roll:		db	#55
 
 		ent
 
-RAMcode_end:		
+RAMcode_end:
 
 CFDBin:		incbin	"cfd-pvl.hru"
 

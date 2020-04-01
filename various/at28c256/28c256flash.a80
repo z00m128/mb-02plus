@@ -4,7 +4,7 @@
 ;use it if LMN's flasher is not working with your 28c256
 ;formatted for SjASMPlus
 
-		OUTPUT	"28c256flash.cod"
+		OUTPUT	"28c256.cod"
 
 		org	#7530
 
@@ -38,7 +38,7 @@ main		di
 
 		xor	a
 		ld	(bordercolor),a
-		out	(ula),a		
+		out	(ula),a
 
 		call	message_intro
 		call	press_space
@@ -73,19 +73,19 @@ main		di
 quittobasic	ld	a,bsrompage
 		out	(mb02pag),a
 		call	dummy_loop
-		call	press_space                     
-		ld	iy,#5c3a         
+		call	press_space
+		ld	iy,#5c3a
 		ld	hl,#2758
-		exx          		
+		exx
 		pop	iy
 		pop	ix
 		pop	af
 		pop	bc
 		pop	de
-		pop	hl                   
-		im	1                 
-		ei                     
-		ret 
+		pop	hl
+		im	1
+		ei
+		ret
 
 flash_err	ld	h,b
 		ld	l,c
@@ -100,10 +100,10 @@ flash_err	ld	h,b
 		jr	quittobasic
 
 press_space	ld	a,#7f
-	        in	a,(ula)
-	        and	#1f
-	        cp	#1e
-	        ret	z
+		in	a,(ula)
+		and	#1f
+		cp	#1e
+		ret	z
 		jr	press_space
 
 dummy_loop	ld	hl,#ffff
@@ -117,7 +117,7 @@ loop_loop	dec	hl
 ;input: 	hl=firmware source
 ;output:	bc=byte counter
 
-flash		ex 	de,hl		
+flash		ex 	de,hl
 		ld	hl,#0		;begin of ROM bank
 		ld	bc,#4000	;number of bytes
 flash_loop	ld	a,(de)		;get byte from firmware source
@@ -137,7 +137,7 @@ flash_test	ex	af,af'		;4T;restore byte
 		pop	bc		;something went wrong
 		ld	a,#2		;red border
 		out	(ula),a
-		ret			;then quit, bc=remaining bytes		
+		ret			;then quit, bc=remaining bytes
 
 flash_ok	call	progress	;change border
 		pop	bc		;restore byte counter
@@ -218,7 +218,7 @@ Num2		inc	a
 
 		ld	(de),a
 		inc	de
-		ret		
+		ret
 
 progress	ld	a,(bordercolor)
 		cp	#8
@@ -236,10 +236,10 @@ attr_set	ld	hl,#5800
 		ld	bc,#2ff
 		ld	(hl),a
 		ldir
-                ret
+		ret
 
 print		ld	a,(hl)
-                cp	#ff
+		cp	#ff
 		jr	z,pr_end
 		call	char1
 		inc	hl
@@ -425,4 +425,4 @@ font		db	#00, #00, #00, #00, #00, #00, #00, #00
 		db	#00, #70, #10, #0C, #10, #10, #70, #00
 		db	#00, #14, #28, #00, #00, #00, #00, #00
 		db	#3C, #42, #99, #A1, #A1, #99, #42, #3C
-
+		OUTEND

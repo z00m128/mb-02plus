@@ -21,7 +21,7 @@ bank0   =       #6074   ;; Zapnutie ROM banky s povolenym zapisom
 bank1   =       #6076   ;; Zapnutie DOS banky s povolenym zapisom
 drvbot  =       #6078   ;; Cislo mechaniky z ktorej sa bootuje a rezim bootovania DD/HD
 
-        OUTPUT  Masterboot-33.cod
+        OUTPUT  Masterboot.cod
         org     master
 
 sysinf  jr      masinf              ;; Skok na vypis systemovej tabulky
