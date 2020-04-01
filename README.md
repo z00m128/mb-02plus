@@ -1,7 +1,7 @@
 # MB-02+/MB03+ Ultimate resource
 A set of sources for MB-02+ and/or MB03+ Ultimate (formatted for SjASMPlus):
 
-- _bsdos308/bsdos308:_ Complete source code of DOS bank (BSDOS with BIOSes).
+- _bsdos308/bsdos308:_ Complete source code of DOS bank (BSDOS with BIOSes), original version.
 - _bsdos308/bsdos308-dma-fix:_ Complete source code of DOS bank (BSDOS with BIOSes), with fixed DMA sequence.
 - _bsdos308/bsdos308-hdd-11sec:_ Complete source code of DOS bank with 11sec/trk HDD BIOS (no FDC BIOS!). 
 - _bsdos308/bsdos308-hdd-08sec:_ Complete source code of DOS bank with 8sec/trk HDD BIOS (no FDC BIOS!).
