@@ -467,6 +467,18 @@ RAMcode:
 		ld	bc,#4000
 		ldir
 
+		ld	hl,fddsetup		;move floppies setup to BSDOS
+		ld	de,#80
+		ld	bc,#10
+		ldir
+
+		ld	a,#c3			;start FDC bios
+		ld	hl,#0100
+		ld	(#18),a
+		ld	(#19),hl
+		ld	a,#0d			;pasive
+		rst	#18
+
 		ld	a,rom_bank		;SRAM ROM BANK
 		out	(mem_port),a
 
@@ -488,18 +500,6 @@ RAMcode:
 		call	#8000			;run HDD patch
 
 		call	dos_ena			;DOS BANK
-
-		ld	hl,fddsetup		;move floppies setup to BSDOS
-		ld	de,#80
-		ld	bc,#10
-		ldir
-
-		ld	a,#c3			;start FDC bios
-		ld	hl,#0100
-		ld	(#18),a
-		ld	(#19),hl
-		ld	a,#0d			;pasive
-		rst	#18
 
 		ld	a,killx			;clear cache
 		rst	#20
