@@ -4,7 +4,7 @@
 ; (c) 2020 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.2
+; Version: 1.3
 
 		device	zxspectrum48
 
@@ -296,10 +296,10 @@ cl_st_ln_lp1:	xor	a
 
 ; Flash subroutine
 flash_exec:	xor	a			;ZXi enable flash
-		ld	bc,#203B
+		ld	bc,#703B
 		out	(c),a
 
-		ld	bc,#213B
+		ld	bc,#713B
 		in	a,(c)			;remember machine
 		push	af
 		ld	a,#FF			;HW - FF - Flash firmware
@@ -448,7 +448,7 @@ verify1:	ld	a,(de)
 		call	dummy_loop
 
 flash_exit:	pop	af
-		ld	bc,#213B
+		ld	bc,#713B
 		out	(c),a			;back to previous machine
 		ret
 
@@ -855,9 +855,9 @@ txt_reserved6:	db	"X: Reserved",0
 txt_reserved7:	db	"Y: Reserved",0
 txt_reserved8:	db	"Z: Reserved",0
 
-txt_copyright:	db	#7f,"z00m^SinDiKAT 03/2020",0
+txt_copyright:	db	#7f,"z00m^SinDiKAT 06/2020",0
 txt_title:	db	"       ReFlasher for MB03+ Ultimate",0
-txt_version:	db	"Version: 1.2",0
+txt_version:	db	"Version: 1.3",0
 
 txt_status:	db	"STATUS:",0
 txt_action:	db	"Waiting for your action",0
