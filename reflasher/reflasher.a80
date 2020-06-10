@@ -4,7 +4,7 @@
 ; (c) 2020 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.3
+; Version: 1.4
 
 		device	zxspectrum48
 
@@ -638,22 +638,22 @@ show_text:	ld	hl,#0202		; title label
 
 		ld	hl,#4EAF
 		ld	(xy42.cursor),hl
-		ld	hl,txt_reserved5	; Reserved
+		ld	hl,txt_userapps0	; User Apps 0
 		call	print42
 
 		ld	hl,#56AF
 		ld	(xy42.cursor),hl
-		ld	hl,txt_reserved6	; Reserved
+		ld	hl,txt_userapps1	; User Apps 1
 		call	print42
 
 		ld	hl,#5EAF
 		ld	(xy42.cursor),hl
-		ld	hl,txt_reserved7	; Reserved
+		ld	hl,txt_userapps2	; User Apps 2
 		call	print42
 
 		ld	hl,#66AF
 		ld	(xy42.cursor),hl
-		ld	hl,txt_reserved8	; Reserved
+		ld	hl,txt_userapps3	; User Apps 3
 		call	print42
 
 		ld	hl,#7102
@@ -850,14 +850,14 @@ txt_crom4	db	"S: Derby++ b0",0
 txt_crom5	db	"T: Derby++ b1",0
 txt_crom6	db	"U: Derby++ b2",0
 txt_crom7	db	"V: Derby++ b3",0
-txt_reserved5:	db	"W: Reserved",0
-txt_reserved6:	db	"X: Reserved",0
-txt_reserved7:	db	"Y: Reserved",0
-txt_reserved8:	db	"Z: Reserved",0
+txt_userapps0:	db	"W: UserApps 0",0
+txt_userapps1:	db	"X: UserApps 1",0
+txt_userapps2:	db	"Y: UserApps 2",0
+txt_userapps3:	db	"Z: UserApps 3",0
 
 txt_copyright:	db	#7f,"z00m^SinDiKAT 06/2020",0
 txt_title:	db	"       ReFlasher for MB03+ Ultimate",0
-txt_version:	db	"Version: 1.3",0
+txt_version:	db	"Version: 1.4",0
 
 txt_status:	db	"STATUS:",0
 txt_action:	db	"Waiting for your action",0

@@ -30,6 +30,10 @@ bin2tap -append -o firmwares.tap fw/Derby++0.cod
 bin2tap -append -o firmwares.tap fw/Derby++1.cod
 bin2tap -append -o firmwares.tap fw/Derby++2.cod
 bin2tap -append -o firmwares.tap fw/Derby++3.cod
+bin2tap -append -o firmwares.tap fw/UserApps0.cod
+bin2tap -append -o firmwares.tap fw/UserApps1.cod
+bin2tap -append -o firmwares.tap fw/UserApps2.cod
+bin2tap -append -o firmwares.tap fw/UserApps3.cod
 bin2tap -append -o firmwares.tap fw/reserved.cod
 bin2tap -append -o firmwares.tap fw/UnoDOS.cod
 bin2tap -append -o firmwares.tap fw/CFDrv.cod
