@@ -15,7 +15,7 @@
 29 load "reserved" code val "49152": goto val "5"
 30 load "reserved" code val "49152": goto val "5"
 31 load "reserved" code val "49152": goto val "5"
-32 load "reserved" code val "49152": goto val "5"
+32 load "wifi" code val "49152": goto val "5"
 33 load "H04bank0" code val "49152": goto val "5"
 34 load "H04bank1" code val "49152": goto val "5"
 35 load "H04bank2" code val "49152": goto val "5"

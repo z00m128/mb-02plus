@@ -15,6 +15,7 @@ bin2tap -append -o firmwares.tap fw\MB02_5.cod
 bin2tap -append -o firmwares.tap fw\MB02_6.cod
 bin2tap -append -o firmwares.tap fw\DevAce.cod
 bin2tap -append -o firmwares.tap fw\bios.cod
+bin2tap -append -o firmwares.tap fw\wifi.cod
 bin2tap -append -o firmwares.tap fw\H04bank0.cod
 bin2tap -append -o firmwares.tap fw\H04bank1.cod
 bin2tap -append -o firmwares.tap fw\H04bank2.cod

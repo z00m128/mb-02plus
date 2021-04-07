@@ -1,10 +1,10 @@
 ;-------------------------------------;
 ;    ReFlasher for  MB03+ Ultimate    ;
 ;-------------------------------------;
-; (c) 2020 z00m^SinDiKAT
+; (c) 2021 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.4
+; Version: 1.5
 
 		device	zxspectrum48
 
@@ -553,7 +553,7 @@ show_text:	ld	hl,#0202		; title label
 
 		ld	hl,#2659
 		ld	(xy42.cursor),hl
-		ld	hl,txt_reserved4	; Reserved
+		ld	hl,txt_wifi		; Wi-Fi
 		call	print42
 
 		ld	hl,#2E59
@@ -833,7 +833,7 @@ txt_ubios:	db	"B: BIOS",0
 txt_reserved1:	db	"C: Reserved",0
 txt_reserved2:	db	"D: Reserved",0
 txt_reserved3:	db	"E: Reserved",0
-txt_reserved4:	db	"F: Reserved",0
+txt_wifi:	db	"F: Wi-Fi",0
 txt_h04rom0	db	"G: H04 ROM 0",0
 txt_h04rom1	db	"H: H04 ROM 1",0
 txt_h04rom2	db	"I: H04 ROM 2",0
@@ -855,9 +855,9 @@ txt_userapps1:	db	"X: UserApps 1",0
 txt_userapps2:	db	"Y: UserApps 2",0
 txt_userapps3:	db	"Z: UserApps 3",0
 
-txt_copyright:	db	#7f,"z00m^SinDiKAT 06/2020",0
+txt_copyright:	db	#7f,"z00m^SinDiKAT 04/2021",0
 txt_title:	db	"       ReFlasher for MB03+ Ultimate",0
-txt_version:	db	"Version: 1.4",0
+txt_version:	db	"Version: 1.5",0
 
 txt_status:	db	"STATUS:",0
 txt_action:	db	"Waiting for your action",0
