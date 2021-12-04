@@ -4,7 +4,7 @@
 ; (c) 2021 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.5
+; Version: 1.6
 
 		device	zxspectrum48
 
@@ -13,6 +13,9 @@ screen:		equ	#4000
 attrs:		equ	#5800
 ula:		equ	#fe
 stat_ln_xy:	equ	#A332
+g_ZXi_port0:	equ     #7C3B
+m_ZXi_port0:	equ	#703B
+m_ZXi_port1:	equ	#713B
 
 ; Main
 		org	#8000
@@ -295,11 +298,17 @@ cl_st_ln_lp1:	xor	a
 		ret
 
 ; Flash subroutine
-flash_exec:	xor	a			;ZXi enable flash
-		ld	bc,#703B
+flash_exec:	xor     a
+		ld      bc,g_ZXi_port0
+		out     (c),a
+		inc     b
+		out     (c),a                   ;select 0 - external device - MB03+
+
+                xor	a			;ZXi enable flash
+		ld	bc,m_ZXi_port0
 		out	(c),a
 
-		ld	bc,#713B
+		ld	bc,m_ZXi_port1
 		in	a,(c)			;remember machine
 		push	af
 		ld	a,#FF			;HW - FF - Flash firmware
@@ -344,7 +353,7 @@ erase1:		ld	hl,#0555
 		ld	(de),a
 		ex	af,af'
 		push	bc
-		ld	bc,#500
+		ld	bc,#3200
 erase2:		ex	af,af'
 		ld	a,(de)
 		rlca
@@ -390,7 +399,7 @@ program1:	ld	bc,#0555
 		ld	a,(de)			;read from ZX RAM
 		ld	(hl),a			;write to FLASH
 		ex	af,af'
-		ld	bc,#300
+		ld	bc,#1E00
 program2:	ex	af,af'
 		cp	(hl)
 		jr	z,program_ok
@@ -448,7 +457,7 @@ verify1:	ld	a,(de)
 		call	dummy_loop
 
 flash_exit:	pop	af
-		ld	bc,#713B
+		ld	bc,m_ZXi_port1
 		out	(c),a			;back to previous machine
 		ret
 
@@ -855,9 +864,9 @@ txt_userapps1:	db	"X: UserApps 1",0
 txt_userapps2:	db	"Y: UserApps 2",0
 txt_userapps3:	db	"Z: UserApps 3",0
 
-txt_copyright:	db	#7f,"z00m^SinDiKAT 04/2021",0
+txt_copyright:	db	#7f,"z00m^SinDiKAT 12/2021",0
 txt_title:	db	"       ReFlasher for MB03+ Ultimate",0
-txt_version:	db	"Version: 1.5",0
+txt_version:	db	"Version: 1.6",0
 
 txt_status:	db	"STATUS:",0
 txt_action:	db	"Waiting for your action",0
