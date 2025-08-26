@@ -10,7 +10,7 @@
 ASM="sjasmplus"
 FILE="cf-driver"
 
-${ASM} --syntax=fm --lst=${FILE}.lst ${FILE}.a80
+${ASM} --syntax=f --lst=${FILE}.lst ${FILE}.a80
 zmakebas -a 10 -n cf-driver -o 001.tap ${FILE}.bas
 bin2tap -o 002.tap -a 25000 flash3.cod
 bin2tap -o 003.tap -a 32768 ${FILE}.bin
