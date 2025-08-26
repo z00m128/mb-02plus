@@ -1,10 +1,10 @@
 ;-------------------------------------;
 ;         CF Driver for MB-02+        ;
 ;-------------------------------------;
-; (c) 2020 z00m^SinDiKAT
+; (c) 2025 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.2
+; Version: 1.3
 
 		device	zxspectrum48
 
@@ -27,7 +27,7 @@ font_addr:	equ	#3cf0
 font_size:	equ	#310
 
 ; ATA ports PVL
-;p_data:		equ	163			;#a3
+;p_data:	equ	163			;#a3
 ;p_error:	equ	167			;#a7
 ;p_sec_count:	equ	171			;#ab
 ;p_sec_number:	equ	175			;#af
@@ -38,7 +38,7 @@ font_size:	equ	#310
 ;p_status:	equ	191			;#bf
 
 ;ATA ports DRON
-p_data:	equ	195			;#c3
+p_data:		equ	195			;#c3
 p_error:	equ	199			;#c7
 p_sec_count:	equ	203			;#cb
 p_sec_number:	equ	207			;#cf
@@ -655,6 +655,8 @@ part_type:	cp	#00			; empty entry
 		jr	z,part_mb02
 		cp	#48			; SFS
 		jr	z,part_sfs
+		cp	#49			; MDOS3
+		jr	z,part_mdos3
 		cp	#82			; Linux swap
 		jr	z,part_swap
 		cp	#83			; Linux native
@@ -694,6 +696,9 @@ part_mb02:	ld	hl,p_m_mb02
 		jr	part_type_1
 
 part_sfs:	ld	hl,p_m_sfs
+		jr	part_type_1
+
+part_mdos3:	ld	hl,p_m_mdos3
 		jr	part_type_1
 
 part_linux:	ld	hl,p_m_linux
@@ -1968,7 +1973,7 @@ cfdriver_end:
 
 ; Data
 msg_title_lbl:	db	"        CF D"
-		db	"river v1.2  for "
+		db	"river v1.3  for "
 		db	"MB-02+"
 		db	#00
 
@@ -1996,7 +2001,7 @@ msg_drv_instld:	db	"     CF Driver installed sucessfully."
 
 msg_copyright:	db	"           "
 		db	#7f
-		db	"2020 z00m^"
+		db	"2025 z00m^"
 		db	"SinDiKAT"
 		db	#00
 
@@ -2058,6 +2063,7 @@ p_m_fat32:	db	"FAT32  "
 p_m_ntfs:	db	"NTFS   "
 p_m_mb02:	db	"MB-02+ "
 p_m_sfs:	db	"SFS    "
+p_m_mdos3:	db	"MDOS3  "
 p_m_linux:	db	"Linux  "
 p_m_swap:	db	"swap   "
 p_m_bsd:	db	"BSD    "
