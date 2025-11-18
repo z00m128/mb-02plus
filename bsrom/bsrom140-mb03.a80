@@ -44,10 +44,10 @@ ERROR_1:	LD	HL,(#5C5D)
 ; RST #10
 PRINT_A:	JP	PRINT_A_2
 
-; BSROM - For AY silencer
-OUTFDBF:	LD	A,#BF			; BSROM - AY disable all tones and noises
-		OUT	(#FD),A
-		RET
+; Unused bytes
+		DW	#FFFF
+		DW	#FFFF
+		DB	#FF
 
 ; Collect a character
 ; RST #18
@@ -66,10 +66,10 @@ NEXT_CHAR:	CALL	CH_ADD_1
 ; RST #28
 		JP	CALCULATE
 
-; BSROM - For AY silencer
-OUTFD80:	LD	A,#80			; BSROM - AY disable all envelopes
-		OUT	(#FD),A
-		RET
+; Unused bytes
+		DW	#FFFF
+		DW	#FFFF
+		DB	#FF
 
 ; Create free locations in work space
 ; RST #30
@@ -8113,7 +8113,7 @@ TBL_ADDRS:	DW	JUMP_TRUE
 		DW	INT
 		DW	SQR_FUNC
 		DW	SGN
-		DW	ABS
+		DW	ABSV
 		DW	PEEK
 		DW	IN_FUNC
 		DW	USR_NO
@@ -8355,7 +8355,7 @@ G_LOOP:		DB	#31			;DUPLICATE
 		RET
 
 ; Find the absolute value of the last value, integer or floating point on the calc stack
-ABS:		LD	B,#FF
+ABSV:		LD	B,#FF
 		JR	NEG_TEST
 
 ; Handle unary minus
@@ -9725,17 +9725,19 @@ NEWTAB:		DB	'#'
 ; Quiet (3x)AY & SAA. Reset DMA, turn ULAPlus palette off
 HARD:		LD	A,#C3
 		OUT	(#0B),A			; Reset DMA
-		LD	BC,#FFFD
-		LD	A,#FD			; AY3 silence
-		OUT	(C),A
-		CALL	AYCTRL
-		LD	A,#FE			; AY2 silence
-		OUT	(C),A
-		CALL	AYCTRL
-		LD	A,#FF			; AY1 silence
-		OUT	(C),A
-		CALL	AYCTRL
-		JP	SAAUPOFF		; SAA silence + ULAPlus OFF
+		LD      BC,#FFFD		; 3 x AY silence
+		LD      HL,#070D
+        	LD      E,C
+HDLOOP:		OUT     (C),E
+		OUT     (C),H
+		LD      A,#BF
+		OUT     (#FD),A
+		OUT     (C),L
+		LD      A,#80
+		OUT     (#FD),A
+		INC     E
+		JR      NZ,HDLOOP
+		JP      SAAUPOFF		; SAA silence + ULAPlus OFF
 
 ; Warm start
 BASIC:		LD	HL,INIT_CHAN
@@ -9960,15 +9962,15 @@ DOSENA:		PUSH	AF
 		LD	A,#61
 BNKOUT:		OUT	(#17),A
 		POP	AF
-		RET		
+		RET
+	
+; Unused bytes
+		DW	#FFFF
+		DW	#FFFF
+		DW	#FFFF
 
-; BSROM - For AY silencer
-AYCTRL:		LD	A,#07			; BSROM - Mixing control register
-		OUT	(C),A
-		CALL	OUTFDBF			; disable all tones and noises
-		LD	A,#0D			; Envelope shape control
-		OUT	(C),A
-		JP	OUTFD80			; disable envelopes
+; BSDOS reserved for LOCK character
+CHAR_SET_LOCK:	DB	#00,#00,#00,#00,#00,#00,#00,#00 ;reserved for LOCK character
 
 ; BSROM - new characters
 CHAR_SET_N:	DB	#00,#00,#00,#00,#00,#00,#7E,#00	;line
