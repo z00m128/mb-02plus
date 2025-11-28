@@ -1,13 +1,12 @@
 ;====================================
 ;EPROM/EEPROM/FLASH booter for MB-02+
 ;      with fixed DMA sequence
-;    by z00m^TCG^SinDiKAT 11/2019
+;    by z00m^TCG^SinDiKAT 11/2025
 ;      formatted for SjASMPlus
 ;====================================
+;version 1.0
 
 		OUTPUT "mb02boot.rom"
-
-version:	equ	#04
 
 ;----------
 ;MB02 PORTS
@@ -36,8 +35,49 @@ Start:		di
 
 		xor	a
 		out	(ULA),a			; border 0
+		jp	Begin
 
-		ld	hl,#4000		; clear screen
+		db	#ff
+
+rst08h:		ret
+		dup 3
+		dw	#ffff
+		edup
+		db	#ff
+
+rst10h:		ret
+		dup 3
+		dw	#ffff
+		edup
+		db	#ff
+
+rst18h:		ret
+		dup 7
+		dw	#ffff
+		edup
+		db	#ff
+
+rst28h:		ret
+		dup 3
+		dw	#ffff
+		edup
+		db	#ff
+
+rst30h:		ret
+		dup 3
+		dw	#ffff
+		edup
+		db	#ff
+
+rst38h:		ei
+		ret
+		dup 22
+		dw	#ffff
+		edup
+
+rst66h:		ret
+
+Begin:		ld	hl,#4000		; clear screen
 		ld	de,#4001
 		ld 	bc,#1AFF
 		ld	(hl),l
@@ -75,11 +115,11 @@ StartupMessage: ld	hl,MsgStartup0		; print informations
 		call	Print
 
 		ld	hl,MsgStartup4
-		ld	de,VideoRAM+#8*#100+#40
+		ld	de,VideoRAM+#80
 		call	Print
 
 		ld	hl,MsgStartup5
-		ld	de,VideoRAM+#10*#100+#E0
+		ld	de,VideoRAM+#C0
 		call	Print		
 
 		call	TestRTC
@@ -138,7 +178,7 @@ BootEnd:	di
 		out	(MOT),a			; stop all motors and unselect any floppy drive
 
 		ld	hl,MsgBootEnd0		; print "Booting..." message
-		ld	de,VideoRAM+#8*#100+#40
+		ld	de,VideoRAM+#E0
 		call	Print
 
 		ld	de,#FFFF		; dummy pause for about 1 sec, so user can read the message
@@ -190,10 +230,11 @@ DMASeqLen:	equ	DMASeqCount*#100
 
 MsgStartup0:	dc	"           -----------------"
 MsgStartup1:	dc	"           MB-02+ Bootloader"
-MsgStartup2:	dc	"              version: 04"
-MsgStartup3:	dc	"           -----------------"		
-MsgStartup4:	dc	"Please insert the boot disk into drive 1!"
-MsgStartup5:	dc	"      (c)2019 z00m / TCG / SinDiKAT"
+MsgStartup2:	dc	"             version:  1.0"
+MsgStartup3:	dc	"           -----------------"
+MsgStartup4:	dc	"      (c)2025 z00m / TCG / SinDiKAT"
+MsgStartup5:	dc	"Please insert the boot disk into drive 1!"
+
 
 MsgBootEnd0:	dc	"Booting...                               "				
 
