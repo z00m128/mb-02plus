@@ -1,8 +1,8 @@
-;Flashboot v03 for MB-02+
-;(c) 04/2020 z00m^SinDiKAT
-;EasyHDD 105, Ports: PVL
+;Flashboot v1.0 for MB-02+
+;(c) 11/2025 z00m^SinDiKAT
+;EasyHDD 1.19, Ports: PVL
 
-		output	"fb-e-pvl.bin"
+		output	"fb-ehdd119.bin"
 
 ula:		equ	#fe
 dma:		equ	#0b
@@ -30,19 +30,54 @@ VideoRAM:	equ	#4000
 		org	#0000
 
 begin:		di
-
 		ld	sp,#5fff		;stack to RAM
+		jp	start
+		db	#ff
 
-		ld	hl,#ffff		;pause after reset
+rst08h:		ret
+		dup 3
+		dw	#ffff
+		edup
+		db	#ff
+
+rst10h:		ret
+		dup 3
+		dw	#ffff
+		edup
+		db	#ff
+
+rst18h:		ret
+		dup 7
+		dw	#ffff
+		edup
+		db	#ff
+
+rst28h:		ret
+		dup 3
+		dw	#ffff
+		edup
+		db	#ff
+
+rst30h:		ret
+		dup 3
+		dw	#ffff
+		edup
+		db	#ff
+
+rst38h:		ei
+		ret
+		dup 22
+		dw	#ffff
+		edup
+
+rst66h:		ret
+
+start:		ld	hl,#ffff		;pause after reset
 		call	dummyloop
 
-		ld	a,#d0			;FDC - ForceInterrupt
-		out	(fdc),a			;reset FDC
-		ld	a,#c3			;DMA - R6: Reset
-		out	(dma),a			;reset DMA
-
-		xor	a			;interrupt and border
-		ld	i,a
+		xor	a
+		
+		ld	i,a			;interrupt and border
 		ld	(ula),a
 		out	(mot),a			;stop motors
 
@@ -57,6 +92,11 @@ begin:		di
 		ld	bc,#2ff
 		ld	(hl),#07
 		ldir
+
+		ld	a,#d0			;FDC - ForceInterrupt
+		out	(fdc),a			;reset FDC
+		ld	a,#c3			;DMA - R6: Reset
+		out	(dma),a			;reset DMA
 
 StartupMessage: ld	hl,MsgStartup0		;print informations
 		ld	de,VideoRAM
@@ -75,11 +115,11 @@ StartupMessage: ld	hl,MsgStartup0		;print informations
 		call	Print
 
 		ld	hl,MsgStartup4
-		ld	de,VideoRAM+#8*#100+#40
+		ld	de,VideoRAM+#80
 		call	Print
 
 		ld	hl,MsgStartup5
-		ld	de,VideoRAM+#10*#100+#E0
+		ld	de,VideoRAM+#C0
 		call	Print
 
 		ld	a,#01			;blue border while waiting for space
@@ -96,7 +136,7 @@ tst_spc_lp:	ld	a,#7f			;test for space
 		or	l
 		jr	nz,tst_spc_lp		;waits for space about one sec
 
-		xor	a			;if space was not pressed
+		xor	a			;if the space key was not pressed
 		out	(ula),a			;black border
 
 		jp	FlashBoot		;and boot from flashrom
@@ -197,12 +237,13 @@ dummyloop:	dec	hl
 		jr	nz,dummyloop
 		ret
 
-MsgStartup0:	dc	"      --------------------------"
-MsgStartup1:	dc	"           MB-02+ FlashBoot"
-MsgStartup2:	dc	"       version: 03 EHDD 105 PVL"
-MsgStartup3:	dc	"      --------------------------"
-MsgStartup4:	dc	"    Press space to boot from floppy!"
-MsgStartup5:	dc	"      (c)2020 z00m / TCG / SinDiKAT"
+MsgStartup0:	dc	"------------------------------------------"
+MsgStartup1:	dc	"             MB-02+ FlashBoot             "
+MsgStartup2:	dc	"     version: 1.0    EasyHDD 1.19 PVL     "
+MsgStartup3:	dc	"      (c)2025  z00m / TCG / SinDiKAT      "
+MsgStartup4:	dc	"------------------------------------------"
+MsgStartup5:	dc	"     Press space to boot from floppy!     "
+
 
 MsgBootEnd0:	dc	"Booting from floppy...                    "
 MsgBootEnd1:	dc	"Booting from flash ROM...                 "
@@ -490,7 +531,7 @@ RAMcode:
 		ld	a,flash_bank0		;FlashROM BANK0
 		out	(mem_port),a
 
-		ld	hl,EasyHDDBin		;move HDD patch to RAM
+		ld	hl,CFDBin		;move HDD patch to RAM
 		ld	de,#8000
 		call	dehrust
 
@@ -527,7 +568,7 @@ fddsetup:	db	#03			;drive @1: DD,HD (standard 3.5" floppy)
 		db	#03			;drive @2: DD,HD (standard 3.5" floppy)
 		db	80			;80 tracks
 		db	#00			;3ms stepping
-		db	#80			;negative ready
+		db	#80			;positive disk change
 
 		dw	0,0,0,0			;drives @3 & @4 not connected
 
@@ -538,7 +579,7 @@ roll:		db	#55
 
 RAMcode_end:
 
-EasyHDDBin:	incbin	"easyhdd-pvl.hru"
+CFDBin:		incbin	"ehd119-pvl.hru"
 
 BSDOSBin:	incbin	"bsdos.hru"
 
