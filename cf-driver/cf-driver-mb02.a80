@@ -31,26 +31,26 @@ font_addr:	equ	#3cf0
 font_size:	equ	#310
 
 ; ATA ports PVL
-;p_data:	equ	163			;#a3
-;p_error:	equ	167			;#a7
-;p_sec_count:	equ	171			;#ab
-;p_sec_number:	equ	175			;#af
-;p_cyl_low:	equ	179			;#b3
-;p_cyl_high:	equ	183			;#b7
-;p_device_head:	equ	187			;#bb
-;p_command:	equ	191			;#bf
-;p_status:	equ	191			;#bf
+p_data:		equ	163			;#a3
+p_error:	equ	167			;#a7
+p_sec_count:	equ	171			;#ab
+p_sec_number:	equ	175			;#af
+p_cyl_low:	equ	179			;#b3
+p_cyl_high:	equ	183			;#b7
+p_device_head:	equ	187			;#bb
+p_command:	equ	191			;#bf
+p_status:	equ	191			;#bf
 
 ;ATA ports DRON
-p_data:		equ	195			;#c3
-p_error:	equ	199			;#c7
-p_sec_count:	equ	203			;#cb
-p_sec_number:	equ	207			;#cf
-p_cyl_low:	equ	211			;#d3
-p_cyl_high:	equ	215			;#d7
-p_device_head:	equ	219			;#db
-p_command:	equ	223			;#df
-p_status:	equ	223			;#df
+;p_data:	equ	195			;#c3
+;p_error:	equ	199			;#c7
+;p_sec_count:	equ	203			;#cb
+;p_sec_number:	equ	207			;#cf
+;p_cyl_low:	equ	211			;#d3
+;p_cyl_high:	equ	215			;#d7
+;p_device_head:	equ	219			;#db
+;p_command:	equ	223			;#df
+;p_status:	equ	223			;#df
 
 ; ATA commands
 c_identify:	equ 	#ec
@@ -134,7 +134,7 @@ start:		di
 
 		ld	ix,mas_mbr_buffr
 		call	detect_47h		; detects 47h partition and returns with entry in IX
-		jr	c,quit2
+		jp	c,quit2
 
 		push	ix
 
@@ -235,11 +235,7 @@ quit2:		ld	hl,#B402
 
 		call	wait_key
 
-		jp	#0			; jump to BSROM
-		
-dihalt:		di				; still here?
-		halt				; endless loop
-		jp	dihalt
+		jp	#0			; jump to BSROM		
 
 ; 42-6x7 char print
 print42:	ld	a,(hl)
