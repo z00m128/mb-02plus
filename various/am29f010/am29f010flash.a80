@@ -1,6 +1,6 @@
 ; AM29F010 Programmer for MB-02+
-; by z00m^SinDiKAT 04/2020
-; version 1.0
+; by z00m^SinDiKAT 11/2025
+; version 1.1
 
 		device	zxspectrum48
 
@@ -174,7 +174,7 @@ sector_erase:	ld	a,sector1_rw		;1st bus write cycle
 		ld	a,#30			;sector erase
 		ld	(#0000),a
 
-		ld	bc,#f000		;Timeout for erase error
+		ld	bc,#ff00		;Timeout for erase error
 
 erase_wait:	ld	a,(#0000)
 		rlca
@@ -319,7 +319,7 @@ verify_error:	ld	a,2
 
 txt_header0:	db	"+----------------------------------------+",0
 txt_header1:	db	"|   Programmer for AM29F010 and MB-02+   |",0
-txt_header2:	db	"|          ",#7f,"2020 z00m^SinDiKAT           |",0
+txt_header2:	db	"|          ",#7f,"2025 z00m^SinDiKAT           |",0
 		db	0
 
 txt_keys:	db	"Press L to Load data file, C to CAT.",0
