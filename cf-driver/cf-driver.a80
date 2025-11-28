@@ -1,10 +1,10 @@
 ;-------------------------------------;
 ;    CF Driver for MB03+ Ultimate     ;
 ;-------------------------------------;
-; (c) 2025 z00m^SinDiKAT
+; (c) 11/2025 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.3
+; Version: 1.4
 
 		device	zxspectrum48
 
@@ -16,6 +16,10 @@ ula:		equ	#fe
 dos_bank:	equ	#61
 patch_bank:	equ	#62
 rom_bank_ro:	equ	#40
+dos_ena:	equ	#3c9e
+killx:		equ	#1e
+setdrv:		equ	#13
+startdos:	equ	#30
 
 pasive:		equ	#0d
 
@@ -142,7 +146,7 @@ start:		di
 
 		ld	ix,mas_mbr_buffr
 		call	detect_47h		; detects 47h partition and returns with entry in IX
-		jr	c,quit2
+		jp	c,quit2
 
 		push	ix
 
@@ -205,7 +209,24 @@ quit:		ld	hl,#B402
 		ld	sp,(sp_store)
 
 		ei
-		ret
+
+		call	dos_ena			; DOS BANK
+
+		ld	a,killx			; clear cache
+		rst	#20
+		ld	e,#01			; drive @1 active
+		ld	a,setdrv
+		rst	#20
+		ld	a,startdos		; start operating system
+		rst	#20
+		call	#3CA0			; jump to ROM
+		dw	#3906			; with BSROM 128k reset
+		rst	#00			; if it returns somehow, jump to 0
+		ld	a,#02			; still here? red border then
+		out	(ula),a
+dihalt:		di				; and endless loop
+		halt
+		jp	dihalt
 
 cfdrv_not_ok:	ld	a,rom_bank_ro		; rom_bank page in
 		out	(mem_port),a
@@ -230,10 +251,6 @@ quit2:		ld	hl,#B402
 		ld	(mem_port),a
 
 		jp	#3906			; jump BSROM 128k reset
-		
-dihalt:		di				; still here?
-		halt				; endless loop
-		jp	dihalt
 
 ; 42-6x7 char print
 print42:	ld	a,(hl)
@@ -797,19 +814,19 @@ found_47h:	pop	bc			; restore partition entry, not needed anymore
 
 		pop	bc			; restore numnber of drives
 
-		ld	hl,#fd
-		sbc	hl,bc			; max 253 drives allowed
+		ld	hl,#ff
+		sbc	hl,bc			; max 255 drives allowed
 		jr	nc,found_47h_1
 
 		ld	b,0
-		ld	a,#fd			; limit to 253 drives if partition is bigger
+		ld	a,#ff			; limit to 255 drives if partition is bigger
 		ld	c,a
 
 found_47h_1:	ld	a,c
 		ld	hl,num_of_drives
 		ld	(hl),a			; save number of drives for later usage
-		add	a,2			; virtual drives starts from @3
-		ld	c,a
+;		add	a,2			; virtual drives starts from @3
+;		ld	c,a
 		push	bc
 		pop	hl
 		ld	de,msg_pmb03_odrv	; print occupied drives
@@ -1994,7 +2011,7 @@ cfdriver_end:
 
 ; Data
 msg_title_lbl:	db	"    CF D"
-		db	"river v1.3 for "
+		db	"river v1.4 for "
 		db	"MB03+ Ul"
 		db	"timate"
 		db	#00
@@ -2075,7 +2092,7 @@ msg_pmb03_dnum:	ds	#03,#20
 		db	"."
 		ds	#0b,#20
 		db	"Occupied drives:"
-		db	" @003 - @"
+		db	" @001 - @"
 msg_pmb03_odrv:	ds	#03,#20
 		db	#0
 
@@ -2108,15 +2125,17 @@ mas_mbr_buffr:	ds	#200			; buffer for master MBR
 font_buffer:	ds	#310			; buffer for font
 
 ; FDD setup for FDC BIOS
-fddsetup:	db	#03			;drive @1: DD,HD
-		db	80			;80 tracks
-		db	#00			;3ms stepping
-		db	#80			;positive disk change
+fddsetup:	dw	0,0,0,0			;drives @1 & @2 not connected
 
-		db	#03			;drive @2: DD,HD
-		db	80			;80 tracks
-		db	#00			;3ms stepping
-		db	#80			;positive disk change
+;		db	#03			;drive @1: DD,HD
+;		db	80			;80 tracks
+;		db	#00			;3ms stepping
+;		db	#80			;positive disk change
+;
+;		db	#03			;drive @2: DD,HD
+;		db	80			;80 tracks
+;		db	#00			;3ms stepping
+;		db	#80			;positive disk change
 		
 		dw	0,0,0,0			;drives @3 & @4 not connected
 
@@ -2137,10 +2156,10 @@ v_sla_cyl_high	db	0		;slave: cylinders high
 
 		db	0, 0, 0 ,0	;@0 - tape, don't change
 
-		db	0, 0, 0, 0	;@1 - floppy 1, don't change for MB-02+
-		db	0, 0, 0, 0	;@2 - floppy 2, don't change if two fdds are connected
+;		db	0, 0, 0, 0	;@1 - floppy 1, don't change for MB-02+
+;		db	0, 0, 0, 0	;@2 - floppy 2, don't change if two fdds are connected
 
-vdt_lba:	ds	1012		;table of virtual drives @3-@255
+vdt_lba:	ds	1020		;table of virtual drives @1-@255
 					;the format is: lba0,lba1,lba2,device_mode
 vdt_end:
 		savebin "cf-driver.bin",start,$-start

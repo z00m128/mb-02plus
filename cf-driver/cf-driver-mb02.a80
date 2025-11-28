@@ -1,10 +1,10 @@
 ;-------------------------------------;
 ;         CF Driver for MB-02+        ;
 ;-------------------------------------;
-; (c) 2025 z00m^SinDiKAT
+; (c) 11/2025 z00m^SinDiKAT
 ; formatted for SjASMPlus
 
-; Version: 1.3
+; Version: 1.31
 
 		device	zxspectrum48
 
@@ -16,6 +16,10 @@ ula:		equ	#fe
 dos_bank:	equ	#61
 patch_bank:	equ	#62
 rom_bank_ro:	equ	#40
+dos_ena:	equ	#3c9e
+killx:		equ	#1e
+setdrv:		equ	#13
+startdos:	equ	#30
 
 pasive:		equ	#0d
 
@@ -193,7 +197,24 @@ quit:		ld	hl,#B402
 		ld	sp,(sp_store)
 
 		ei
-		ret
+
+		call	dos_ena			; DOS BANK
+
+		ld	a,killx			; clear cache
+		rst	#20
+		ld	e,#03			; drive @3 active
+		ld	a,setdrv
+		rst	#20
+		ld	a,startdos		; start operating system
+		rst	#20
+		call	#3CA0			; jump to ROM
+		dw	#3906			; with BSROM 128k reset
+		rst	#00			; if it returns somehow, jump to 0
+		ld	a,#02			; still here? red border then
+		out	(ula),a
+dihalt:		di				; and endless loop
+		halt
+		jp	dihalt
 
 cfdrv_not_ok:	ld	a,rom_bank_ro		; rom_bank page in
 		out	(mem_port),a
@@ -1973,7 +1994,7 @@ cfdriver_end:
 
 ; Data
 msg_title_lbl:	db	"        CF D"
-		db	"river v1.3  for "
+		db	"river v1.31 for "
 		db	"MB-02+"
 		db	#00
 
